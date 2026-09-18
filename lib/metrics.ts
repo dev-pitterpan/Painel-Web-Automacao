@@ -97,7 +97,7 @@ export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?
 		rows: currentRows,
 		metrics: { ...metrics, comparisons },
 		byDay: [...daily.entries()].map(([data, value]) => ({ data, ...value })),
-		byBrand: [...brands.entries()].map(([marca, total]) => ({ marca, total })).sort((a, b) => b.total - a.total).slice(0, 8),
+		byBrand: [...brands.entries()].map(([marca, total]) => ({ marca, total })).sort((a, b) => b.total - a.total).slice(0, 20),
 		brands: [...new Set(
 			rows
 				.map(row => String(row.marca || "").trim())

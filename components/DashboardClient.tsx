@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   LineChart,
@@ -98,6 +98,108 @@ const Metric = ({
   </div>
 );
 
+
+
+type TimeGrouping = "daily" | "weekly" | "monthly" | "full";
+
+function parseDashboardDate(value: string) {
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) return date;
+
+  const match = String(value || "").match(
+    /^(\d{2})\/(\d{2})\/(\d{4}),?\s*(\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+
+  if (!match) return null;
+
+  const [, day, month, year, hour, minute, second = "00"] = match;
+  return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`);
+}
+
+function formatShortDate(date: Date) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit"
+  }).format(date);
+}
+
+function buildTimeSeries(rows: HistoryRow[], grouping: TimeGrouping) {
+  if (grouping === "full") {
+    const totals = rows.reduce(
+      (acc, row) => {
+        if (String(row.status || "").toLowerCase().startsWith("erro")) {
+          acc.erros += 1;
+        } else {
+          acc.sucesso += 1;
+        }
+        return acc;
+      },
+      { sucesso: 0, erros: 0 }
+    );
+
+    return [{ data: "Período completo", ...totals }];
+  }
+
+  const grouped = new Map<
+    string,
+    { sortKey: number; data: string; sucesso: number; erros: number }
+  >();
+
+  rows.forEach(row => {
+    const parsed = parseDashboardDate(row.dataHora);
+    if (!parsed) return;
+
+    let bucket = new Date(parsed);
+    let key = "";
+    let label = "";
+
+    if (grouping === "weekly") {
+      const day = bucket.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      bucket.setDate(bucket.getDate() + diff);
+      bucket.setHours(0, 0, 0, 0);
+
+      const end = new Date(bucket);
+      end.setDate(end.getDate() + 6);
+
+      key = `week-${bucket.getFullYear()}-${bucket.getMonth()}-${bucket.getDate()}`;
+      label = `${formatShortDate(bucket)}–${formatShortDate(end)}`;
+    } else if (grouping === "monthly") {
+      bucket = new Date(bucket.getFullYear(), bucket.getMonth(), 1);
+      key = `month-${bucket.getFullYear()}-${bucket.getMonth()}`;
+      label = new Intl.DateTimeFormat("pt-BR", {
+        month: "short",
+        year: "numeric"
+      })
+        .format(bucket)
+        .replace(" de ", "/");
+    } else {
+      bucket.setHours(0, 0, 0, 0);
+      key = `day-${bucket.getFullYear()}-${bucket.getMonth()}-${bucket.getDate()}`;
+      label = formatShortDate(bucket);
+    }
+
+    const current = grouped.get(key) || {
+      sortKey: bucket.getTime(),
+      data: label,
+      sucesso: 0,
+      erros: 0
+    };
+
+    if (String(row.status || "").toLowerCase().startsWith("erro")) {
+      current.erros += 1;
+    } else {
+      current.sucesso += 1;
+    }
+
+    grouped.set(key, current);
+  });
+
+  return [...grouped.values()]
+    .sort((a, b) => a.sortKey - b.sortKey)
+    .map(({ sortKey: _sortKey, ...item }) => item);
+}
+
 type ApiError = {
   error?: string;
 };
@@ -121,12 +223,24 @@ export function DashboardClient({
   const [q, setQ] = useState("");
   const [marca, setMarca] = useState("");
   const [days, setDays] = useState("30");
+  const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>("daily");
+  const [brandTop, setBrandTop] = useState(5);
   const [loadingProgress, setLoadingProgress] = useState(14);
   const [loadingExiting, setLoadingExiting] = useState(false);
   const [reprocessState, setReprocessState] = useState<Record<string, "sending" | "pending" | "success" | "error">>({});
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const timeSeriesData = useMemo(
+    () => buildTimeSeries(data?.rows || [], timeGrouping),
+    [data, timeGrouping]
+  );
+
+  const brandChartData = useMemo(
+    () => (data?.byBrand || []).slice(0, brandTop),
+    [data, brandTop]
+  );
 
   async function load(refresh = false) {
     setLoading(true);
@@ -641,7 +755,17 @@ export function DashboardClient({
             <div className="panel chart-panel">
               <div className="panel-head"><div><div className="eyebrow">Visão geral</div><div className="panel-title">
                 Processamentos ao longo do tempo
-              </div></div><select className="mini-select" defaultValue="diario"><option value="diario">Diário</option></select></div>
+              </div></div><select
+                className="mini-select"
+                value={timeGrouping}
+                onChange={e => setTimeGrouping(e.target.value as TimeGrouping)}
+                aria-label="Agrupar processamentos por período"
+              >
+                <option value="daily">Diário</option>
+                <option value="weekly">Semanal</option>
+                <option value="monthly">Mensal</option>
+                <option value="full">Período completo</option>
+              </select></div>
 
               <div
                 style={{
@@ -650,7 +774,7 @@ export function DashboardClient({
               >
                 <ResponsiveContainer>
                   <LineChart
-                    data={data.byDay}
+                    data={timeSeriesData}
                   >
                     <CartesianGrid
                       strokeDasharray="3 3"
@@ -682,7 +806,17 @@ export function DashboardClient({
             <div className="panel brand-panel">
               <div className="panel-head"><div><div className="eyebrow">Catálogo</div><div className="panel-title">
                 Distribuição por marca
-              </div></div><select className="mini-select" defaultValue="top"><option value="top">Top 8</option></select></div>
+              </div></div><select
+                className="mini-select"
+                value={String(brandTop)}
+                onChange={e => setBrandTop(Number(e.target.value))}
+                aria-label="Quantidade de marcas no ranking"
+              >
+                <option value="3">Top 3</option>
+                <option value="5">Top 5</option>
+                <option value="10">Top 10</option>
+                <option value="20">Top 20</option>
+              </select></div>
 
               <div
                 style={{
@@ -692,7 +826,7 @@ export function DashboardClient({
                 <ResponsiveContainer>
                   <PieChart>
                     <Pie
-                      data={data.byBrand}
+                      data={brandChartData}
                       dataKey="total"
                       nameKey="marca"
                       innerRadius={72}
@@ -700,7 +834,7 @@ export function DashboardClient({
                       paddingAngle={2}
                       cornerRadius={4}
                     >
-                      {data.byBrand.map(
+                      {brandChartData.map(
                         (_, index) => (
                           <Cell
                             key={index}

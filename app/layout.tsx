@@ -7,7 +7,12 @@ import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Pitter Pan | Automação Shopify",
-  description: "Dashboard da automação da Pitter Pan Festas"
+  description: "Dashboard da automação da Pitter Pan Festas",
+  icons: {
+    icon: "/logo-pitter-com-fundo.png",
+    shortcut: "/logo-pitter-com-fundo.png",
+    apple: "/logo-pitter-com-fundo.png"
+  }
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
