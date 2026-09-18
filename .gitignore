@@ -6,3 +6,5 @@ node_modules
 
 credentials/*
 !credentials/.gitkeep
+data/*.db
+data/*.db-*

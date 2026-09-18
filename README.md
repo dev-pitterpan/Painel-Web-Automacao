@@ -86,3 +86,23 @@ http://localhost:3000/api/test-sheet
 Se retornar `ok: true`, o Dashboard já pode usar a mesma autenticação.
 
 O arquivo JSON está ignorado pelo `.gitignore` e NÃO deve ser enviado para o GitHub.
+
+## Autenticação
+
+O dashboard exige login e não possui cadastro público. Os usuários ficam no SQLite local em `data/auth.db`, que é ignorado pelo Git.
+
+Para criar o primeiro administrador automaticamente, adicione ao `.env.local` antes de iniciar o servidor:
+
+```env
+AUTH_ADMIN_NAME=Administrador
+AUTH_ADMIN_EMAIL=admin@exemplo.com
+AUTH_ADMIN_PASSWORD=troque-por-uma-senha-forte
+```
+
+Ou crie usuários diretamente pelo comando administrativo:
+
+```bash
+npm run auth:create -- "Nome do usuário" email@empresa.com "senha-forte" user
+```
+
+O logout está disponível no rodapé da sidebar. Não existe rota de registro; novos acessos devem ser provisionados pelo banco ou pelo comando administrativo.

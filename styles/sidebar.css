@@ -90,7 +90,7 @@
 }
 .sidebar.is-collapsed .brand > div,
 .sidebar.is-collapsed .nav a span,
-.sidebar.is-collapsed .sidebar-user > span:not(.avatar):not(.user-chevron) {
+.sidebar.is-collapsed .sidebar-user > span:not(.avatar) {
   display: none;
 }
 .sidebar.is-collapsed .nav {
@@ -105,7 +105,7 @@
   justify-content: center;
   padding-inline: 0;
 }
-.sidebar.is-collapsed .user-chevron {
+.sidebar.is-collapsed .user-logout {
   display: none;
 }
 .sidebar-user {
@@ -146,10 +146,20 @@
   font-size: 10px;
   font-weight: 900;
 }
-.user-chevron {
+.user-logout {
   margin-left: auto;
+  display: grid;
+  place-items: center;
+  padding: 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: rgba(255, 255, 255, 0.55);
-  font-size: 16px;
+  cursor: pointer;
+}
+.user-logout:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 @media (max-width: 900px) {
