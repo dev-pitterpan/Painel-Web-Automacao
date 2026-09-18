@@ -17,15 +17,18 @@
 .metric-gold .metric-icon { color: #db9417; background: #fff7e4; }
 .metric-violet .metric-icon { color: var(--violet); background: #f0edff; }
 .metric-label { color: var(--muted); font-size: 10px; font-weight: 800; }
-.metric-value { margin-top: 12px; font-size: 25px; font-weight: 900; letter-spacing: -.8px; }
+.metric-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.metric-value { margin: 0; font-size: 23px; font-weight: 900; letter-spacing: -.8px; white-space: nowrap; }
 .metric-note { margin-top: 4px; color: var(--muted); font-size: 10px; }
-.metric-comparison { display: flex; align-items: center; gap: 4px; margin-top: 3px; color: var(--muted); font-size: 9px; }
-.metric-comparison span { margin-left: auto; }
-.metric-comparison.is-positive { color: var(--green); font-weight: 800; }
-.metric-comparison.is-negative { color: var(--red); font-weight: 800; }
-.metric-comparison.is-neutral { color: var(--muted); font-weight: 600; }
+.metric-change-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 74px; }
+.metric-comparison { display: inline-flex; align-items: center; justify-content: center; min-height: 21px; padding: 0 7px; border-radius: 999px; font-size: 9px; white-space: nowrap; }
+.metric-comparison.is-positive { color: var(--green); background: #e9f8f2; font-weight: 800; }
+.metric-comparison.is-negative { color: #d88a18; background: #fff4df; font-weight: 800; }
+.metric-comparison.is-neutral { color: var(--muted); background: #f1f4f8; font-weight: 600; }
+.metric-previous { color: var(--muted); font-size: 8px; white-space: nowrap; }
 .bento-secondary .metric-card { min-height: 87px; }
-.bento-secondary .metric-value { margin-top: 9px; font-size: 20px; }
+.bento-secondary .metric-bottom { margin-top: 9px; }
+.bento-secondary .metric-value { font-size: 20px; }
 .bento-grid { display: grid; grid-template-columns: minmax(0,1.45fr) minmax(320px,.85fr); gap: 14px; margin-bottom: 14px; }
 .panel { padding: 17px; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }

@@ -69,14 +69,18 @@ const Metric = ({
 }) => (
   <div className={`metric-card metric-${tone}`}>
     <div className="metric-top"><span className="metric-icon"><Icon size={17} /></span><div className="metric-label">{label}</div></div>
-    <div className="metric-value">{value}</div>
-    {(note || comparison !== undefined) && <div className="metric-note">{note}</div>}
-    {comparison !== undefined && (
-      <div className={`metric-comparison ${comparison === null ? "is-neutral" : ((comparison >= 0) !== inverse ? "is-positive" : "is-negative")}`}>
-        {comparison === null ? "Sem base anterior" : `${comparison >= 0 ? "↑" : "↓"} ${comparison >= 0 ? "+" : ""}${comparison.toFixed(2)}%`}
-        {comparison !== null && <span>vs. período anterior</span>}
-      </div>
-    )}
+    <div className="metric-bottom">
+      <div className="metric-value">{value}</div>
+      {comparison !== undefined && (
+        <div className="metric-change-wrap">
+          <div className={`metric-comparison ${comparison === null ? "is-neutral" : ((comparison >= 0) !== inverse ? "is-positive" : "is-negative")}`}>
+            {comparison === null ? "Sem base" : `${comparison >= 0 ? "↑" : "↓"} ${comparison >= 0 ? "+" : ""}${comparison.toFixed(2)}%`}
+          </div>
+          {comparison !== null && <span className="metric-previous">vs. período anterior</span>}
+        </div>
+      )}
+      {note && <div className="metric-note">{note}</div>}
+    </div>
   </div>
 );
 

@@ -80,7 +80,6 @@
 .nav a:first-child {
   background: var(--blue);
   color: #fff;
-  box-shadow: 0 7px 17px rgba(47, 112, 237, 0.3);
 }
 .sidebar.is-collapsed {
   align-items: center;
