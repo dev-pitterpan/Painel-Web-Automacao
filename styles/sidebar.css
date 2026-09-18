@@ -213,6 +213,15 @@
     display: none;
   }
   .sidebar-toggle {
+    display: none;
+  }
+  .sidebar.is-collapsed {
+    align-items: stretch;
+  }
+  .sidebar.is-collapsed .sidebar-toggle {
+    display: none;
+  }
+  .sidebar-toggle {
     top: 15px;
     left: auto;
     right: 14px;

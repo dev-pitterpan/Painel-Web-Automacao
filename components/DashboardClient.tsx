@@ -15,7 +15,7 @@ import {
   Cell,
   Legend
 } from "recharts";
-import { AlertCircle, CheckCircle2, Clock3, FileText, PackageCheck, RefreshCw, Tags, WandSparkles } from "lucide-react";
+import { AlertCircle, Bell, CheckCircle2, Clock3, FileText, LoaderCircle, PackageCheck, RefreshCw, Tags, WandSparkles, X } from "lucide-react";
 import type { DashboardData, HistoryRow } from "@/lib/types";
 
 const colors = [
@@ -88,6 +88,13 @@ type ApiError = {
   error?: string;
 };
 
+type NotificationItem = {
+  id: string;
+  tone: "success" | "error";
+  message: string;
+  createdAt: string;
+};
+
 export function DashboardClient({
   mode = "dashboard"
 }: {
@@ -102,6 +109,10 @@ export function DashboardClient({
   const [days, setDays] = useState("30");
   const [loadingProgress, setLoadingProgress] = useState(14);
   const [loadingExiting, setLoadingExiting] = useState(false);
+  const [reprocessState, setReprocessState] = useState<Record<string, "sending" | "success" | "error">>({});
+  const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   async function load(refresh = false) {
     setLoading(true);
@@ -224,32 +235,84 @@ export function DashboardClient({
     return () => window.clearTimeout(timeout);
   }, [loading, loadingExiting]);
 
-  async function reprocess(row: HistoryRow) {
-    const response = await fetch(
-      "/api/n8n/reprocess",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          sku: row.sku,
-          titulo:
-            row.tituloDepois ||
-            row.tituloAntes
-        })
-      }
-    );
-
-    const json = await response.json();
-
-    alert(
-      json.ok
-        ? "Enviado ao n8n."
-        : json.error ||
-            "Falha ao reprocessar."
-    );
+  function addNotification(tone: NotificationItem["tone"], message: string) {
+    const item: NotificationItem = {
+      id: `${Date.now()}-${Math.random()}`,
+      tone,
+      message,
+      createdAt: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    };
+    setNotifications(current => [item, ...current].slice(0, 20));
+    setToast({ tone, message });
   }
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
+  function reprocessKey(row: HistoryRow) {
+    return `${row.sku}::${row.dataHora}`;
+  }
+
+  async function reprocess(row: HistoryRow) {
+    const key = reprocessKey(row);
+
+    if (reprocessState[key] === "sending") {
+      return;
+    }
+
+    setReprocessState(current => ({
+      ...current,
+      [key]: "sending"
+    }));
+
+    setToast(null);
+
+    try {
+      const response = await fetch(
+        "/api/n8n/reprocess",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            sku: row.sku,
+            titulo:
+              row.tituloDepois ||
+              row.tituloAntes,
+            dataHora: row.dataHora
+          })
+        }
+      );
+
+      const json = await response.json().catch(() => null);
+
+      if (!response.ok || !json?.ok) {
+        throw new Error(
+          json?.error ||
+            `Falha ao reprocessar (HTTP ${response.status}).`
+        );
+      }
+
+      setReprocessState(current => ({
+        ...current,
+        [key]: "success"
+      }));
+
+      addNotification("success", json?.message || `SKU ${row.sku} enviado para reprocessamento.`);
+    } catch (err) {
+      setReprocessState(current => ({
+        ...current,
+        [key]: "error"
+      }));
+
+      addNotification("error", err instanceof Error ? err.message : "Falha ao enviar o produto para o n8n.");
+    }
+  }
+
 
   if (loading || loadingExiting) {
     return (
@@ -338,6 +401,18 @@ export function DashboardClient({
 
   return (
     <>
+      {toast && (
+        <div className={`integration-toast integration-toast-${toast.tone}`} role="status" aria-live="polite">
+          {toast.tone === "success" ? (
+            <CheckCircle2 size={18} />
+          ) : (
+            <AlertCircle size={18} />
+          )}
+          <span>{toast.message}</span>
+          <button type="button" onClick={() => setToast(null)} aria-label="Fechar aviso">×</button>
+        </div>
+      )}
+
       <div className="page-head">
         <div>
           <h1 className="page-title">
@@ -349,12 +424,32 @@ export function DashboardClient({
           </div>
         </div>
 
-        <button
-          className="btn"
-          onClick={() => load(true)}
-        >
-          <RefreshCw size={16} /> Atualizar
-        </button>
+        <div className="head-actions">
+          <div className="notification-center">
+          <button className="notification-button" type="button" onClick={() => setNotificationsOpen(value => !value)} aria-label="Abrir notificações" aria-expanded={notificationsOpen}>
+            <Bell size={17} />
+            {notifications.length > 0 && <span className="notification-count">{notifications.length > 9 ? "9+" : notifications.length}</span>}
+          </button>
+          {notificationsOpen && (
+            <div className="notification-panel">
+              <div className="notification-panel-head"><strong>Notificações</strong><button type="button" onClick={() => setNotifications([])}>Limpar</button></div>
+              {notifications.length === 0 ? <p className="notification-empty">Nenhum evento recente.</p> : notifications.map(item => (
+                <div className={`notification-item notification-item-${item.tone}`} key={item.id}>
+                  {item.tone === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  <span>{item.message}<small>{item.createdAt}</small></span>
+                  <button type="button" aria-label="Remover notificação" onClick={() => setNotifications(current => current.filter(notification => notification.id !== item.id))}><X size={14} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          </div>
+          <button
+            className="btn"
+            onClick={() => load(true)}
+          >
+            <RefreshCw size={16} /> Atualizar
+          </button>
+        </div>
       </div>
 
       <div className="filters">
@@ -603,8 +698,15 @@ export function DashboardClient({
           </div>
         </div>
 
-        <div className="table-wrap">
-          <table>
+        {data.rows.length === 0 ? (
+          <div className="empty-results" role="status">
+            <div className="empty-results-icon"><CheckCircle2 size={24} /></div>
+            <strong>{mode === "errors" ? "Nenhum produto com erro" : "Nenhum produto encontrado"}</strong>
+            <span>{mode === "errors" ? "Não há produtos com erro no período e filtros selecionados." : "Não há produtos para exibir no período e filtros selecionados."}</span>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
             <thead>
               <tr>
                 <th>Data/Hora</th>
@@ -671,20 +773,42 @@ export function DashboardClient({
                     </td>
 
                     <td>
-                      <button
-                        className="btn"
-                        onClick={() =>
-                          reprocess(row)
-                        }
-                      >
-                        Reprocessar
-                      </button>
+                      {(() => {
+                        const state = reprocessState[reprocessKey(row)];
+
+                        return (
+                          <button
+                            className={`btn reprocess-btn ${state ? `is-${state}` : ""}`}
+                            disabled={state === "sending" || state === "success"}
+                            onClick={() => reprocess(row)}
+                            title={
+                              state === "error"
+                                ? "Tentar enviar novamente"
+                                : "Reprocessar produto no n8n"
+                            }
+                          >
+                            {state === "sending" && <LoaderCircle className="spin" size={14} />}
+                            {state === "success" && <CheckCircle2 size={14} />}
+                            {state === "error" && <AlertCircle size={14} />}
+                            {!state && <RefreshCw size={14} />}
+
+                            {state === "sending"
+                              ? "Processando"
+                              : state === "success"
+                              ? "Enviado"
+                              : state === "error"
+                              ? "Tentar novamente"
+                              : "Reprocessar"}
+                          </button>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+        )}
       </section>
     </>
   );

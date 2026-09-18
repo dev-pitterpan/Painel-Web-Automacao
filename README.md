@@ -106,3 +106,24 @@ npm run auth:create -- "Nome do usuário" email@empresa.com "senha-forte" user
 ```
 
 O logout está disponível no rodapé da sidebar. Não existe rota de registro; novos acessos devem ser provisionados pelo banco ou pelo comando administrativo. As senhas precisam ter entre 12 e 256 caracteres.
+
+---
+
+## Integração n8n — Reprocessar
+
+A versão atual possui integração de backend preparada para o botão **Reprocessar**.
+
+Leia:
+
+```text
+N8N_REPROCESSAR.md
+```
+
+Variáveis necessárias:
+
+```env
+N8N_REPROCESS_WEBHOOK_URL=https://n8n.pitterpan.com.br/webhook/dashboard-reprocessar-produto
+N8N_REPROCESS_TOKEN=TOKEN_FORTE
+```
+
+O token nunca é enviado ao navegador; a chamada ao n8n é feita pela API interna do Next.js.

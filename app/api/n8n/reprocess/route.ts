@@ -1,19 +1,157 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { getCurrentUser } from "@/lib/auth";
 
+const REQUEST_TIMEOUT_MS = 20000;
+
 export async function POST(req: NextRequest) {
-	if (!await getCurrentUser()) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-	const url = process.env.N8N_REPROCESS_WEBHOOK_URL;
-	if (!url) return NextResponse.json({ error: "Webhook n8n ainda não configurado." }, { status: 503 });
-	const body = await req.json().catch(() => null);
-	const payload = {
-		sku: String(body?.sku || "").trim().slice(0, 120),
-		titulo: String(body?.titulo || "").trim().slice(0, 500),
-		origem: "dashboard-pitter-pan"
-	};
-	if (!payload.sku) return NextResponse.json({ error: "SKU obrigatório." }, { status: 400 });
-	const headers: Record<string, string> = { "Content-Type": "application/json" };
-	if (process.env.N8N_REPROCESS_TOKEN) headers["x-pitterpan-token"] = process.env.N8N_REPROCESS_TOKEN;
-	const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload), cache: "no-store" });
-	return NextResponse.json({ ok: response.ok, status: response.status, response: (await response.text()).slice(0, 2000) }, { status: response.ok ? 200 : 502 });
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "Não autenticado." },
+      { status: 401 }
+    );
+  }
+
+  const url = String(
+    process.env.N8N_REPROCESS_WEBHOOK_URL || ""
+  ).trim();
+
+  if (!url) {
+    return NextResponse.json(
+      { error: "Webhook do n8n ainda não configurado." },
+      { status: 503 }
+    );
+  }
+
+  const body = await req.json().catch(() => null);
+
+  const sku = String(body?.sku || "")
+    .trim()
+    .slice(0, 120);
+
+  const titulo = String(body?.titulo || "")
+    .trim()
+    .slice(0, 500);
+
+  const dataHoraHistorico = String(
+    body?.dataHora || ""
+  )
+    .trim()
+    .slice(0, 80);
+
+  if (!sku) {
+    return NextResponse.json(
+      { error: "SKU obrigatório." },
+      { status: 400 }
+    );
+  }
+
+  const requestId = randomUUID();
+
+  const payload = {
+    request_id: requestId,
+    sku,
+    titulo,
+    data_hora_historico: dataHoraHistorico || null,
+    origem: "dashboard-pitter-pan",
+    solicitado_em: new Date().toISOString(),
+    solicitado_por: {
+      id: user.id,
+      nome: user.name,
+      email: user.email,
+      perfil: user.role
+    }
+  };
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-request-id": requestId
+  };
+
+  const token = String(
+    process.env.N8N_REPROCESS_TOKEN || ""
+  ).trim();
+
+  if (token) {
+    headers["x-pitterpan-token"] = token;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    REQUEST_TIMEOUT_MS
+  );
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      signal: controller.signal
+    });
+
+    const raw = await response.text();
+
+    let parsed: any = null;
+
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {
+      parsed = null;
+    }
+
+    if (!response.ok) {
+      const detail =
+        parsed?.message ||
+        parsed?.error ||
+        raw ||
+        `HTTP ${response.status}`;
+
+      return NextResponse.json(
+        {
+          ok: false,
+          requestId,
+          error: `O n8n recusou o reprocessamento: ${String(detail).slice(0, 1200)}`
+        },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      requestId,
+      message:
+        parsed?.message ||
+        "Produto enviado para reprocessamento.",
+      n8n: parsed || (raw ? { response: raw.slice(0, 1200) } : null)
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return NextResponse.json(
+        {
+          ok: false,
+          requestId,
+          error: "O n8n demorou mais de 20 segundos para responder."
+        },
+        { status: 504 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        ok: false,
+        requestId,
+        error:
+          error instanceof Error
+            ? `Falha ao conectar com o n8n: ${error.message}`
+            : "Falha desconhecida ao conectar com o n8n."
+      },
+      { status: 502 }
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 }
