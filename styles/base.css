@@ -46,6 +46,7 @@ button:hover {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 242px minmax(0, 1fr);
+  transition: grid-template-columns 0.28s ease;
 }
 .content {
   min-width: 0;

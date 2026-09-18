@@ -1,13 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { LockKeyhole, Mail, LogIn } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, Mail, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -45,7 +46,7 @@ export function LoginForm() {
           <label htmlFor="email">E-mail</label>
           <div className="login-input"><Mail size={17} /><input id="email" type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required /></div>
           <label htmlFor="password">Senha</label>
-          <div className="login-input"><LockKeyhole size={17} /><input id="password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required /></div>
+          <div className="login-input"><LockKeyhole size={17} /><input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required /><button className="password-toggle" type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} title={showPassword ? "Ocultar senha" : "Mostrar senha"}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div>
           {error && <p className="login-error" role="alert">{error}</p>}
           <button className="login-submit" type="submit" disabled={loading}><LogIn size={17} />{loading ? "Entrando..." : "Entrar no dashboard"}</button>
         </form>

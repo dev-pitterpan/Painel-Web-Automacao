@@ -11,7 +11,8 @@
   box-shadow: 8px 0 24px rgba(8, 25, 53, 0.08);
   transition:
     padding 0.2s ease,
-    gap 0.2s ease;
+    gap 0.2s ease,
+    align-items 0.2s ease;
 }
 .app-shell:has(.sidebar.is-collapsed) {
   grid-template-columns: 78px minmax(0, 1fr);
@@ -19,18 +20,30 @@
 .sidebar-toggle {
   position: absolute;
   top: 18px;
-  right: -12px;
+  left: calc(100% - 12.5px);
+  right: auto;
   z-index: 2;
   width: 25px;
   height: 25px;
   display: grid;
   place-items: center;
+  padding: 0;
+  line-height: 0;
   border: 1px solid var(--line);
   border-radius: 50%;
   background: #fff;
   color: var(--ink);
   cursor: pointer;
   box-shadow: 0 3px 9px rgba(18, 38, 70, 0.16);
+  transform: none;
+  transition: transform 0.2s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+.sidebar-toggle svg {
+  display: block;
+  margin: 0;
+}
+.sidebar-toggle:hover {
+  transform: scale(1.06);
 }
 .brand {
   display: flex;
@@ -63,7 +76,7 @@
 .nav a {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
   color: rgba(255, 255, 255, 0.64);
   padding: 11px 13px;
   border-radius: 8px;
@@ -91,7 +104,19 @@
 .sidebar.is-collapsed .brand > div,
 .sidebar.is-collapsed .nav a span,
 .sidebar.is-collapsed .sidebar-user > span:not(.avatar) {
-  display: none;
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+}
+.brand > div,
+.nav a span,
+.sidebar-user > span:nth-child(2) {
+  max-width: 180px;
+  opacity: 1;
+  transform: translateX(0);
+  transition: max-width 0.22s ease, opacity 0.16s ease, transform 0.22s ease;
+  overflow: hidden;
 }
 .sidebar.is-collapsed .nav {
   width: 100%;
@@ -189,7 +214,12 @@
   }
   .sidebar-toggle {
     top: 15px;
+    left: auto;
     right: 14px;
+    transform: none;
+  }
+  .sidebar-toggle:hover {
+    transform: scale(1.06);
   }
   .sidebar.is-collapsed {
     align-items: stretch;
