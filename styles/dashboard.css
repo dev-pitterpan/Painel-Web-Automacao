@@ -292,10 +292,15 @@ tbody tr:hover {
   color: var(--muted);
 }
 .loading-screen {
-  min-height: calc(100vh - 79px);
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: 100vw;
+  height: 100vh;
   display: grid;
   place-items: center;
   padding: 28px 0;
+  background: var(--bg);
 }
 .loading-card {
   width: min(100%, 698px);
