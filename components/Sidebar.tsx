@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import { ChevronLeft, ChevronRight, CircleAlert, FileText, LayoutDashboard, Package } from "lucide-react";
 
@@ -14,6 +15,7 @@ const items: Array<[string, string, LucideIcon]> = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const pathname = usePathname();
 
   return (
     <aside className={`sidebar ${collapsed ? "is-collapsed" : ""}`}>
@@ -27,7 +29,7 @@ export function Sidebar() {
         {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
       <div className="brand">
-        <img className="brand-logo" src="./pitter-logo.png" alt="Pitter Pan Festas" />
+        <img className="brand-logo" src="/logo-pitter-com-fundo.png" alt="Pitter Pan Festas" />
         <div>
           <div className="brand-title">Catálogo Pro</div>
           <div className="brand-sub">Automação de e-commerce</div>
@@ -35,7 +37,11 @@ export function Sidebar() {
       </div>
       <nav className="nav">
         {items.map(([label, href, Icon]) => (
-          <Link key={href} href={href}>
+          <Link
+            key={href}
+            href={href}
+            className={pathname === href ? "is-active" : undefined}
+          >
             {Icon && <Icon size={17} strokeWidth={2} />}
             <span>{label}</span>
           </Link>

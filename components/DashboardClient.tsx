@@ -100,9 +100,12 @@ export function DashboardClient({
   const [q, setQ] = useState("");
   const [marca, setMarca] = useState("");
   const [days, setDays] = useState("30");
+  const [loadingProgress, setLoadingProgress] = useState(14);
+  const [loadingExiting, setLoadingExiting] = useState(false);
 
   async function load(refresh = false) {
     setLoading(true);
+    setLoadingExiting(false);
     setError("");
 
     try {
@@ -188,12 +191,38 @@ export function DashboardClient({
       );
     } finally {
       setLoading(false);
+      setLoadingProgress(100);
+      setLoadingExiting(true);
     }
   }
 
   useEffect(() => {
     load();
   }, [days, marca, mode]);
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingProgress(100);
+      return;
+    }
+
+    setLoadingProgress(14);
+    const interval = window.setInterval(() => {
+      setLoadingProgress(current => Math.min(current + 5, 92));
+    }, 180);
+
+    return () => window.clearInterval(interval);
+  }, [loading]);
+
+  useEffect(() => {
+    if (loading || !loadingExiting) return;
+
+    const timeout = window.setTimeout(() => {
+      setLoadingExiting(false);
+    }, 360);
+
+    return () => window.clearTimeout(timeout);
+  }, [loading, loadingExiting]);
 
   async function reprocess(row: HistoryRow) {
     const response = await fetch(
@@ -222,10 +251,26 @@ export function DashboardClient({
     );
   }
 
-  if (loading) {
+  if (loading || loadingExiting) {
     return (
-      <div className="panel">
-        Carregando dados da planilha...
+      <div className={`loading-screen ${loadingExiting ? "is-exiting" : ""}`} role="status" aria-live="polite">
+        <div className="loading-card">
+          <img
+            className="loading-logo"
+            src="/pitter-logo.svg"
+            alt="Pitter Pan Festas"
+          />
+          <h1>Carregando dados da planilha...</h1>
+          <div className="loading-progress-row">
+            <div className="loading-progress" aria-hidden="true">
+              <span
+                className="loading-progress-fill"
+                style={{ width: `${loadingProgress}%` }}
+              />
+            </div>
+            <strong>{loadingProgress}%</strong>
+          </div>
+        </div>
       </div>
     );
   }
@@ -545,7 +590,7 @@ export function DashboardClient({
         </>
       )}
 
-      <section className="panel">
+      <section className={`panel ${mode === "dashboard" ? "latest-processings" : mode === "products" ? "products-list" : ""}`}>
         <div className="panel-head">
           <div className="panel-title">
             {mode === "errors"
