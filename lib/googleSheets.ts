@@ -1,5 +1,7 @@
 import { google } from "googleapis";
 import type { HistoryRow } from "./types";
+import path from "node:path";
+import fs from "node:fs";
 
 let cache:
   | {
@@ -12,6 +14,55 @@ const boolPt = (value: unknown) =>
   String(value ?? "")
     .trim()
     .toLowerCase() === "sim";
+
+function getGoogleConfig() {
+  const sheetId =
+    String(
+      process.env.GOOGLE_SHEET_ID || ""
+    ).trim();
+
+  const sheetName =
+    String(
+      process.env.GOOGLE_SHEET_NAME ||
+      "Histórico"
+    ).trim();
+
+  const credentialsFile =
+    String(
+      process.env.GOOGLE_SERVICE_ACCOUNT_FILE ||
+      "credentials/google-service-account.json"
+    ).trim();
+
+  if (!sheetId) {
+    throw new Error(
+      "GOOGLE_SHEET_ID não foi configurado no .env.local."
+    );
+  }
+
+  if (!sheetName) {
+    throw new Error(
+      "GOOGLE_SHEET_NAME não foi configurado no .env.local."
+    );
+  }
+
+  const keyFile =
+    path.resolve(
+      process.cwd(),
+      credentialsFile
+    );
+
+  if (!fs.existsSync(keyFile)) {
+    throw new Error(
+      `Arquivo da Service Account não encontrado em: ${keyFile}`
+    );
+  }
+
+  return {
+    sheetId,
+    sheetName,
+    keyFile
+  };
+}
 
 export async function getHistoryRows(
   force = false
@@ -26,45 +77,18 @@ export async function getHistoryRows(
     return cache.rows;
   }
 
-  const sheetId =
-    process.env.GOOGLE_SHEET_ID;
-
-  const sheetName =
-    process.env.GOOGLE_SHEET_NAME ||
-    "Histórico";
-
-  const email =
-    process.env
-      .GOOGLE_SERVICE_ACCOUNT_EMAIL;
-
-  const key =
-    process.env
-      .GOOGLE_PRIVATE_KEY
-      ?.replace(/\\n/g, "\n");
-
-  if (!sheetId) {
-    throw new Error(
-      "GOOGLE_SHEET_ID não foi configurado no .env.local."
-    );
-  }
-
-  if (!email) {
-    throw new Error(
-      "GOOGLE_SERVICE_ACCOUNT_EMAIL não foi configurado no .env.local."
-    );
-  }
-
-  if (!key) {
-    throw new Error(
-      "GOOGLE_PRIVATE_KEY não foi configurado no .env.local."
-    );
-  }
+  const {
+    sheetId,
+    sheetName,
+    keyFile
+  } = getGoogleConfig();
 
   try {
+    // O GoogleAuth lê o JSON oficial diretamente do disco.
+    // Não há conversão de PEM, Base64 ou \n.
     const auth =
-      new google.auth.JWT({
-        email,
-        key,
+      new google.auth.GoogleAuth({
+        keyFile,
         scopes: [
           "https://www.googleapis.com/auth/spreadsheets.readonly"
         ]
@@ -127,9 +151,7 @@ export async function getHistoryRows(
 
     if (missing.length) {
       throw new Error(
-        `A planilha foi encontrada, mas faltam estas colunas no cabeçalho: ${missing.join(
-          ", "
-        )}`
+        `A planilha foi encontrada, mas faltam estas colunas no cabeçalho: ${missing.join(", ")}`
       );
     }
 

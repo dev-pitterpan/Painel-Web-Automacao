@@ -46,3 +46,43 @@ O dashboard enviará:
 - logs;
 - painel de exclusão;
 - visão de filas/workers.
+
+
+---
+
+## Correção de autenticação Google Sheets (JSON direto)
+
+Esta versão NÃO usa `GOOGLE_PRIVATE_KEY`, Base64 ou conversão de `\n`.
+
+1. Baixe um JSON NOVO da Service Account no Google Cloud.
+2. Renomeie para `google-service-account.json`.
+3. Coloque em:
+
+```text
+credentials/google-service-account.json
+```
+
+4. Crie `.env.local` a partir de `.env.example`:
+
+```env
+GOOGLE_SHEET_ID=1yP52hwQnM4D0EykI03gY_Rq4azBGI4nQeIp1ZfTTu9s
+GOOGLE_SHEET_NAME=Histórico A-Z
+GOOGLE_SERVICE_ACCOUNT_FILE=credentials/google-service-account.json
+```
+
+5. Compartilhe a planilha com o `client_email` que existe dentro do JSON.
+6. Rode:
+
+```bash
+npm run dev
+```
+
+7. Teste:
+
+```text
+http://localhost:3000/api/test-sheet
+```
+
+Se retornar `ok: true`, o Dashboard já pode usar a mesma autenticação.
+
+O arquivo JSON está ignorado pelo `.gitignore` e NÃO deve ser enviado para o GitHub.

@@ -1,15 +1,24 @@
 import { google } from "googleapis";
+import path from "node:path";
+import fs from "node:fs";
 
 export async function GET() {
   try {
     const sheetId =
-      process.env.GOOGLE_SHEET_ID;
+      String(
+        process.env.GOOGLE_SHEET_ID || ""
+      ).trim();
 
     const sheetName =
-      process.env.GOOGLE_SHEET_NAME;
+      String(
+        process.env.GOOGLE_SHEET_NAME || ""
+      ).trim();
 
-    const credentialsBase64 =
-      process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
+    const credentialsFile =
+      String(
+        process.env.GOOGLE_SERVICE_ACCOUNT_FILE ||
+        "credentials/google-service-account.json"
+      ).trim();
 
     if (!sheetId) {
       throw new Error(
@@ -23,84 +32,57 @@ export async function GET() {
       );
     }
 
-    if (!credentialsBase64) {
+    const keyFile =
+      path.resolve(
+        process.cwd(),
+        credentialsFile
+      );
+
+    if (!fs.existsSync(keyFile)) {
       throw new Error(
-        "GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 não configurado."
+        `Arquivo da Service Account não encontrado em: ${keyFile}`
       );
     }
 
-    // ==========================================
-    // DECODIFICAR JSON COMPLETO DA SERVICE ACCOUNT
-    // ==========================================
-
-    const credentialsJson =
-      Buffer.from(
-        credentialsBase64,
-        "base64"
-      ).toString("utf8");
-
-    const credentials =
-      JSON.parse(
-        credentialsJson
-      );
-
-    // ==========================================
-    // VALIDAR CREDENCIAIS
-    // ==========================================
-
-    if (!credentials.client_email) {
-      throw new Error(
-        "client_email não encontrado nas credenciais."
-      );
-    }
-
-    if (!credentials.private_key) {
-      throw new Error(
-        "private_key não encontrada nas credenciais."
-      );
-    }
-
-    // ==========================================
-    // AUTENTICAÇÃO GOOGLE
-    // ==========================================
-
+    // Usa o JSON oficial da Service Account diretamente.
     const auth =
       new google.auth.GoogleAuth({
-        credentials,
+        keyFile,
         scopes: [
           "https://www.googleapis.com/auth/spreadsheets.readonly"
         ]
       });
 
+    // Força a autenticação aqui para que erros de credencial
+    // apareçam de forma clara antes da consulta da planilha.
+    const client =
+      await auth.getClient();
+
     const sheets =
       google.sheets({
         version: "v4",
-        auth
+        auth: client
       });
-
-    // ==========================================
-    // TESTAR PLANILHA
-    // ==========================================
 
     const response =
-      await sheets.spreadsheets.values.get({
-        spreadsheetId:
-          sheetId,
+      await sheets
+        .spreadsheets
+        .values
+        .get({
+          spreadsheetId:
+            sheetId,
 
-        range:
-          `'${sheetName}'!A1:N5`
-      });
+          range:
+            `'${sheetName}'!A1:N5`
+        });
 
     return Response.json({
       ok: true,
-
-      serviceAccount:
-        credentials.client_email,
-
+      arquivoCredencial:
+        credentialsFile,
       linhas:
         response.data.values || []
     });
-
   } catch (error) {
     console.error(
       "ERRO GOOGLE SHEETS:",
@@ -110,7 +92,6 @@ export async function GET() {
     return Response.json(
       {
         ok: false,
-
         erro:
           error?.response?.data
             ?.error?.message ||
