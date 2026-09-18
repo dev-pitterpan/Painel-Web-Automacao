@@ -109,7 +109,7 @@ export function DashboardClient({
   const [days, setDays] = useState("30");
   const [loadingProgress, setLoadingProgress] = useState(14);
   const [loadingExiting, setLoadingExiting] = useState(false);
-  const [reprocessState, setReprocessState] = useState<Record<string, "sending" | "success" | "error">>({});
+  const [reprocessState, setReprocessState] = useState<Record<string, "sending" | "pending" | "success" | "error">>({});
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -259,7 +259,7 @@ export function DashboardClient({
   async function reprocess(row: HistoryRow) {
     const key = reprocessKey(row);
 
-    if (reprocessState[key] === "sending") {
+    if (reprocessState[key] === "sending" || reprocessState[key] === "pending") {
       return;
     }
 
@@ -295,6 +295,15 @@ export function DashboardClient({
           json?.error ||
             `Falha ao reprocessar (HTTP ${response.status}).`
         );
+      }
+
+      if (json.completed === false) {
+        setReprocessState(current => ({
+          ...current,
+          [key]: "pending"
+        }));
+        addNotification("success", "Produto aceito pelo n8n e aguardando conclusão das alterações.");
+        return;
       }
 
       setReprocessState(current => ({
@@ -779,7 +788,7 @@ export function DashboardClient({
                         return (
                           <button
                             className={`btn reprocess-btn ${state ? `is-${state}` : ""}`}
-                            disabled={state === "sending" || state === "success"}
+                            disabled={state === "sending" || state === "pending" || state === "success"}
                             onClick={() => reprocess(row)}
                             title={
                               state === "error"
@@ -787,12 +796,12 @@ export function DashboardClient({
                                 : "Reprocessar produto no n8n"
                             }
                           >
-                            {state === "sending" && <LoaderCircle className="spin" size={14} />}
+                            {(state === "sending" || state === "pending") && <LoaderCircle className="spin" size={14} />}
                             {state === "success" && <CheckCircle2 size={14} />}
                             {state === "error" && <AlertCircle size={14} />}
                             {!state && <RefreshCw size={14} />}
 
-                            {state === "sending"
+                            {state === "sending" || state === "pending"
                               ? "Processando"
                               : state === "success"
                               ? "Enviado"

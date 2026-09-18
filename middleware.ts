@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const hasSession = request.cookies.has("pitter_session");
-  const isAuthRoute = pathname === "/login" || pathname.startsWith("/api/auth");
+  const isAuthRoute = pathname === "/login" || pathname.startsWith("/api/auth") || pathname === "/api/n8n/reprocess/callback";
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pitter-pathname", pathname);
 

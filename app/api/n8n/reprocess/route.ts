@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isCompleteReprocessResult, recordPendingReprocess, recordReprocess } from "@/lib/auth";
 
 const REQUEST_TIMEOUT_MS = 20000;
 
@@ -120,12 +120,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const completed = isCompleteReprocessResult(parsed);
+
+    if (completed) {
+      recordReprocess({
+        requestId,
+        sku,
+        title: titulo,
+        historicalDate: dataHoraHistorico,
+        userId: user.id,
+        result: parsed
+      });
+    } else {
+      recordPendingReprocess({
+        requestId,
+        sku,
+        title: titulo,
+        historicalDate: dataHoraHistorico,
+        userId: user.id
+      });
+    }
+
     return NextResponse.json({
       ok: true,
+      completed,
       requestId,
       message:
-        parsed?.message ||
-        "Produto enviado para reprocessamento.",
+        completed
+          ? parsed?.message || "Produto enviado para reprocessamento."
+          : "O n8n aceitou o produto, mas ainda não concluiu o processamento.",
       n8n: parsed || (raw ? { response: raw.slice(0, 1200) } : null)
     });
   } catch (error) {

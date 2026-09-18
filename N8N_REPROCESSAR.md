@@ -174,18 +174,59 @@ Automação principal existente
 
 ### 07 - Respond to Webhook
 
-Em caso de aceite:
+Como o workflow da imagem responde `202` antes de executar a automação principal, esse node deve apenas confirmar o recebimento:
 
 ```json
 {
   "ok": true,
-  "message": "Produto enviado para reprocessamento.",
+  "message": "Produto aceito e em processamento.",
   "sku": "32407",
   "request_id": "..."
 }
 ```
 
-Status HTTP: `200`.
+Status HTTP: `202`.
+
+### 08 - Callback após a automação principal
+
+No final da automação principal, depois que as tags e demais campos estiverem completos, adicione um node **HTTP Request** para:
+
+```text
+POST https://SEU-DOMINIO/api/n8n/reprocess/callback
+```
+
+Headers:
+
+```text
+Content-Type: application/json
+x-pitterpan-token: o mesmo N8N_REPROCESS_TOKEN
+```
+
+Body JSON: envie o `request_id` recebido no início e o resultado final. O retorno pode ser o objeto ou o array produzido pelo workflow:
+
+```json
+{
+  "request_id": "uuid-do-webhook",
+  "resultado": {
+    "data_hora": "18/09/2026, 11:38:43",
+    "sku": "18001",
+    "titulo_antes": "Amendoim Confeitado Branco 200g",
+    "titulo_depois": "Amendoim Confeitado Branco 200g",
+    "tags_antes": "Amendoins, Doce",
+    "tags_depois": "Amendoins, Doce, Guloseimas",
+    "colecoes_antes": "Guloseimas, Amendoins",
+    "colecoes_depois": "Guloseimas, Amendoins",
+    "titulo_alterado": "Não",
+    "tags_alteradas": "Sim",
+    "colecoes_alteradas": "Não",
+    "descricao_gerada": "Não",
+    "status": "Concluído - classificação atualizada",
+    "processado": true
+  }
+}
+```
+
+O produto só aparece em **Reprocessados** depois que esse callback retornar `200`. O callback rejeita resultados com `processado: false` ou sem `tags_depois`.
 
 Em caso de erro de SKU:
 
@@ -204,7 +245,7 @@ O botão agora possui estados:
 
 ```text
 Reprocessar
-→ Enviando...
+→ Processando
 → Enviado
 ```
 

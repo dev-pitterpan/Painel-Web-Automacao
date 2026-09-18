@@ -202,12 +202,13 @@
     padding-bottom: 4px;
   }
   .nav {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
   .nav a {
     justify-content: center;
     padding: 9px 6px;
-    font-size: 11px;
+    font-size: 10px;
+    gap: 5px;
   }
   .sidebar-user {
     display: none;

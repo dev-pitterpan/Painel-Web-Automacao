@@ -10,6 +10,18 @@ export type AuthUser = {
   role: string;
 };
 
+export type ReprocessRecord = {
+  result: Record<string, unknown> | null;
+  id: number;
+  requestId: string;
+  sku: string;
+  title: string;
+  historicalDate: string | null;
+  requestedBy: string;
+  status: "enviado";
+  createdAt: string;
+};
+
 type UserRecord = AuthUser & { password_hash: string };
 
 const databasePath = process.env.AUTH_DATABASE_FILE || path.join(process.cwd(), "data", "auth.db");
@@ -41,7 +53,22 @@ database.exec(`
     blocked_until INTEGER NOT NULL DEFAULT 0,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS reprocess_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id TEXT NOT NULL UNIQUE,
+    sku TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    historical_date TEXT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'enviado',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
 `);
+
+const reprocessColumns = database.prepare("PRAGMA table_info(reprocess_jobs)").all() as Array<{ name: string }>;
+if (!reprocessColumns.some(column => column.name === "result_json")) {
+  database.exec("ALTER TABLE reprocess_jobs ADD COLUMN result_json TEXT");
+}
 
 if (process.env.NODE_ENV !== "production") globalForAuth.authDatabase = database;
 
@@ -152,6 +179,67 @@ export function getUserIdByEmail(email: string) {
 
 export function deleteSession(token: string | undefined) {
   if (token) database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashSessionToken(token));
+}
+
+export function recordPendingReprocess(record: { requestId: string; sku: string; title: string; historicalDate?: string | null; userId: number }) {
+  database.prepare(`
+    INSERT INTO reprocess_jobs (request_id, sku, title, historical_date, user_id, status, result_json)
+    VALUES (?, ?, ?, ?, ?, 'processando', NULL)
+  `).run(record.requestId, record.sku, record.title, record.historicalDate || null, record.userId);
+}
+
+export function recordReprocess(record: { requestId: string; sku: string; title: string; historicalDate?: string | null; userId: number; result?: unknown }) {
+  database.prepare(`
+    INSERT INTO reprocess_jobs (request_id, sku, title, historical_date, user_id, status, result_json)
+    VALUES (?, ?, ?, ?, ?, 'enviado', ?)
+  `).run(record.requestId, record.sku, record.title, record.historicalDate || null, record.userId, JSON.stringify(record.result || null));
+}
+
+export function completeReprocess(requestId: string, result: unknown) {
+  const update = database.prepare(`
+    UPDATE reprocess_jobs
+    SET status = 'enviado', result_json = ?
+    WHERE request_id = ? AND status = 'processando'
+  `).run(JSON.stringify(result), requestId);
+  return update.changes > 0;
+}
+
+export function isCompleteReprocessResult(payload: unknown) {
+  const result = Array.isArray(payload) ? payload[0] as Record<string, unknown> | undefined : payload as Record<string, unknown> | null;
+  const processed = result?.processado === true || String(result?.processado || "").toLowerCase() === "true";
+  return Boolean(result && processed && Object.prototype.hasOwnProperty.call(result, "tags_depois"));
+}
+
+export function listReprocesses(user: AuthUser): ReprocessRecord[] {
+  const rows = database.prepare(`
+    SELECT reprocess_jobs.id, reprocess_jobs.request_id, reprocess_jobs.sku,
+      reprocess_jobs.title, reprocess_jobs.historical_date, reprocess_jobs.status,
+      reprocess_jobs.created_at, users.name AS requested_by, reprocess_jobs.result_json
+    FROM reprocess_jobs
+    INNER JOIN users ON users.id = reprocess_jobs.user_id
+    WHERE reprocess_jobs.result_json IS NOT NULL
+    ${user.role === "admin" ? "" : "AND reprocess_jobs.user_id = ?"}
+    ORDER BY reprocess_jobs.id DESC
+    LIMIT 500
+  `).all(...(user.role === "admin" ? [] : [user.id])) as Array<{
+    id: number; request_id: string; sku: string; title: string; historical_date: string | null;
+    status: "enviado"; created_at: string; requested_by: string; result_json: string | null;
+  }>;
+  return rows.map(row => ({
+    id: row.id,
+    requestId: row.request_id,
+    sku: row.sku,
+    title: row.title,
+    historicalDate: row.historical_date,
+    requestedBy: row.requested_by,
+    status: row.status,
+    createdAt: row.created_at,
+    result: row.result_json ? JSON.parse(row.result_json) as Record<string, unknown> : null
+  })).filter(record => {
+    const result = Array.isArray(record.result) ? record.result[0] as Record<string, unknown> | undefined : record.result;
+    const processed = result?.processado === true || String(result?.processado || "").toLowerCase() === "true";
+    return Boolean(result && processed && Object.prototype.hasOwnProperty.call(result, "tags_depois"));
+  });
 }
 
 export async function getCurrentUser() {
