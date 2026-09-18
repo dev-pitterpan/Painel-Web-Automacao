@@ -8,8 +8,8 @@ if (!name || !email || !password) {
   console.error("Uso: npm run auth:create -- \"Nome\" email@empresa.com senha [role]");
   process.exit(1);
 }
-if (password.length < 8) {
-  console.error("A senha precisa ter pelo menos 8 caracteres.");
+if (password.length < 12 || password.length > 256) {
+  console.error("A senha precisa ter entre 12 e 256 caracteres.");
   process.exit(1);
 }
 

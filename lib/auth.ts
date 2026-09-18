@@ -19,6 +19,8 @@ const globalForAuth = globalThis as typeof globalThis & { authDatabase?: Databas
 const database = globalForAuth.authDatabase || new Database(databasePath);
 
 database.pragma("journal_mode = WAL");
+database.pragma("foreign_keys = ON");
+database.pragma("busy_timeout = 5000");
 database.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,12 +35,26 @@ database.exec(`
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     expires_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS login_attempts (
+    identifier TEXT PRIMARY KEY,
+    failures INTEGER NOT NULL DEFAULT 0,
+    blocked_until INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+  );
 `);
 
 if (process.env.NODE_ENV !== "production") globalForAuth.authDatabase = database;
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function normalizeIdentifier(identifier: string) {
+  return identifier.trim().slice(0, 160).toLowerCase() || "unknown";
+}
+
+function isValidEmail(email: string) {
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function hashPassword(password: string) {
@@ -65,8 +81,11 @@ function toUser(record: UserRecord | undefined): AuthUser | null {
 }
 
 export function createUser(name: string, email: string, password: string, role = "user") {
-  if (password.length < 8) throw new Error("A senha precisa ter pelo menos 8 caracteres.");
+  if (name.trim().length < 2 || name.trim().length > 100) throw new Error("O nome precisa ter entre 2 e 100 caracteres.");
   const normalizedEmail = normalizeEmail(email);
+  if (!isValidEmail(normalizedEmail)) throw new Error("E-mail inválido.");
+  if (password.length < 12 || password.length > 256) throw new Error("A senha precisa ter entre 12 e 256 caracteres.");
+  if (!/^(user|admin)$/.test(role)) throw new Error("Perfil de usuário inválido.");
   const result = database.prepare(
     "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)"
   ).run(name.trim(), normalizedEmail, hashPassword(password), role);
@@ -87,7 +106,29 @@ export function authenticate(email: string, password: string) {
   return toUser(record);
 }
 
+export function isLoginRateLimited(identifier: string) {
+  const record = database.prepare("SELECT blocked_until FROM login_attempts WHERE identifier = ?").get(normalizeIdentifier(identifier)) as { blocked_until: number } | undefined;
+  return Boolean(record && record.blocked_until > Date.now());
+}
+
+export function recordLoginFailure(identifier: string) {
+  const key = normalizeIdentifier(identifier);
+  const now = Date.now();
+  const record = database.prepare("SELECT failures FROM login_attempts WHERE identifier = ?").get(key) as { failures: number } | undefined;
+  const failures = (record?.failures || 0) + 1;
+  const blockedUntil = failures >= 5 ? now + 15 * 60 * 1000 : 0;
+  database.prepare(`
+    INSERT INTO login_attempts (identifier, failures, blocked_until, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(identifier) DO UPDATE SET failures = excluded.failures, blocked_until = excluded.blocked_until, updated_at = excluded.updated_at
+  `).run(key, failures, blockedUntil, now);
+}
+
+export function clearLoginFailures(identifier: string) {
+  database.prepare("DELETE FROM login_attempts WHERE identifier = ?").run(normalizeIdentifier(identifier));
+}
+
 export function createSession(userId: number) {
+  database.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(Date.now());
   const token = randomBytes(32).toString("hex");
   const expiresAt = Date.now() + 1000 * 60 * 60 * 12;
   database.prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)").run(hashSessionToken(token), userId, expiresAt);
@@ -95,7 +136,7 @@ export function createSession(userId: number) {
 }
 
 export function getUserBySession(token: string | undefined) {
-  if (!token) return null;
+  if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
   const record = database.prepare(`
     SELECT users.* FROM users
     INNER JOIN sessions ON sessions.user_id = users.id
@@ -117,6 +158,10 @@ export async function getCurrentUser() {
   const { cookies } = await import("next/headers");
   const token = (await cookies()).get("pitter_session")?.value;
   return getUserBySession(token);
+}
+
+export async function getAuthenticatedUser() {
+  return getCurrentUser();
 }
 
 seedAdminFromEnvironment();

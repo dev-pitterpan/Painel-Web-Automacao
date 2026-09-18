@@ -96,7 +96,7 @@ Para criar o primeiro administrador automaticamente, adicione ao `.env.local` an
 ```env
 AUTH_ADMIN_NAME=Administrador
 AUTH_ADMIN_EMAIL=admin@exemplo.com
-AUTH_ADMIN_PASSWORD=troque-por-uma-senha-forte
+AUTH_ADMIN_PASSWORD=troque-por-uma-senha-forte-de-12
 ```
 
 Ou crie usuários diretamente pelo comando administrativo:
@@ -105,4 +105,4 @@ Ou crie usuários diretamente pelo comando administrativo:
 npm run auth:create -- "Nome do usuário" email@empresa.com "senha-forte" user
 ```
 
-O logout está disponível no rodapé da sidebar. Não existe rota de registro; novos acessos devem ser provisionados pelo banco ou pelo comando administrativo.
+O logout está disponível no rodapé da sidebar. Não existe rota de registro; novos acessos devem ser provisionados pelo banco ou pelo comando administrativo. As senhas precisam ter entre 12 e 256 caracteres.
