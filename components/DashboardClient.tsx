@@ -302,8 +302,24 @@ export function DashboardClient({
           ...current,
           [key]: "pending"
         }));
-        addNotification("success", "Produto aceito pelo n8n e aguardando conclusão das alterações.");
-        return;
+        addNotification("success", "Produto aceito pelo n8n. Aguardando a conclusão da execução...");
+
+        const maxAttempts = 120;
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+          await new Promise(resolve => window.setTimeout(resolve, 3000));
+          const statusResponse = await fetch(`/api/n8n/reprocess/status?request_id=${encodeURIComponent(json.requestId)}`, {
+            cache: "no-store"
+          });
+          const statusJson = await statusResponse.json().catch(() => null);
+          if (!statusResponse.ok) throw new Error(statusJson?.error || "Não foi possível consultar o status do reprocessamento.");
+          if (statusJson?.completed) {
+            setReprocessState(current => ({ ...current, [key]: "success" }));
+            addNotification("success", "Reprocessamento concluído. As informações atualizadas já foram salvas.");
+            return;
+          }
+        }
+
+        throw new Error("O n8n ainda não concluiu o processamento. Atualize a página para consultar novamente.");
       }
 
       setReprocessState(current => ({
@@ -311,7 +327,7 @@ export function DashboardClient({
         [key]: "success"
       }));
 
-      addNotification("success", json?.message || `SKU ${row.sku} enviado para reprocessamento.`);
+      addNotification("success", json?.message || `SKU ${row.sku} reprocessado com sucesso.`);
     } catch (err) {
       setReprocessState(current => ({
         ...current,

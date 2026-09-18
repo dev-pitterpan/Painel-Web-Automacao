@@ -1,5 +1,8 @@
 import { CheckCircle2, RotateCcw } from "lucide-react";
 import { getCurrentUser, listReprocesses } from "@/lib/auth";
+import ReprocessadosLiveRefresh from "@/components/ReprocessadosLiveRefresh";
+
+export const dynamic = "force-dynamic";
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -27,6 +30,7 @@ export default async function ReprocessedPage() {
 
   return (
     <>
+      <ReprocessadosLiveRefresh />
       <div className="page-head">
         <div>
           <h1 className="page-title">Produtos reprocessados</h1>

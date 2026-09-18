@@ -204,10 +204,35 @@ export function completeReprocess(requestId: string, result: unknown) {
   return update.changes > 0;
 }
 
+export function getReprocessStatus(user: AuthUser, requestId: string) {
+  const row = database.prepare(`
+    SELECT request_id, sku, title, status, result_json
+    FROM reprocess_jobs
+    WHERE request_id = ? AND (user_id = ? OR ? = 'admin')
+  `).get(requestId, user.id, user.role) as {
+    request_id: string; sku: string; title: string; status: string; result_json: string | null;
+  } | undefined;
+  if (!row) return null;
+  return {
+    requestId: row.request_id,
+    sku: row.sku,
+    title: row.title,
+    completed: row.status === 'enviado' && Boolean(row.result_json),
+    result: row.result_json ? JSON.parse(row.result_json) as Record<string, unknown> : null
+  };
+}
+
 export function isCompleteReprocessResult(payload: unknown) {
   const result = Array.isArray(payload) ? payload[0] as Record<string, unknown> | undefined : payload as Record<string, unknown> | null;
-  const processed = result?.processado === true || String(result?.processado || "").toLowerCase() === "true";
-  return Boolean(result && processed && Object.prototype.hasOwnProperty.call(result, "tags_depois"));
+  if (!result || typeof result !== "object") return false;
+
+  // O callback só é chamado pelo n8n no final da automação. Alguns fluxos
+  // não devolvem o campo `processado`, por isso a conclusão também é aceita
+  // quando há dados finais do produto.
+  const processed = result.processado === true || String(result.processado || "").toLowerCase() === "true";
+  const explicitlyPending = result.processado === false || ["false", "não", "nao", "pendente", "processando"].includes(String(result.processado || result.status || "").toLowerCase());
+  const hasFinalProductData = ["tags_depois", "titulo_depois", "colecoes_depois", "status"].some(field => Object.prototype.hasOwnProperty.call(result, field));
+  return Boolean(!explicitlyPending && (processed || hasFinalProductData));
 }
 
 export function listReprocesses(user: AuthUser): ReprocessRecord[] {
@@ -217,7 +242,7 @@ export function listReprocesses(user: AuthUser): ReprocessRecord[] {
       reprocess_jobs.created_at, users.name AS requested_by, reprocess_jobs.result_json
     FROM reprocess_jobs
     INNER JOIN users ON users.id = reprocess_jobs.user_id
-    WHERE reprocess_jobs.result_json IS NOT NULL
+    WHERE reprocess_jobs.status = 'enviado' AND reprocess_jobs.result_json IS NOT NULL
     ${user.role === "admin" ? "" : "AND reprocess_jobs.user_id = ?"}
     ORDER BY reprocess_jobs.id DESC
     LIMIT 500
@@ -235,11 +260,7 @@ export function listReprocesses(user: AuthUser): ReprocessRecord[] {
     status: row.status,
     createdAt: row.created_at,
     result: row.result_json ? JSON.parse(row.result_json) as Record<string, unknown> : null
-  })).filter(record => {
-    const result = Array.isArray(record.result) ? record.result[0] as Record<string, unknown> | undefined : record.result;
-    const processed = result?.processado === true || String(result?.processado || "").toLowerCase() === "true";
-    return Boolean(result && processed && Object.prototype.hasOwnProperty.call(result, "tags_depois"));
-  });
+  }));
 }
 
 export async function getCurrentUser() {
