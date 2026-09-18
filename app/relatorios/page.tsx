@@ -1,0 +1,1 @@
+export default function Page(){return <><div className="page-head"><div><h1 className="page-title">Relatórios</h1><div className="page-sub">Área preparada para a próxima etapa.</div></div></div><div className="panel"><div className="panel-title">Em breve</div><p className="page-sub">Exportação por período, marca, status, alterações e tempo economizado.</p></div></>}
