@@ -1,0 +1,50 @@
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+.page-title { margin: 0; font-size: 29px; letter-spacing: -.8px; }
+.page-sub { margin-top: 6px; color: var(--muted); font-size: 12px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 7px; padding: 9px 13px; cursor: pointer; font-size: 12px; font-weight: 800; box-shadow: 0 3px 9px rgba(29,49,87,.04); }
+.btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+.filters { display: grid; grid-template-columns: minmax(180px,1.5fr) repeat(3,minmax(120px,.65fr)); gap: 9px; margin-bottom: 18px; }
+.control, .mini-select { width: 100%; border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 9px 11px; color: var(--ink); font-size: 12px; outline: none; }
+.control:focus, .mini-select:focus { border-color: #99b9f8; box-shadow: 0 0 0 3px var(--blue-soft); }
+.metrics { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 12px; margin-bottom: 14px; }
+.metrics.secondary { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.metric-card, .panel { background: rgba(255,255,255,.94); border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 6px 18px rgba(31,54,92,.045); }
+.metric-card { min-height: 118px; padding: 14px; }
+.metric-top { display: flex; align-items: center; gap: 8px; }
+.metric-icon { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 50%; color: var(--blue); background: var(--blue-soft); }
+.metric-green .metric-icon { color: var(--green); background: #e9f8f2; }
+.metric-red .metric-icon { color: var(--red); background: #fff0f1; }
+.metric-gold .metric-icon { color: #db9417; background: #fff7e4; }
+.metric-violet .metric-icon { color: var(--violet); background: #f0edff; }
+.metric-label { color: var(--muted); font-size: 10px; font-weight: 800; }
+.metric-value { margin-top: 12px; font-size: 25px; font-weight: 900; letter-spacing: -.8px; }
+.metric-note { margin-top: 4px; color: var(--muted); font-size: 10px; }
+.metric-comparison { display: flex; align-items: center; gap: 4px; margin-top: 3px; color: var(--muted); font-size: 9px; }
+.metric-comparison span { margin-left: auto; }
+.metric-comparison.is-positive { color: var(--green); font-weight: 800; }
+.metric-comparison.is-negative { color: var(--red); font-weight: 800; }
+.metric-comparison.is-neutral { color: var(--muted); font-weight: 600; }
+.bento-secondary .metric-card { min-height: 87px; }
+.bento-secondary .metric-value { margin-top: 9px; font-size: 20px; }
+.bento-grid { display: grid; grid-template-columns: minmax(0,1.45fr) minmax(320px,.85fr); gap: 14px; margin-bottom: 14px; }
+.panel { padding: 17px; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.panel-title { font-size: 14px; font-weight: 900; letter-spacing: -.2px; }
+.eyebrow { margin-bottom: 4px; color: var(--muted); text-transform: uppercase; letter-spacing: .9px; font-size: 9px; font-weight: 900; }
+.mini-select { width: auto; min-width: 75px; padding: 6px 8px; font-size: 10px; }
+.chart-panel, .brand-panel { min-height: 355px; }
+.chart-panel .recharts-cartesian-axis-tick-value { font-size: 10px; fill: #8b95a7; }
+.table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
+table { width: 100%; border-collapse: collapse; min-width: 850px; }
+th { text-align: left; color: var(--muted); background: #fafbfe; padding: 11px; border-bottom: 1px solid var(--line); font-size: 9px; text-transform: uppercase; letter-spacing: .5px; }
+td { padding: 11px; border-bottom: 1px solid var(--line); font-size: 12px; vertical-align: top; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: #fbfcff; }
+.badge { display: inline-flex; padding: 5px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; }
+.badge-success { background: #e8f8f1; color: #0d8d5b; }
+.badge-error { background: #fff0f1; color: #c41e2c; }
+.empty { padding: 42px 10px; text-align: center; color: var(--muted); }
+
+@media (max-width: 1150px) { .content { padding-inline: 22px; } .metrics { grid-template-columns: repeat(3,minmax(0,1fr)); } .metrics.secondary { grid-template-columns: repeat(4,minmax(0,1fr)); } }
+@media (max-width: 900px) { .bento-grid { grid-template-columns: 1fr; } }
+@media (max-width: 650px) { .page-head { flex-direction: column; } .filters, .metrics, .metrics.secondary { grid-template-columns: 1fr 1fr; } .filters .btn { grid-column: 1 / -1; } .metrics .metric-card:first-child { grid-column: 1 / -1; } .chart-panel, .brand-panel { min-height: 320px; } }

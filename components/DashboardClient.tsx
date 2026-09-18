@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -14,6 +15,7 @@ import {
   Cell,
   Legend
 } from "recharts";
+import { AlertCircle, CheckCircle2, Clock3, FileText, PackageCheck, RefreshCw, Tags, WandSparkles } from "lucide-react";
 import type { DashboardData, HistoryRow } from "@/lib/types";
 
 const colors = [
@@ -51,16 +53,30 @@ const Badge = ({ status }: { status: string }) => (
 const Metric = ({
   label,
   value,
-  note
+  note,
+  comparison,
+  inverse = false,
+  icon: Icon,
+  tone = "blue"
 }: {
   label: string;
   value: string | number;
   note?: string;
+  comparison?: number | null;
+  inverse?: boolean;
+  icon: LucideIcon;
+  tone?: "blue" | "green" | "red" | "gold" | "violet";
 }) => (
-  <div className="metric-card">
-    <div className="metric-label">{label}</div>
+  <div className={`metric-card metric-${tone}`}>
+    <div className="metric-top"><span className="metric-icon"><Icon size={17} /></span><div className="metric-label">{label}</div></div>
     <div className="metric-value">{value}</div>
-    {note && <div className="metric-note">{note}</div>}
+    {(note || comparison !== undefined) && <div className="metric-note">{note}</div>}
+    {comparison !== undefined && (
+      <div className={`metric-comparison ${comparison === null ? "is-neutral" : ((comparison >= 0) !== inverse ? "is-positive" : "is-negative")}`}>
+        {comparison === null ? "Sem base anterior" : `${comparison >= 0 ? "↑" : "↓"} ${comparison >= 0 ? "+" : ""}${comparison.toFixed(2)}%`}
+        {comparison !== null && <span>vs. período anterior</span>}
+      </div>
+    )}
   </div>
 );
 
@@ -131,7 +147,18 @@ export function DashboardClient({
           tagsAlteradas: 0,
           colecoesAlteradas: 0,
           descricoesGeradas: 0,
-          tempoEconomizadoMin: 0
+          tempoEconomizadoMin: 0,
+          comparisons: {
+            total: null,
+            sucesso: null,
+            erros: null,
+            taxaSucesso: null,
+            titulosAlterados: null,
+            tagsAlteradas: null,
+            colecoesAlteradas: null,
+            descricoesGeradas: null,
+            tempoEconomizadoMin: null
+          }
         },
 
         byDay: Array.isArray(json.byDay)
@@ -277,7 +304,7 @@ export function DashboardClient({
           className="btn"
           onClick={() => load(true)}
         >
-          ↻ Atualizar
+          <RefreshCw size={16} /> Atualizar
         </button>
       </div>
 
@@ -347,20 +374,32 @@ export function DashboardClient({
             <Metric
               label="Produtos processados"
               value={data.metrics.total}
+              comparison={data.metrics.comparisons.total}
+              icon={PackageCheck}
             />
             <Metric
               label="Sucesso"
               value={data.metrics.sucesso}
+              comparison={data.metrics.comparisons.sucesso}
+              icon={CheckCircle2}
+              tone="green"
             />
             <Metric
               label="Erros"
               value={data.metrics.erros}
+              comparison={data.metrics.comparisons.erros}
+              inverse
+              icon={AlertCircle}
+              tone="red"
             />
             <Metric
               label="Taxa de sucesso"
               value={`${data.metrics.taxaSucesso.toFixed(
                 2
               )}%`}
+              comparison={data.metrics.comparisons.taxaSucesso}
+              icon={WandSparkles}
+              tone="violet"
             />
             <Metric
               label="Tempo economizado"
@@ -368,23 +407,30 @@ export function DashboardClient({
                 data.metrics
                   .tempoEconomizadoMin
               )}
-              note="estimativa"
+              comparison={data.metrics.comparisons.tempoEconomizadoMin}
+              icon={Clock3}
+              tone="gold"
             />
           </section>
 
-          <section className="metrics secondary">
+          <section className="metrics secondary bento-secondary">
             <Metric
               label="Títulos alterados"
               value={
                 data.metrics
                   .titulosAlterados
               }
+              comparison={data.metrics.comparisons.titulosAlterados}
+              icon={WandSparkles}
             />
             <Metric
               label="Tags alteradas"
               value={
                 data.metrics.tagsAlteradas
               }
+              comparison={data.metrics.comparisons.tagsAlteradas}
+              icon={Tags}
+              tone="green"
             />
             <Metric
               label="Coleções alteradas"
@@ -392,6 +438,9 @@ export function DashboardClient({
                 data.metrics
                   .colecoesAlteradas
               }
+              comparison={data.metrics.comparisons.colecoesAlteradas}
+              icon={PackageCheck}
+              tone="gold"
             />
             <Metric
               label="Descrições geradas"
@@ -399,14 +448,17 @@ export function DashboardClient({
                 data.metrics
                   .descricoesGeradas
               }
+              comparison={data.metrics.comparisons.descricoesGeradas}
+              icon={FileText}
+              tone="violet"
             />
           </section>
 
-          <section className="grid-2">
-            <div className="panel">
-              <div className="panel-title">
+          <section className="bento-grid">
+            <div className="panel chart-panel">
+              <div className="panel-head"><div><div className="eyebrow">Visão geral</div><div className="panel-title">
                 Processamentos ao longo do tempo
-              </div>
+              </div></div><select className="mini-select" defaultValue="diario"><option value="diario">Diário</option></select></div>
 
               <div
                 style={{
@@ -420,6 +472,7 @@ export function DashboardClient({
                     <CartesianGrid
                       strokeDasharray="3 3"
                       vertical={false}
+                      stroke="#e8edf5"
                     />
                     <XAxis dataKey="data" />
                     <YAxis />
@@ -427,24 +480,26 @@ export function DashboardClient({
                     <Line
                       type="monotone"
                       dataKey="sucesso"
-                      stroke="#233b8f"
+                      stroke="#2f70ed"
                       strokeWidth={3}
+                      dot={{ r: 3, fill: "#2f70ed", strokeWidth: 0 }}
                     />
                     <Line
                       type="monotone"
                       dataKey="erros"
-                      stroke="#ef1f2f"
+                      stroke="#ef5b62"
                       strokeWidth={2}
+                      dot={{ r: 3, fill: "#ef5b62", strokeWidth: 0 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="panel">
-              <div className="panel-title">
+            <div className="panel brand-panel">
+              <div className="panel-head"><div><div className="eyebrow">Catálogo</div><div className="panel-title">
                 Distribuição por marca
-              </div>
+              </div></div><select className="mini-select" defaultValue="top"><option value="top">Top 8</option></select></div>
 
               <div
                 style={{
@@ -459,6 +514,8 @@ export function DashboardClient({
                       nameKey="marca"
                       innerRadius={72}
                       outerRadius={105}
+                      paddingAngle={2}
+                      cornerRadius={4}
                     >
                       {data.byBrand.map(
                         (_, index) => (

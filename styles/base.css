@@ -1,0 +1,28 @@
+:root {
+  --blue: #2f70ed;
+  --blue-dark: #071a36;
+  --blue-soft: #eaf2ff;
+  --red: #e95b62;
+  --green: #22ad80;
+  --violet: #8066e8;
+  --ink: #172238;
+  --muted: #758198;
+  --line: #e6ebf3;
+  --bg: #f5f7fb;
+  --card: #fff;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+body { font-family: "Trebuchet MS", "Segoe UI", sans-serif; background-image: radial-gradient(#e7ecf4 .7px, transparent .7px); background-size: 18px 18px; }
+button, input, select { font: inherit; }
+button { transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
+button:hover { transform: translateY(-1px); }
+
+.app-shell { min-height: 100vh; display: grid; grid-template-columns: 242px minmax(0, 1fr); }
+.content { min-width: 0; max-width: 1480px; width: 100%; padding: 31px 36px 48px; margin: 0 auto; }
+
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .content { padding: 20px 14px 32px; }
+}

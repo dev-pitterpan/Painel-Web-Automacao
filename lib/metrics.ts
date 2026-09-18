@@ -1,3 +1,87 @@
-import type {DashboardData,HistoryRow} from "./types";
-function parseDate(v:string){const d=new Date(v);if(!Number.isNaN(d.getTime()))return d;const m=v.match(/^(\d{2})\/(\d{2})\/(\d{4}),?\s*(\d{2}):(\d{2})(?::(\d{2}))?$/);if(!m)return null;const[,dd,mm,yyyy,hh,mi,ss="00"]=m;return new Date(`${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}-03:00`)}
-export function buildDashboard(rows:HistoryRow[],o:{q?:string;marca?:string;status?:string;days?:number}={}):DashboardData{const q=(o.q||"").toLowerCase();const marca=o.marca||"";const status=o.status||"";const cutoff=Date.now()-(o.days||30)*86400000;const filtered=rows.filter(r=>{const d=parseDate(r.dataHora);return(!d||d.getTime()>=cutoff)&&(!q||[r.sku,r.tituloAntes,r.tituloDepois,r.marca].join(" ").toLowerCase().includes(q))&&(!marca||r.marca===marca)&&(!status||r.status.toLowerCase().includes(status.toLowerCase()))});const sucesso=filtered.filter(r=>!r.status.toLowerCase().startsWith("erro")).length;const erros=filtered.length-sucesso;const total=filtered.length;const daily=new Map<string,{sucesso:number;erros:number}>();for(const r of filtered){const d=parseDate(r.dataHora);const k=d?new Intl.DateTimeFormat("pt-BR",{day:"2-digit",month:"2-digit"}).format(d):"Sem data";const x=daily.get(k)||{sucesso:0,erros:0};r.status.toLowerCase().startsWith("erro")?x.erros++:x.sucesso++;daily.set(k,x)}const brands=new Map<string,number>();for(const r of filtered){const k=r.marca||"Sem marca";brands.set(k,(brands.get(k)||0)+1)}return{rows:filtered,metrics:{total,sucesso,erros,taxaSucesso:total?sucesso/total*100:0,titulosAlterados:filtered.filter(r=>r.tituloAlterado).length,tagsAlteradas:filtered.filter(r=>r.tagsAlteradas).length,colecoesAlteradas:filtered.filter(r=>r.colecoesAlteradas).length,descricoesGeradas:filtered.filter(r=>r.descricaoGerada).length,tempoEconomizadoMin:Math.round(total*48/60)},byDay:[...daily.entries()].map(([data,v])=>({data,...v})),byBrand:[...brands.entries()].map(([marca,total])=>({marca,total})).sort((a,b)=>b.total-a.total).slice(0,8),brands:[...new Set(rows.map(r=>r.marca).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"))}}
+import type { DashboardData, HistoryRow } from "./types";
+
+function parseDate(value: string) {
+	const date = new Date(value);
+	if (!Number.isNaN(date.getTime())) return date;
+	const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4}),?\s*(\d{2}):(\d{2})(?::(\d{2}))?$/);
+	if (!match) return null;
+	const [, day, month, year, hour, minute, second = "00"] = match;
+	return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`);
+}
+
+function matches(row: HistoryRow, options: { q: string; marca: string; status: string }) {
+	const searchable = [row.sku, row.tituloAntes, row.tituloDepois, row.marca].join(" ").toLowerCase();
+	return (!options.q || searchable.includes(options.q)) &&
+		(!options.marca || row.marca === options.marca) &&
+		(!options.status || row.status.toLowerCase().includes(options.status));
+}
+
+function percentageChange(current: number, previous: number) {
+	if (previous === 0) return null;
+	return ((current - previous) / previous) * 100;
+}
+
+function calculateMetrics(rows: HistoryRow[]) {
+	const sucesso = rows.filter(row => !row.status.toLowerCase().startsWith("erro")).length;
+	const erros = rows.length - sucesso;
+	return {
+		total: rows.length,
+		sucesso,
+		erros,
+		taxaSucesso: rows.length ? sucesso / rows.length * 100 : 0,
+		titulosAlterados: rows.filter(row => row.tituloAlterado).length,
+		tagsAlteradas: rows.filter(row => row.tagsAlteradas).length,
+		colecoesAlteradas: rows.filter(row => row.colecoesAlteradas).length,
+		descricoesGeradas: rows.filter(row => row.descricaoGerada).length,
+		tempoEconomizadoMin: Math.round(rows.length * 48 / 60)
+	};
+}
+
+export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?: string; status?: string; days?: number } = {}): DashboardData {
+	const days = options.days || 30;
+	const now = Date.now();
+	const currentCutoff = now - days * 86400000;
+	const previousCutoff = currentCutoff - days * 86400000;
+	const filters = { q: (options.q || "").toLowerCase(), marca: options.marca || "", status: (options.status || "").toLowerCase() };
+	const currentRows = rows.filter(row => {
+		const date = parseDate(row.dataHora);
+		return (!date || date.getTime() >= currentCutoff) && matches(row, filters);
+	});
+	const previousRows = rows.filter(row => {
+		const date = parseDate(row.dataHora);
+		return date !== null && date.getTime() >= previousCutoff && date.getTime() < currentCutoff && matches(row, filters);
+	});
+	const metrics = calculateMetrics(currentRows);
+	const previous = calculateMetrics(previousRows);
+	const comparisons = {
+		total: percentageChange(metrics.total, previous.total),
+		sucesso: percentageChange(metrics.sucesso, previous.sucesso),
+		erros: percentageChange(metrics.erros, previous.erros),
+		taxaSucesso: previous.taxaSucesso ? metrics.taxaSucesso - previous.taxaSucesso : null,
+		titulosAlterados: percentageChange(metrics.titulosAlterados, previous.titulosAlterados),
+		tagsAlteradas: percentageChange(metrics.tagsAlteradas, previous.tagsAlteradas),
+		colecoesAlteradas: percentageChange(metrics.colecoesAlteradas, previous.colecoesAlteradas),
+		descricoesGeradas: percentageChange(metrics.descricoesGeradas, previous.descricoesGeradas),
+		tempoEconomizadoMin: percentageChange(metrics.tempoEconomizadoMin, previous.tempoEconomizadoMin)
+	};
+	const daily = new Map<string, { sucesso: number; erros: number }>();
+	currentRows.forEach(row => {
+		const date = parseDate(row.dataHora);
+		const key = date ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date) : "Sem data";
+		const value = daily.get(key) || { sucesso: 0, erros: 0 };
+		row.status.toLowerCase().startsWith("erro") ? value.erros++ : value.sucesso++;
+		daily.set(key, value);
+	});
+	const brands = new Map<string, number>();
+	currentRows.forEach(row => {
+		const key = row.marca || "Sem marca";
+		brands.set(key, (brands.get(key) || 0) + 1);
+	});
+	return {
+		rows: currentRows,
+		metrics: { ...metrics, comparisons },
+		byDay: [...daily.entries()].map(([data, value]) => ({ data, ...value })),
+		byBrand: [...brands.entries()].map(([marca, total]) => ({ marca, total })).sort((a, b) => b.total - a.total).slice(0, 8),
+		brands: [...new Set(rows.map(row => row.marca).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"))
+	};
+}
