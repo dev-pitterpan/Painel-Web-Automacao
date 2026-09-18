@@ -16,6 +16,17 @@ function matches(row: HistoryRow, options: { q: string; marca: string; status: s
 		(!options.status || row.status.toLowerCase().includes(options.status));
 }
 
+
+function isValidBrand(value: string) {
+	const brand = String(value || "").trim();
+	if (!brand) return false;
+
+	// Remove valores que claramente não são marcas,
+	// como 0, códigos de barras e outros códigos apenas numéricos.
+	// Uma marca válida precisa conter pelo menos uma letra.
+	return /\p{L}/u.test(brand);
+}
+
 function percentageChange(current: number, previous: number) {
 	if (previous === 0) return null;
 	return ((current - previous) / previous) * 100;
@@ -74,7 +85,12 @@ export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?
 	});
 	const brands = new Map<string, number>();
 	currentRows.forEach(row => {
-		const key = row.marca || "Sem marca";
+		const key = String(row.marca || "").trim();
+
+		if (!isValidBrand(key)) {
+			return;
+		}
+
 		brands.set(key, (brands.get(key) || 0) + 1);
 	});
 	return {
@@ -82,6 +98,10 @@ export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?
 		metrics: { ...metrics, comparisons },
 		byDay: [...daily.entries()].map(([data, value]) => ({ data, ...value })),
 		byBrand: [...brands.entries()].map(([marca, total]) => ({ marca, total })).sort((a, b) => b.total - a.total).slice(0, 8),
-		brands: [...new Set(rows.map(row => row.marca).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"))
+		brands: [...new Set(
+			rows
+				.map(row => String(row.marca || "").trim())
+				.filter(isValidBrand)
+		)].sort((a, b) => a.localeCompare(b, "pt-BR"))
 	};
 }

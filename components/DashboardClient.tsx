@@ -15,7 +15,21 @@ import {
   Cell,
   Legend
 } from "recharts";
-import { AlertCircle, Bell, CheckCircle2, Clock3, FileText, LoaderCircle, PackageCheck, RefreshCw, Tags, WandSparkles, X } from "lucide-react";
+import {
+  AlertCircle,
+  Bell,
+  Box,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  FolderOpen,
+  Image,
+  LoaderCircle,
+  Percent,
+  RefreshCw,
+  Wrench,
+  X
+} from "lucide-react";
 import type { DashboardData, HistoryRow } from "@/lib/types";
 
 const colors = [
@@ -544,7 +558,7 @@ export function DashboardClient({
               label="Produtos processados"
               value={data.metrics.total}
               comparison={data.metrics.comparisons.total}
-              icon={PackageCheck}
+              icon={Box}
             />
             <Metric
               label="Sucesso"
@@ -567,7 +581,7 @@ export function DashboardClient({
                 2
               )}%`}
               comparison={data.metrics.comparisons.taxaSucesso}
-              icon={WandSparkles}
+              icon={Percent}
               tone="violet"
             />
             <Metric
@@ -590,7 +604,7 @@ export function DashboardClient({
                   .titulosAlterados
               }
               comparison={data.metrics.comparisons.titulosAlterados}
-              icon={WandSparkles}
+              icon={Wrench}
             />
             <Metric
               label="Tags alteradas"
@@ -598,7 +612,7 @@ export function DashboardClient({
                 data.metrics.tagsAlteradas
               }
               comparison={data.metrics.comparisons.tagsAlteradas}
-              icon={Tags}
+              icon={Image}
               tone="green"
             />
             <Metric
@@ -608,7 +622,7 @@ export function DashboardClient({
                   .colecoesAlteradas
               }
               comparison={data.metrics.comparisons.colecoesAlteradas}
-              icon={PackageCheck}
+              icon={FolderOpen}
               tone="gold"
             />
             <Metric
