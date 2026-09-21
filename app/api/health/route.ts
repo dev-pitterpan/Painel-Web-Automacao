@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, getN8nHealthSummary } from "@/lib/auth";
+import { getAppSettings, getCurrentUser, getN8nHealthSummary } from "@/lib/auth";
 import { getHistoryRowsWithStatus } from "@/lib/googleSheets";
 
 export const dynamic = "force-dynamic";
@@ -8,12 +8,14 @@ export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user || user.role !== "admin") return NextResponse.json({ error: "Acesso restrito a administradores." }, { status: 403 });
   const startedAt = Date.now();
+  const settings = getAppSettings();
   let sheets;
   try {
     const result = await getHistoryRowsWithStatus(request.nextUrl.searchParams.get("refresh") === "1");
+    const stale = Date.now() - new Date(result.lastSyncedAt).getTime() > settings.staleSyncMinutes * 60000;
     sheets = {
-      id: "sheets", name: "Google Sheets", status: "operational" as const,
-      message: "Planilha acessível e dados sincronizados.", lastResponse: result.lastSyncedAt,
+      id: "sheets", name: "Google Sheets", status: stale ? "warning" as const : "operational" as const,
+      message: stale ? `A última sincronização ultrapassou ${settings.staleSyncMinutes} minutos.` : "Planilha acessível e dados sincronizados.", lastResponse: result.lastSyncedAt,
       latencyMs: Date.now() - startedAt,
       details: [
         { label: "Planilha", value: result.sheetName },

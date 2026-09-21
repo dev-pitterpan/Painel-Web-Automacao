@@ -44,11 +44,16 @@ export type DashboardData = {
   byDay: Array<{ data: string; sucesso: number; erros: number }>;
   byBrand: Array<{ marca: string; total: number }>;
   brands: string[];
+  comparison: {
+    available: boolean;
+    label: string;
+  };
   source?: {
     status: "connected";
     lastSyncedAt: string;
     sheetName: string;
     totalRows: number;
     totalErrors: number;
+    qualityTarget: number;
   };
 };

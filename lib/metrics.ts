@@ -33,15 +33,15 @@ function percentageChange(current: number, previous: number) {
 	return ((current - previous) / previous) * 100;
 }
 
-export function calculateTimeSavedMinutes(productCount: number) {
+export function calculateTimeSavedMinutes(productCount: number, settings = { manualSecondsPerProduct: 60, batchSize: 5, batchSeconds: 40 }) {
 	if (!Number.isFinite(productCount) || productCount <= 0) return 0;
 	const normalizedCount = Math.floor(productCount);
-	const manualSeconds = normalizedCount * 60;
-	const automatedSeconds = Math.ceil(normalizedCount / 5) * 40;
+	const manualSeconds = normalizedCount * settings.manualSecondsPerProduct;
+	const automatedSeconds = Math.ceil(normalizedCount / settings.batchSize) * settings.batchSeconds;
 	return Math.max(0, (manualSeconds - automatedSeconds) / 60);
 }
 
-function calculateMetrics(rows: HistoryRow[]) {
+function calculateMetrics(rows: HistoryRow[], timeSettings: { manualSecondsPerProduct: number; batchSize: number; batchSeconds: number }) {
 	const sucesso = rows.filter(row => !row.status.toLowerCase().startsWith("erro")).length;
 	const erros = rows.length - sucesso;
 	return {
@@ -53,33 +53,63 @@ function calculateMetrics(rows: HistoryRow[]) {
 		tagsAlteradas: rows.filter(row => row.tagsAlteradas).length,
 		colecoesAlteradas: rows.filter(row => row.colecoesAlteradas).length,
 		descricoesGeradas: rows.filter(row => row.descricaoGerada).length,
-		tempoEconomizadoMin: calculateTimeSavedMinutes(rows.length)
+		tempoEconomizadoMin: calculateTimeSavedMinutes(rows.length, timeSettings)
 	};
 }
 
-export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?: string; status?: string; days?: number; month?: string } = {}): DashboardData {
+function monthRange(month: string) {
+	const [year, value] = month.split("-").map(Number);
+	const start = new Date(`${month}-01T00:00:00-03:00`).getTime();
+	const nextMonth = value === 12 ? 1 : value + 1;
+	const nextYear = value === 12 ? year + 1 : year;
+	return { start, end: new Date(`${nextYear}-${String(nextMonth).padStart(2, "0")}-01T00:00:00-03:00`).getTime() };
+}
+
+function previousMonthOf(month: string) {
+	const [year, value] = month.split("-").map(Number);
+	return `${value === 1 ? year - 1 : year}-${String(value === 1 ? 12 : value - 1).padStart(2, "0")}`;
+}
+
+function monthLabel(month: string) {
+	const label = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(`${month}-01T12:00:00-03:00`));
+	return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function matchesQuality(row: HistoryRow, quality: string) {
+	if (!quality) return true;
+	if (quality === "missingTitle") return !String(row.tituloDepois || row.tituloAntes).trim();
+	if (quality === "missingBrand") return !isValidBrand(row.marca);
+	if (quality === "missingTags") return !String(row.tagsDepois || row.tagsAntes).trim();
+	if (quality === "missingCollection") return !String(row.colecoesDepois || row.colecoesAntes).trim();
+	if (quality === "missingSku") return !String(row.sku).trim();
+	if (quality === "errors") return row.status.toLowerCase().startsWith("erro");
+	return true;
+}
+
+export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?: string; status?: string; days?: number; month?: string; compareMonth?: string; quality?: string; timeSettings?: { manualSecondsPerProduct: number; batchSize: number; batchSeconds: number } } = {}): DashboardData {
 	const days = options.days || 30;
+	const timeSettings = options.timeSettings || { manualSecondsPerProduct: 60, batchSize: 5, batchSeconds: 40 };
 	const now = Date.now();
 	const fullPeriod = options.month === "all";
 	const validMonth = /^\d{4}-\d{2}$/.test(options.month || "") ? options.month! : null;
-	const [selectedYear, selectedMonth] = validMonth ? validMonth.split("-").map(Number) : [0, 0];
-	const currentStart = fullPeriod ? Number.NEGATIVE_INFINITY : validMonth ? new Date(`${validMonth}-01T00:00:00-03:00`).getTime() : now - days * 86400000;
-	const currentEnd = fullPeriod ? Number.POSITIVE_INFINITY : validMonth ? new Date(`${selectedYear}-${String(selectedMonth === 12 ? 1 : selectedMonth + 1).padStart(2, "0")}-01T00:00:00-03:00`).setFullYear(selectedMonth === 12 ? selectedYear + 1 : selectedYear) : now;
-	const previousYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
-	const previousMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
-	const previousStart = validMonth ? new Date(`${previousYear}-${String(previousMonth).padStart(2, "0")}-01T00:00:00-03:00`).getTime() : currentStart - days * 86400000;
-	const previousEnd = validMonth ? currentStart : currentStart;
+	const currentRange = validMonth ? monthRange(validMonth) : null;
+	const currentStart = fullPeriod ? Number.NEGATIVE_INFINITY : currentRange?.start ?? now - days * 86400000;
+	const currentEnd = fullPeriod ? Number.POSITIVE_INFINITY : currentRange?.end ?? now;
+	const requestedComparison = /^\d{4}-\d{2}$/.test(options.compareMonth || "") ? options.compareMonth! : validMonth ? previousMonthOf(validMonth) : null;
+	const comparisonRange = requestedComparison ? monthRange(requestedComparison) : null;
+	const previousStart = comparisonRange?.start ?? currentStart - days * 86400000;
+	const previousEnd = comparisonRange?.end ?? currentStart;
 	const filters = { q: (options.q || "").toLowerCase(), marca: options.marca || "", status: (options.status || "").toLowerCase() };
 	const currentRows = rows.filter(row => {
 		const date = parseHistoryDate(row.dataHora);
-		return date !== null && date.getTime() >= currentStart && date.getTime() < currentEnd && matches(row, filters);
-	});
+		return date !== null && date.getTime() >= currentStart && date.getTime() < currentEnd && matches(row, filters) && matchesQuality(row, options.quality || "");
+	}).sort((a, b) => (parseHistoryDate(b.dataHora)?.getTime() || 0) - (parseHistoryDate(a.dataHora)?.getTime() || 0));
 	const previousRows = fullPeriod ? [] : rows.filter(row => {
 		const date = parseHistoryDate(row.dataHora);
-		return date !== null && date.getTime() >= previousStart && date.getTime() < previousEnd && matches(row, filters);
+		return date !== null && date.getTime() >= previousStart && date.getTime() < previousEnd && matches(row, filters) && matchesQuality(row, options.quality || "");
 	});
-	const metrics = calculateMetrics(currentRows);
-	const previous = calculateMetrics(previousRows);
+	const metrics = calculateMetrics(currentRows, timeSettings);
+	const previous = calculateMetrics(previousRows, timeSettings);
 	const comparisons = {
 		total: percentageChange(metrics.total, previous.total),
 		sucesso: percentageChange(metrics.sucesso, previous.sucesso),
@@ -118,6 +148,10 @@ export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?
 			rows
 				.map(row => String(row.marca || "").trim())
 				.filter(isValidBrand)
-		)].sort((a, b) => a.localeCompare(b, "pt-BR"))
+		)].sort((a, b) => a.localeCompare(b, "pt-BR")),
+		comparison: {
+			available: !fullPeriod && previousRows.length > 0,
+			label: requestedComparison ? monthLabel(requestedComparison) : "período anterior"
+		}
 	};
 }

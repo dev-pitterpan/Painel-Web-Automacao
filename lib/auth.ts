@@ -23,6 +23,13 @@ export type ReprocessRecord = {
 };
 
 export type ManagedUser = AuthUser & { createdAt: string };
+export type AppSettings = {
+  manualSecondsPerProduct: number;
+  batchSize: number;
+  batchSeconds: number;
+  qualityTarget: number;
+  staleSyncMinutes: number;
+};
 export type AuditRecord = {
   id: number;
   action: string;
@@ -82,8 +89,51 @@ database.exec(`
     details_json TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
   CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 `);
+
+const DEFAULT_SETTINGS: AppSettings = {
+  manualSecondsPerProduct: 60,
+  batchSize: 5,
+  batchSeconds: 40,
+  qualityTarget: 95,
+  staleSyncMinutes: 30,
+};
+
+export function getAppSettings(): AppSettings {
+  const entries = database.prepare("SELECT key, value FROM app_settings").all() as Array<{ key: string; value: string }>;
+  const stored = Object.fromEntries(entries.map(item => [item.key, Number(item.value)]));
+  return {
+    manualSecondsPerProduct: stored.manualSecondsPerProduct || DEFAULT_SETTINGS.manualSecondsPerProduct,
+    batchSize: stored.batchSize || DEFAULT_SETTINGS.batchSize,
+    batchSeconds: stored.batchSeconds || DEFAULT_SETTINGS.batchSeconds,
+    qualityTarget: stored.qualityTarget || DEFAULT_SETTINGS.qualityTarget,
+    staleSyncMinutes: stored.staleSyncMinutes || DEFAULT_SETTINGS.staleSyncMinutes,
+  };
+}
+
+export function updateAppSettings(actor: AuthUser, input: Partial<AppSettings>) {
+  if (actor.role !== "admin") throw new Error("Apenas administradores podem alterar as configurações.");
+  const current = getAppSettings();
+  const next: AppSettings = {
+    manualSecondsPerProduct: Math.min(3600, Math.max(1, Math.round(Number(input.manualSecondsPerProduct ?? current.manualSecondsPerProduct)))),
+    batchSize: Math.min(100, Math.max(1, Math.round(Number(input.batchSize ?? current.batchSize)))),
+    batchSeconds: Math.min(3600, Math.max(1, Math.round(Number(input.batchSeconds ?? current.batchSeconds)))),
+    qualityTarget: Math.min(100, Math.max(1, Math.round(Number(input.qualityTarget ?? current.qualityTarget)))),
+    staleSyncMinutes: Math.min(1440, Math.max(1, Math.round(Number(input.staleSyncMinutes ?? current.staleSyncMinutes)))),
+  };
+  const statement = database.prepare(`INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`);
+  const save = database.transaction(() => Object.entries(next).forEach(([key, value]) => statement.run(key, String(value))));
+  save();
+  recordAudit({ userId: actor.id, action: "settings_updated", entity: "settings", details: next });
+  return next;
+}
 
 const reprocessColumns = database.prepare("PRAGMA table_info(reprocess_jobs)").all() as Array<{ name: string }>;
 if (!reprocessColumns.some(column => column.name === "result_json")) {

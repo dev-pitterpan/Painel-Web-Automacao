@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Activity, ChevronLeft, ChevronRight, CircleAlert, FileText, LayoutDashboard, LogOut, Menu, Package, RotateCcw, ScrollText, UserCog, X } from "lucide-react";
+import { Activity, ChevronLeft, ChevronRight, CircleAlert, FileText, LayoutDashboard, LogOut, Menu, Package, RotateCcw, ScrollText, Settings, UserCog, X } from "lucide-react";
 import type { AuthUser } from "@/lib/auth";
 
 const items: Array<[string, string, LucideIcon]> = [
@@ -20,7 +20,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const navigationItems = user.role === "admin" ? [...items, ["Integrações", "/saude", Activity] as [string, string, LucideIcon], ["Usuários", "/usuarios", UserCog] as [string, string, LucideIcon], ["Auditoria", "/auditoria", ScrollText] as [string, string, LucideIcon]] : items;
+  const navigationItems = user.role === "admin" ? [...items, ["Integrações", "/saude", Activity] as [string, string, LucideIcon], ["Usuários", "/usuarios", UserCog] as [string, string, LucideIcon], ["Auditoria", "/auditoria", ScrollText] as [string, string, LucideIcon], ["Configurações", "/configuracoes", Settings] as [string, string, LucideIcon]] : items;
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
   useEffect(() => {

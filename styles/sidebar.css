@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   gap: 26px;
-  box-shadow: 8px 0 24px rgba(8, 25, 53, 0.08);
+  box-shadow: 10px 0 30px rgba(8, 25, 53, 0.1);
   transition:
     padding 0.2s ease,
     gap 0.2s ease,
@@ -76,10 +76,10 @@
 .nav a {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 9px;
   color: rgba(255, 255, 255, 0.64);
   padding: 11px 13px;
-  border-radius: 8px;
+  border-radius: 9px;
   text-decoration: none;
   font-size: 13px;
   font-weight: 700;
@@ -124,7 +124,13 @@
 }
 .sidebar.is-collapsed .nav a {
   justify-content: center;
+  gap: 0;
   padding-inline: 0;
+}
+.sidebar.is-collapsed .nav a svg {
+  display: block;
+  flex: 0 0 auto;
+  margin: 0;
 }
 .sidebar.is-collapsed .sidebar-user {
   width: 100%;
