@@ -31,6 +31,7 @@ import {
   X
 } from "lucide-react";
 import type { DashboardData, HistoryRow } from "@/lib/types";
+import { parseHistoryDate } from "@/lib/metrics";
 
 const colors = [
   "#233b8f",
@@ -43,8 +44,10 @@ const colors = [
   "#9aa6bd"
 ];
 
-const fmt = (m: number) =>
-  `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+const fmt = (minutes: number) => {
+  const totalMinutes = Math.floor(minutes);
+  return `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, "0")}m`;
+};
 
 const Badge = ({ status }: { status: string }) => (
   <span
@@ -80,41 +83,29 @@ const Metric = ({
   inverse?: boolean;
   icon: LucideIcon;
   tone?: "blue" | "green" | "red" | "gold" | "violet";
-}) => (
-  <div className={`metric-card metric-${tone}`}>
+}) => {
+  const roundedComparison = comparison === null || comparison === undefined ? comparison : Math.round(comparison);
+  const normalizedComparison = Object.is(roundedComparison, -0) ? 0 : roundedComparison;
+  return <div className={`metric-card metric-${tone}`}>
     <div className="metric-top"><span className="metric-icon"><Icon size={17} /></span><div className="metric-label">{label}</div></div>
     <div className="metric-bottom">
       <div className="metric-value">{value}</div>
       {comparison !== undefined && (
         <div className="metric-change-wrap">
-          <div className={`metric-comparison ${comparison === null ? "is-neutral" : ((comparison >= 0) !== inverse ? "is-positive" : "is-negative")}`}>
-            {comparison === null ? "Sem base" : `${comparison >= 0 ? "↑" : "↓"} ${comparison >= 0 ? "+" : ""}${comparison.toFixed(2)}%`}
+          <div className={`metric-comparison ${comparison === null || normalizedComparison === 0 ? "is-neutral" : ((normalizedComparison! >= 0) !== inverse ? "is-positive" : "is-negative")}`}>
+            {comparison === null ? "Sem base" : `${normalizedComparison === 0 ? "→" : normalizedComparison! > 0 ? "↑" : "↓"} ${normalizedComparison! > 0 ? "+" : ""}${normalizedComparison}%`}
           </div>
-          {comparison !== null && <span className="metric-previous">vs. período anterior</span>}
+          {comparison !== null && <span className="metric-previous">vs. mês anterior</span>}
         </div>
       )}
       {note && <div className="metric-note">{note}</div>}
     </div>
-  </div>
-);
+  </div>;
+};
 
 
 
 type TimeGrouping = "daily" | "weekly" | "monthly" | "full";
-
-function parseDashboardDate(value: string) {
-  const date = new Date(value);
-  if (!Number.isNaN(date.getTime())) return date;
-
-  const match = String(value || "").match(
-    /^(\d{2})\/(\d{2})\/(\d{4}),?\s*(\d{2}):(\d{2})(?::(\d{2}))?$/
-  );
-
-  if (!match) return null;
-
-  const [, day, month, year, hour, minute, second = "00"] = match;
-  return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`);
-}
 
 function formatShortDate(date: Date) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -146,7 +137,7 @@ function buildTimeSeries(rows: HistoryRow[], grouping: TimeGrouping) {
   >();
 
   rows.forEach(row => {
-    const parsed = parseDashboardDate(row.dataHora);
+    const parsed = parseHistoryDate(row.dataHora);
     if (!parsed) return;
 
     let bucket = new Date(parsed);
@@ -223,6 +214,7 @@ export function DashboardClient({
   const [q, setQ] = useState("");
   const [marca, setMarca] = useState("");
   const [days, setDays] = useState("30");
+  const [month, setMonth] = useState("all");
   const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>("daily");
   const [brandTop, setBrandTop] = useState(5);
   const [loadingProgress, setLoadingProgress] = useState(14);
@@ -241,6 +233,14 @@ export function DashboardClient({
     () => (data?.byBrand || []).slice(0, brandTop),
     [data, brandTop]
   );
+  const monthOptions = useMemo(() => [{ value: "all", label: "Período completo" }, ...Array.from({ length: 12 }, (_, index) => {
+    const date = new Date();
+    date.setDate(1);
+    date.setMonth(date.getMonth() - index);
+    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const rawLabel = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
+    return { value, label: rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1) };
+  })], []);
 
   async function load(refresh = false) {
     setLoading(true);
@@ -253,6 +253,8 @@ export function DashboardClient({
         q,
         marca
       });
+
+      if (mode === "dashboard") p.set("month", month);
 
       if (mode === "errors") {
         p.set("status", "erro");
@@ -317,7 +319,8 @@ export function DashboardClient({
 
         brands: Array.isArray(json.brands)
           ? json.brands
-          : []
+          : [],
+        source: json.source
       };
 
       setData(safeData);
@@ -337,7 +340,7 @@ export function DashboardClient({
 
   useEffect(() => {
     load();
-  }, [days, marca, mode]);
+  }, [days, month, marca, mode]);
 
   useEffect(() => {
     if (!loading) {
@@ -575,6 +578,7 @@ export function DashboardClient({
           <div className="page-sub">
             Automação de catálogo da Pitter Pan Festas
           </div>
+          {mode === "dashboard" && data.source && <div className="sheet-sync"><span className="sheet-sync-dot" />Conectado à planilha “{data.source.sheetName}” · {data.source.totalRows.toLocaleString("pt-BR")} registros · última sincronização {new Date(data.source.lastSyncedAt).toLocaleString("pt-BR")}</div>}
         </div>
 
         <div className="head-actions">
@@ -636,26 +640,11 @@ export function DashboardClient({
           ))}
         </select>
 
-        <select
-          className="control"
-          value={days}
-          onChange={e =>
-            setDays(e.target.value)
-          }
-        >
-          <option value="7">
-            7 dias
-          </option>
-          <option value="30">
-            30 dias
-          </option>
-          <option value="90">
-            90 dias
-          </option>
-          <option value="3650">
-            Tudo
-          </option>
-        </select>
+        {mode === "dashboard" ? <select className="control" value={month} onChange={e => setMonth(e.target.value)} aria-label="Mês do dashboard">
+          {monthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select> : <select className="control" value={days} onChange={e => setDays(e.target.value)}>
+          <option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option><option value="3650">Tudo</option>
+        </select>}
 
         <button
           className="btn btn-primary"

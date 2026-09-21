@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getCurrentUser, isCompleteReprocessResult, recordPendingReprocess, recordReprocess } from "@/lib/auth";
+import { getCurrentUser, isCompleteReprocessResult, recordAudit, recordPendingReprocess, recordReprocess } from "@/lib/auth";
 
 const REQUEST_TIMEOUT_MS = 20000;
 
@@ -140,6 +140,7 @@ export async function POST(req: NextRequest) {
         userId: user.id
       });
     }
+    recordAudit({ userId: user.id, action: "reprocess_requested", entity: "product", details: { requestId, sku, completed } });
 
     return NextResponse.json({
       ok: true,

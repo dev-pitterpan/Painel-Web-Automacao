@@ -22,6 +22,17 @@ export type ReprocessRecord = {
   createdAt: string;
 };
 
+export type ManagedUser = AuthUser & { createdAt: string };
+export type AuditRecord = {
+  id: number;
+  action: string;
+  entity: string;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+  userName: string | null;
+  userEmail: string | null;
+};
+
 type UserRecord = AuthUser & { password_hash: string };
 
 const databasePath = process.env.AUTH_DATABASE_FILE || path.join(process.cwd(), "data", "auth.db");
@@ -63,6 +74,15 @@ database.exec(`
     status TEXT NOT NULL DEFAULT 'enviado',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    action TEXT NOT NULL,
+    entity TEXT NOT NULL,
+    details_json TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 `);
 
 const reprocessColumns = database.prepare("PRAGMA table_info(reprocess_jobs)").all() as Array<{ name: string }>;
@@ -123,8 +143,35 @@ export function seedAdminFromEnvironment() {
   const email = process.env.AUTH_ADMIN_EMAIL;
   const password = process.env.AUTH_ADMIN_PASSWORD;
   if (!email || !password) return;
-  const existing = database.prepare("SELECT id FROM users WHERE email = ?").get(normalizeEmail(email));
-  if (!existing) createUser(process.env.AUTH_ADMIN_NAME || "Administrador", email, password, "admin");
+  const total = database.prepare("SELECT COUNT(*) AS total FROM users").get() as { total: number };
+  if (total.total === 0) createUser(process.env.AUTH_ADMIN_NAME || "Administrador", email, password, "admin");
+}
+
+export function listUsers(): ManagedUser[] {
+  return (database.prepare("SELECT id, name, email, role, created_at AS createdAt FROM users ORDER BY id").all() as ManagedUser[]);
+}
+
+export function updateUserRole(actor: AuthUser, userId: number, role: "user" | "admin") {
+  if (actor.role !== "admin") throw new Error("Apenas administradores podem alterar perfis.");
+  if (actor.id === userId && role !== "admin") throw new Error("A conta administrativa atual não pode remover o próprio acesso.");
+  const target = database.prepare("SELECT id, name, email, role FROM users WHERE id = ?").get(userId) as AuthUser | undefined;
+  if (!target) throw new Error("Usuário não encontrado.");
+  database.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, userId);
+  recordAudit({ userId: actor.id, action: "user_role_changed", entity: "user", details: { targetUserId: userId, targetEmail: target.email, previousRole: target.role, newRole: role } });
+}
+
+export function recordAudit(entry: { userId?: number | null; action: string; entity: string; details?: Record<string, unknown> | null }) {
+  database.prepare("INSERT INTO audit_logs (user_id, action, entity, details_json) VALUES (?, ?, ?, ?)").run(entry.userId ?? null, entry.action.slice(0, 80), entry.entity.slice(0, 80), entry.details ? JSON.stringify(entry.details) : null);
+}
+
+export function listAuditLogs(limit = 500): AuditRecord[] {
+  const rows = database.prepare(`
+    SELECT audit_logs.id, audit_logs.action, audit_logs.entity, audit_logs.details_json,
+      audit_logs.created_at AS createdAt, users.name AS userName, users.email AS userEmail
+    FROM audit_logs LEFT JOIN users ON users.id = audit_logs.user_id
+    ORDER BY audit_logs.id DESC LIMIT ?
+  `).all(Math.min(Math.max(limit, 1), 1000)) as Array<Omit<AuditRecord, "details"> & { details_json: string | null }>;
+  return rows.map(({ details_json, ...row }) => ({ ...row, details: details_json ? JSON.parse(details_json) as Record<string, unknown> : null }));
 }
 
 export function authenticate(email: string, password: string) {

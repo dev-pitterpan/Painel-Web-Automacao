@@ -1,560 +1,238 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  BarChart3,
-  Box,
-  CheckCircle2,
-  Clock3,
-  Download,
-  FileText,
-  RefreshCw,
-  TrendingUp,
-  XCircle,
+  BarChart3, Check, ChevronLeft, ChevronRight, Clock3, Download, Eye,
+  FileBarChart, FileText, Layers3, PackageCheck, RefreshCw, Tag, TriangleAlert,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import type { DashboardData, HistoryRow } from "@/lib/types";
+import { calculateTimeSavedMinutes, parseHistoryDate } from "@/lib/metrics";
 
-const colors = [
-  "#233b8f",
-  "#ffd722",
-  "#ef1f2f",
-  "#16a36a",
-  "#7b61ff",
-  "#f5a623",
-  "#4fb3df",
-  "#9aa6bd",
-];
-const fmt = (m: number) =>
-  `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}min`;
-const isBrand = (v: string) => /\p{L}/u.test(String(v || "").trim());
-function parseDate(value: string) {
-  const d = new Date(value);
-  if (!Number.isNaN(d.getTime())) return d;
-  const m = String(value || "").match(
-    /^(\d{2})\/(\d{2})\/(\d{4}),?\s*(\d{2}):(\d{2})(?::(\d{2}))?$/,
-  );
-  if (!m) return null;
-  const [, dd, mm, yy, h, mi, s = "00"] = m;
-  return new Date(`${yy}-${mm}-${dd}T${h}:${mi}:${s}-03:00`);
-}
-function pct(c: number, p: number) {
-  return p === 0 ? null : ((c - p) / p) * 100;
-}
-function metrics(rows: HistoryRow[]) {
-  const sucesso = rows.filter(
-    (r) => !String(r.status).toLowerCase().startsWith("erro"),
-  ).length;
-  const erros = rows.length - sucesso;
-  return {
-    total: rows.length,
-    sucesso,
-    erros,
-    taxa: rows.length ? (sucesso / rows.length) * 100 : 0,
-    tempo: Math.round((rows.length * 48) / 60),
-  };
-}
-function csvEscape(v: unknown) {
-  const s = String(v ?? "");
-  return `"${s.replaceAll('"', '""')}"`;
-}
+type ReportKind = "executivo" | "marca" | "erros" | "alteracoes" | "produtividade";
+type AppliedFilters = { start: string; end: string; brand: string; status: string; change: string };
+type ExportItem = { id: string; createdAt: string; report: string; period: string; rows: number; status: string };
+type BrandReportRow = { brand: string; products: number; total: number; successes: number; errors: number };
+type ProductivityReportRow = { date: string; sort: number; total: number; changed: number; successes: number; errors: number; minutes: number };
 
-type Generated = {
-  id: string;
-  createdAt: string;
-  periodo: string;
-  filtros: string;
-  formato: string;
-  status: string;
+const PAGE_SIZE = 6;
+const REPORT_LABELS: Record<ReportKind, string> = {
+  executivo: "Resumo executivo", marca: "Relatório por marca", erros: "Relatório de erros",
+  alteracoes: "Relatório de alterações", produtividade: "Relatório de produtividade",
 };
+const isBrand = (value: string) => /\p{L}/u.test(String(value || "").trim());
+const isError = (row: HistoryRow) => String(row.status || "").toLowerCase().startsWith("erro");
+const hasChange = (row: HistoryRow) => row.tituloAlterado || row.tagsAlteradas || row.colecoesAlteradas || row.descricaoGerada;
+const fmtMinutes = (minutes: number) => { const totalMinutes = Math.floor(minutes); return `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, "0")}min`; };
+const csvEscape = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+const formatDateInput = (value: string) => value.split("-").reverse().join("/");
+const readStorage = <T,>(key: string, fallback: T): T => {
+  if (typeof window === "undefined") return fallback;
+  try { return JSON.parse(localStorage.getItem(key) || "null") ?? fallback; } catch { return fallback; }
+};
+
+function rowChanges(row: HistoryRow) {
+  const changes: string[] = [];
+  if (row.tituloAlterado) changes.push("Título");
+  if (row.tagsAlteradas) changes.push("Tags");
+  if (row.colecoesAlteradas) changes.push("Coleções");
+  if (row.descricaoGerada) changes.push("Descrição");
+  return changes;
+}
+
 export function ReportsClient() {
-  const [all, setAll] = useState<HistoryRow[]>([]);
+  const [allRows, setAllRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(14);
+  const [loadingExiting, setLoadingExiting] = useState(false);
   const [error, setError] = useState("");
-  const [start, setStart] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 29);
-    return d.toISOString().slice(0, 10);
-  });
+  const [start, setStart] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 29); return d.toISOString().slice(0, 10); });
   const [end, setEnd] = useState(() => new Date().toISOString().slice(0, 10));
   const [brand, setBrand] = useState("");
   const [status, setStatus] = useState("");
-  const [applied, setApplied] = useState({
-    start: "",
-    end: "",
-    brand: "",
-    status: "",
-  });
-  const [generated, setGenerated] = useState<Generated[]>([]);
+  const [change, setChange] = useState("");
+  const [applied, setApplied] = useState<AppliedFilters | null>(null);
+  const [reportKind, setReportKind] = useState<ReportKind>("executivo");
+  const [page, setPage] = useState(1);
+  const [showAll, setShowAll] = useState(false);
+  const [exports, setExports] = useState<ExportItem[]>([]);
+  const [generations, setGenerations] = useState<string[]>([]);
+  const [toast, setToast] = useState("");
+  const previewRef = useRef<HTMLDivElement>(null);
+
   async function load(refresh = false) {
-    setLoading(true);
-    setError("");
+    setLoading(true); setLoadingExiting(false); setError("");
     try {
-      const r = await fetch(
-        `/api/dashboard?days=3650${refresh ? "&refresh=1" : ""}`,
-        { cache: "no-store" },
-      );
-      const j = (await r.json()) as DashboardData & { error?: string };
-      if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);
-      setAll(Array.isArray(j.rows) ? j.rows : []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao carregar relatórios.");
-    } finally {
-      setLoading(false);
-    }
+      const response = await fetch(`/api/dashboard?days=3650${refresh ? "&refresh=1" : ""}`, { cache: "no-store" });
+      const data = await response.json() as DashboardData & { error?: string };
+      if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
+      setAllRows(Array.isArray(data.rows) ? data.rows : []);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Erro ao carregar relatórios."); }
+    finally { setLoadingProgress(100); setLoading(false); setLoadingExiting(true); }
   }
+
   useEffect(() => {
     load();
-    const raw = localStorage.getItem("pitter-report-history");
-    if (raw) {
-      try {
-        setGenerated(JSON.parse(raw));
-      } catch {}
-    }
+    setExports(readStorage<ExportItem[]>("pitter-report-exports", []));
+    setGenerations(readStorage<string[]>("pitter-report-generations", []));
   }, []);
+  useEffect(() => { if (!applied && allRows.length) setApplied({ start, end, brand, status, change }); }, [allRows, applied, start, end, brand, status, change]);
+  useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(""), 2800); return () => window.clearTimeout(timer); }, [toast]);
   useEffect(() => {
-    if (!applied.start && all.length) setApplied({ start, end, brand, status });
-  }, [all]);
-  const brands = useMemo(
-    () =>
-      [
-        ...new Set(
-          all.map((r) => String(r.marca || "").trim()).filter(isBrand),
-        ),
-      ].sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [all],
-  );
-  const rows = useMemo(() => {
-    const s = new Date(`${applied.start || start}T00:00:00-03:00`).getTime();
-    const e = new Date(`${applied.end || end}T23:59:59-03:00`).getTime();
-    return all.filter((r) => {
-      const d = parseDate(r.dataHora);
-      if (!d) return false;
-      if (d.getTime() < s || d.getTime() > e) return false;
-      if (applied.brand && r.marca !== applied.brand) return false;
-      const err = String(r.status).toLowerCase().startsWith("erro");
-      if (applied.status === "sucesso" && err) return false;
-      if (applied.status === "erro" && !err) return false;
+    if (!loading) { setLoadingProgress(100); return; }
+    setLoadingProgress(14);
+    const interval = window.setInterval(() => setLoadingProgress(value => Math.min(value + 5, 92)), 180);
+    return () => window.clearInterval(interval);
+  }, [loading]);
+  useEffect(() => {
+    if (loading || !loadingExiting) return;
+    const timeout = window.setTimeout(() => setLoadingExiting(false), 360);
+    return () => window.clearTimeout(timeout);
+  }, [loading, loadingExiting]);
+
+  const brands = useMemo(() => [...new Set(allRows.map(row => String(row.marca || "").trim()).filter(isBrand))].sort((a, b) => a.localeCompare(b, "pt-BR")), [allRows]);
+  const filteredRows = useMemo(() => {
+    const filters = applied || { start, end, brand, status, change };
+    const startAt = new Date(`${filters.start}T00:00:00-03:00`).getTime();
+    const endAt = new Date(`${filters.end}T23:59:59-03:00`).getTime();
+    return allRows.filter(row => {
+      const date = parseHistoryDate(row.dataHora);
+      if (!date || date.getTime() < startAt || date.getTime() > endAt) return false;
+      if (filters.brand && row.marca !== filters.brand) return false;
+      if (filters.status === "sucesso" && isError(row)) return false;
+      if (filters.status === "erro" && !isError(row)) return false;
+      if (filters.change === "titulo" && !row.tituloAlterado) return false;
+      if (filters.change === "tags" && !row.tagsAlteradas) return false;
+      if (filters.change === "colecoes" && !row.colecoesAlteradas) return false;
+      if (filters.change === "descricao" && !row.descricaoGerada) return false;
       return true;
     });
-  }, [all, applied, start, end]);
-  const current = useMemo(() => metrics(rows), [rows]);
-  const previous = useMemo(() => {
-    const s = new Date(`${applied.start || start}T00:00:00-03:00`);
-    const e = new Date(`${applied.end || end}T23:59:59-03:00`);
-    const span = e.getTime() - s.getTime() + 1;
-    const ps = new Date(s.getTime() - span),
-      pe = new Date(s.getTime() - 1);
-    const prev = all.filter((r) => {
-      const d = parseDate(r.dataHora);
-      if (!d || d.getTime() < ps.getTime() || d.getTime() > pe.getTime())
-        return false;
-      if (applied.brand && r.marca !== applied.brand) return false;
-      const err = String(r.status).toLowerCase().startsWith("erro");
-      if (applied.status === "sucesso" && err) return false;
-      if (applied.status === "erro" && !err) return false;
-      return true;
+  }, [allRows, applied, start, end, brand, status, change]);
+
+  const reportRows = useMemo(() => reportKind === "erros" ? filteredRows.filter(isError) : reportKind === "alteracoes" ? filteredRows.filter(hasChange) : filteredRows, [filteredRows, reportKind]);
+  const brandRows = useMemo<BrandReportRow[]>(() => {
+    const grouped = new Map<string, { skus: Set<string>; total: number; successes: number; errors: number }>();
+    filteredRows.forEach(row => {
+      const key = String(row.marca || "Sem marca").trim() || "Sem marca";
+      const item = grouped.get(key) || { skus: new Set<string>(), total: 0, successes: 0, errors: 0 };
+      item.skus.add(row.sku || row.tituloDepois || row.tituloAntes || `${key}-${item.total}`);
+      item.total += 1;
+      if (isError(row)) item.errors += 1; else item.successes += 1;
+      grouped.set(key, item);
     });
-    return metrics(prev);
-  }, [all, applied, start, end]);
-  const byDay = useMemo(() => {
-    const m = new Map<string, { data: string; total: number; sort: number }>();
-    rows.forEach((r) => {
-      const d = parseDate(r.dataHora);
-      if (!d) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const label = new Intl.DateTimeFormat("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-      }).format(d);
-      const x = m.get(key) || {
-        data: label,
-        total: 0,
-        sort: new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(),
-      };
-      x.total++;
-      m.set(key, x);
+    return [...grouped.entries()].map(([itemBrand, item]) => ({ brand: itemBrand, products: item.skus.size, total: item.total, successes: item.successes, errors: item.errors })).sort((a, b) => b.total - a.total || a.brand.localeCompare(b.brand, "pt-BR"));
+  }, [filteredRows]);
+  const productivityRows = useMemo<ProductivityReportRow[]>(() => {
+    const grouped = new Map<string, ProductivityReportRow>();
+    filteredRows.forEach(row => {
+      const parsed = parseHistoryDate(row.dataHora);
+      if (!parsed) return;
+      const key = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+      const item = grouped.get(key) || { date: new Intl.DateTimeFormat("pt-BR").format(parsed), sort: new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime(), total: 0, changed: 0, successes: 0, errors: 0, minutes: 0 };
+      item.total += 1;
+      if (hasChange(row)) item.changed += 1;
+      if (isError(row)) item.errors += 1; else item.successes += 1;
+      grouped.set(key, item);
     });
-    return [...m.values()]
-      .sort((a, b) => a.sort - b.sort)
-      .map(({ sort, ...item }) => item);
-  }, [rows]);
-  const byBrand = useMemo(() => {
-    const m = new Map<string, number>();
-    rows.forEach((r) => {
-      const b = String(r.marca || "").trim();
-      if (isBrand(b)) m.set(b, (m.get(b) || 0) + 1);
-    });
-    return [...m.entries()]
-      .map(([marca, total]) => ({ marca, total }))
-      .sort((a, b) => b.total - a.total);
-  }, [rows]);
-  function apply() {
-    setApplied({ start, end, brand, status });
-    const item: Generated = {
-      id: crypto.randomUUID(),
-      createdAt: new Date().toLocaleString("pt-BR"),
-      periodo: `${start.split("-").reverse().join("/")} - ${end.split("-").reverse().join("/")}`,
-      filtros: [
-        brand || "Todas as marcas",
-        status === "erro"
-          ? "Erros"
-          : status === "sucesso"
-            ? "Sucesso"
-            : "Todos os status",
-      ].join(" • "),
-      formato: "CSV",
-      status: "Concluído",
-    };
-    const next = [item, ...generated].slice(0, 8);
-    setGenerated(next);
-    localStorage.setItem("pitter-report-history", JSON.stringify(next));
+    return [...grouped.values()].sort((a, b) => b.sort - a.sort).map(item => ({ ...item, minutes: calculateTimeSavedMinutes(item.total) }));
+  }, [filteredRows]);
+  const summaries = useMemo(() => ({
+    generated: generations.filter(createdAt => {
+      const parts = createdAt.split(",")[0].split("/");
+      const date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00`);
+      const from = new Date(`${(applied || { start }).start}T00:00:00`);
+      const to = new Date(`${(applied || { end }).end}T23:59:59`);
+      return !Number.isNaN(date.getTime()) && date >= from && date <= to;
+    }).length,
+    changed: new Set(filteredRows.filter(hasChange).map(row => row.sku || row.tituloDepois || row.tituloAntes)).size,
+    errors: filteredRows.filter(isError).length,
+    time: calculateTimeSavedMinutes(filteredRows.length),
+  }), [filteredRows, generations, applied, start, end]);
+
+  const previewCount = reportKind === "marca" ? brandRows.length : reportKind === "produtividade" ? productivityRows.length : reportRows.length;
+  const totalPages = Math.max(1, Math.ceil(previewCount / PAGE_SIZE));
+  const sliceStart = (page - 1) * PAGE_SIZE;
+  const sliceEnd = page * PAGE_SIZE;
+  const visibleRows = showAll ? reportRows : reportRows.slice(sliceStart, sliceEnd);
+  const visibleBrands = showAll ? brandRows : brandRows.slice(sliceStart, sliceEnd);
+  const visibleProductivity = showAll ? productivityRows : productivityRows.slice(sliceStart, sliceEnd);
+  const rangeStart = previewCount ? (showAll ? 1 : sliceStart + 1) : 0;
+  const rangeEnd = showAll ? previewCount : Math.min(sliceEnd, previewCount);
+
+  function applyFilters() {
+    if (start > end) { setToast("A data inicial deve ser anterior à data final."); return; }
+    setApplied({ start, end, brand, status, change }); setPage(1); setShowAll(false);
+    const nextGenerations = [new Date().toLocaleString("pt-BR"), ...generations].slice(0, 100);
+    setGenerations(nextGenerations); localStorage.setItem("pitter-report-generations", JSON.stringify(nextGenerations));
+    setToast("Relatório atualizado com os filtros selecionados.");
   }
-  function exportCsv() {
-    const headers = [
-      "Data/Hora",
-      "SKU",
-      "Produto",
-      "Marca",
-      "Status",
-      "Título Alterado?",
-      "Tags Alteradas?",
-      "Coleções Alteradas?",
-      "Descrição Gerada?",
-    ];
-    const lines = [
-      headers.join(";"),
-      ...rows.map((r) =>
-        [
-          r.dataHora,
-          r.sku,
-          r.tituloDepois || r.tituloAntes,
-          r.marca,
-          r.status,
-          r.tituloAlterado ? "Sim" : "Não",
-          r.tagsAlteradas ? "Sim" : "Não",
-          r.colecoesAlteradas ? "Sim" : "Não",
-          r.descricaoGerada ? "Sim" : "Não",
-        ]
-          .map(csvEscape)
-          .join(";"),
-      ),
-    ];
-    const blob = new Blob(["\ufeff" + lines.join("\n")], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `relatorio-pitter-pan-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  function selectReport(kind: ReportKind) {
+    setReportKind(kind); setPage(1); setShowAll(false);
+    window.setTimeout(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   }
-  const topBrand = byBrand[0];
-  const topProduct = useMemo(() => {
-    const m = new Map<string, number>();
-    rows.forEach((r) => {
-      const k = (r.tituloDepois || r.tituloAntes || r.sku).trim();
-      if (k) m.set(k, (m.get(k) || 0) + 1);
-    });
-    return [...m.entries()].sort((a, b) => b[1] - a[1])[0];
-  }, [rows]);
-  if (loading) return <div className="panel">Carregando relatórios...</div>;
-  if (error)
-    return (
-      <div className="panel">
-        <b>Erro ao carregar relatórios</b>
-        <p>{error}</p>
-        <button className="btn" onClick={() => load(true)}>
-          <RefreshCw size={16} />
-          Tentar novamente
-        </button>
-      </div>
-    );
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">Relatórios</h1>
-          <div className="page-sub">
-            Análises e exportações para acompanhamento da operação.
-          </div>
-        </div>
-        <button className="btn" onClick={() => load(true)}>
-          <RefreshCw size={16} />
-          Atualizar
-        </button>
-      </div>
-      <div className="reports-filterbar">
-        <label>
-          Período
-          <div className="period-fields">
-            <input
-              type="date"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-            />
-            <span>—</span>
-            <input
-              type="date"
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-            />
-          </div>
-        </label>
-        <label>
-          Marca
-          <select value={brand} onChange={(e) => setBrand(e.target.value)}>
-            <option value="">Todas as marcas</option>
-            {brands.map((b) => (
-              <option key={b}>{b}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Status
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">Todos os status</option>
-            <option value="sucesso">Sucesso</option>
-            <option value="erro">Erro</option>
-          </select>
-        </label>
-        <button className="btn btn-primary" onClick={apply}>
-          <BarChart3 size={16} />
-          Gerar relatório
-        </button>
-        <button className="btn" onClick={exportCsv}>
-          <Download size={16} />
-          Exportar CSV
-        </button>
-      </div>
-      <div className="report-metrics">
-        <div className="report-stat">
-          <Box />
-          <span>
-            Produtos processados
-            <strong>{current.total.toLocaleString("pt-BR")}</strong>
-            <em>
-              {pct(current.total, previous.total) == null
-                ? "Sem base"
-                : `${(pct(current.total, previous.total) ?? 0) >= 0 ? "↑" : "↓"} ${Math.abs(pct(current.total, previous.total)!).toFixed(1)}%`}
-            </em>
-          </span>
-        </div>
-        <div className="report-stat green">
-          <CheckCircle2 />
-          <span>
-            Sucesso<strong>{current.sucesso.toLocaleString("pt-BR")}</strong>
-            <em>
-              {pct(current.sucesso, previous.sucesso) == null
-                ? "Sem base"
-                : `${(pct(current.sucesso, previous.sucesso) ?? 0) >= 0 ? "↑" : "↓"} ${Math.abs(pct(current.sucesso, previous.sucesso)!).toFixed(1)}%`}
-            </em>
-          </span>
-        </div>
-        <div className="report-stat red">
-          <XCircle />
-          <span>
-            Erros<strong>{current.erros.toLocaleString("pt-BR")}</strong>
-            <em>
-              {pct(current.erros, previous.erros) == null
-                ? "Sem base"
-                : `${(pct(current.erros, previous.erros) ?? 0) >= 0 ? "↑" : "↓"} ${Math.abs(pct(current.erros, previous.erros)!).toFixed(1)}%`}
-            </em>
-          </span>
-        </div>
-        <div className="report-stat gold">
-          <Clock3 />
-          <span>
-            Tempo economizado<strong>{fmt(current.tempo)}</strong>
-            <em>
-              {pct(current.tempo, previous.tempo) == null
-                ? "Sem base"
-                : `${(pct(current.tempo, previous.tempo) ?? 0) >= 0 ? "↑" : "↓"} ${Math.abs(pct(current.tempo, previous.tempo)!).toFixed(1)}%`}
-            </em>
-          </span>
-        </div>
-        <div className="report-stat violet">
-          <BarChart3 />
-          <span>
-            Taxa de sucesso<strong>{current.taxa.toFixed(1)}%</strong>
-            <em>
-              {previous.taxa
-                ? `${current.taxa - previous.taxa >= 0 ? "↑" : "↓"} ${Math.abs(current.taxa - previous.taxa).toFixed(1)} p.p.`
-                : "Sem base"}
-            </em>
-          </span>
-        </div>
-      </div>
-      <div className="reports-grid">
-        <div className="panel report-chart wide">
-          <div className="panel-title">Evolução de processamentos</div>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={byDay}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="data" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="total" fill="#6ea8ff" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="panel report-chart">
-          <div className="panel-title">Sucesso vs. Erro</div>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={[
-                  { name: "Sucesso", value: current.sucesso },
-                  { name: "Erro", value: current.erros },
-                ]}
-                dataKey="value"
-                innerRadius={58}
-                outerRadius={82}
-              >
-                {[0, 1].map((_, i) => (
-                  <Cell key={i} fill={i === 0 ? "#35b66f" : "#ef5350"} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="panel ranking">
-          <div className="panel-title">Ranking de marcas</div>
-          {byBrand.slice(0, 5).map((b, i) => (
-            <div className="rank-row" key={b.marca}>
-              <span>{i + 1}</span>
-              <div>
-                <b>{b.marca}</b>
-                <i
-                  style={{
-                    width: `${Math.max(8, (b.total / (byBrand[0]?.total || 1)) * 100)}%`,
-                  }}
-                />
-              </div>
-              <strong>{b.total}</strong>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="reports-bottom">
-        <div className="panel">
-          <div className="panel-head">
-            <div className="panel-title">Relatórios gerados</div>
-          </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Data e hora</th>
-                  <th>Período</th>
-                  <th>Filtros</th>
-                  <th>Formato</th>
-                  <th>Status</th>
-                  <th>Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {generated.length ? (
-                  generated.map((g) => (
-                    <tr key={g.id}>
-                      <td>{g.createdAt}</td>
-                      <td>{g.periodo}</td>
-                      <td>{g.filtros}</td>
-                      <td>{g.formato}</td>
-                      <td>
-                        <span className="badge badge-success">{g.status}</span>
-                      </td>
-                      <td>
-                        <button className="table-action" onClick={exportCsv}>
-                          <Download size={14} />
-                          Baixar
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: "center" }}>
-                      Gere um relatório para começar.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div className="panel insights">
-          <div className="panel-title">Insights do período</div>
-          <div className="insight">
-            <TrendingUp />
-            <span>
-              <b>Crescimento no volume</b>
-              <small>
-                {pct(current.total, previous.total) == null
-                  ? "Ainda não há período anterior comparável."
-                  : `O volume foi ${Math.abs(pct(current.total, previous.total)!).toFixed(1)}% ${(pct(current.total, previous.total) ?? 0) >= 0 ? "maior" : "menor"} que no período anterior.`}
-              </small>
-            </span>
-          </div>
-          <div className="insight">
-            <BarChart3 />
-            <span>
-              <b>Taxa de sucesso</b>
-              <small>
-                A operação ficou em {current.taxa.toFixed(1)}% de sucesso no
-                período.
-              </small>
-            </span>
-          </div>
-          <div className="insight">
-            <Clock3 />
-            <span>
-              <b>Tempo otimizado</b>
-              <small>
-                Estimativa de {fmt(current.tempo)} de trabalho manual
-                economizado.
-              </small>
-            </span>
-          </div>
-          <div className="insight">
-            <FileText />
-            <span>
-              <b>Marca destaque</b>
-              <small>
-                {topBrand
-                  ? `${topBrand.marca} liderou com ${topBrand.total} processamentos.`
-                  : "Sem dados de marca no período."}
-              </small>
-            </span>
-          </div>
-          <div className="insight">
-            <Box />
-            <span>
-              <b>Produto mais processado</b>
-              <small>
-                {topProduct
-                  ? `${topProduct[0]} apareceu ${topProduct[1]} vez(es) no período.`
-                  : "Sem produtos no período."}
-              </small>
-            </span>
-          </div>
-        </div>
-      </div>
-    </>
-  );
+  function exportCsv(kind: ReportKind = reportKind) {
+    const selected = kind === "marca" ? brandRows : kind === "produtividade" ? productivityRows : kind === "erros" ? filteredRows.filter(isError) : kind === "alteracoes" ? filteredRows.filter(hasChange) : filteredRows;
+    let lines: string[];
+    if (kind === "marca") {
+      lines = [["Marca", "Produtos únicos", "Processamentos", "Sucessos", "Erros"].join(";"), ...brandRows.map(row => [row.brand, row.products, row.total, row.successes, row.errors].map(csvEscape).join(";"))];
+    } else if (kind === "produtividade") {
+      lines = [["Data", "Processamentos", "Produtos alterados", "Sucessos", "Erros", "Tempo economizado"].join(";"), ...productivityRows.map(row => [row.date, row.total, row.changed, row.successes, row.errors, fmtMinutes(row.minutes)].map(csvEscape).join(";"))];
+    } else {
+      const historyRows = selected as HistoryRow[];
+      lines = [["Data/Hora", "SKU", "Produto", "Marca", "Status", "Alterações"].join(";"), ...historyRows.map(row => [row.dataHora, row.sku, row.tituloDepois || row.tituloAntes, row.marca, row.status, rowChanges(row).join(", ") || "Sem alteração"].map(csvEscape).join(";"))];
+    }
+    const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url;
+    anchor.download = `${REPORT_LABELS[kind].toLowerCase().replaceAll(" ", "-")}-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click(); URL.revokeObjectURL(url);
+    const filters = applied || { start, end };
+    const item: ExportItem = { id: crypto.randomUUID(), createdAt: new Date().toLocaleString("pt-BR"), report: REPORT_LABELS[kind], period: `${formatDateInput(filters.start)} a ${formatDateInput(filters.end)}`, rows: selected.length, status: "Concluído" };
+    const next = [item, ...exports].slice(0, 12); setExports(next); localStorage.setItem("pitter-report-exports", JSON.stringify(next));
+    fetch("/api/audit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "report_exported", details: { report: REPORT_LABELS[kind], rows: selected.length, period: item.period } }) }).catch(() => undefined);
+    setToast("Arquivo CSV exportado com sucesso.");
+  }
+  if (loading || loadingExiting) return <div className={`loading-screen ${loadingExiting ? "is-exiting" : ""}`} role="status" aria-live="polite"><div className="loading-card"><img className="loading-logo" src="/pitter-logo.svg" alt="Pitter Pan Festas" /><h1>Carregando dados da planilha...</h1><div className="loading-progress-row"><div className="loading-progress" aria-hidden="true"><span className="loading-progress-fill" style={{ width: `${loadingProgress}%` }} /></div><strong>{loadingProgress}%</strong></div></div></div>;
+  if (error) return <div className="panel reports-state"><b>Erro ao carregar relatórios</b><p>{error}</p><button className="btn" onClick={() => load(true)}><RefreshCw size={16} />Tentar novamente</button></div>;
+
+  const filters = applied || { start, end, brand, status, change };
+  const reportCards: Array<{ kind: ReportKind; icon: typeof FileText; text: string; tone: string }> = [
+    { kind: "executivo", icon: FileBarChart, text: "Visão geral dos resultados e principais indicadores do período.", tone: "blue" },
+    { kind: "marca", icon: Tag, text: "Desempenho detalhado dos produtos agrupados por marca.", tone: "violet" },
+    { kind: "erros", icon: TriangleAlert, text: "Ocorrências com erro para conferência e reprocessamento.", tone: "red" },
+    { kind: "alteracoes", icon: Layers3, text: "Histórico de títulos, tags, coleções e descrições alteradas.", tone: "gold" },
+    { kind: "produtividade", icon: BarChart3, text: "Volume processado e estimativa de tempo economizado.", tone: "green" },
+  ];
+
+  return <>
+    {toast && <div className="reports-toast"><Check size={16} />{toast}</div>}
+    <div className="page-head reports-page-head"><div><h1 className="page-title">Relatórios</h1><div className="page-sub">Gere, visualize e acompanhe relatórios da operação de produtos.</div></div><div className="reports-head-actions"><button className="btn" onClick={() => exportCsv()}><Download size={16} />Exportar CSV</button></div></div>
+
+    <section className="reports-filterbar" aria-label="Filtros do relatório">
+      <label>Período<div className="period-fields"><input aria-label="Data inicial" type="date" value={start} onChange={event => setStart(event.target.value)} /><span>até</span><input aria-label="Data final" type="date" value={end} onChange={event => setEnd(event.target.value)} /></div></label>
+      <label>Marca<select value={brand} onChange={event => setBrand(event.target.value)}><option value="">Todas as marcas</option>{brands.map(item => <option key={item}>{item}</option>)}</select></label>
+      <label>Status<select value={status} onChange={event => setStatus(event.target.value)}><option value="">Todos os status</option><option value="sucesso">Sucesso</option><option value="erro">Erro</option></select></label>
+      <label>Tipo de alteração<select value={change} onChange={event => setChange(event.target.value)}><option value="">Todos os tipos</option><option value="titulo">Título</option><option value="tags">Tags</option><option value="colecoes">Coleções</option><option value="descricao">Descrição</option></select></label>
+      <button className="btn btn-primary reports-generate" onClick={applyFilters}><BarChart3 size={16} />Gerar relatório</button>
+    </section>
+
+    <section className="report-metrics" aria-label="Resumo do período">
+      <article className="report-stat"><span className="report-stat-icon blue"><FileText /></span><div><span>Relatórios gerados no período</span><strong>{summaries.generated}</strong><small>Relatórios atualizados</small></div></article>
+      <article className="report-stat"><span className="report-stat-icon green"><PackageCheck /></span><div><span>Produtos com alteração</span><strong>{summaries.changed.toLocaleString("pt-BR")}</strong><small>Produtos únicos</small></div></article>
+      <article className="report-stat"><span className="report-stat-icon red"><TriangleAlert /></span><div><span>Erros exportados</span><strong>{summaries.errors.toLocaleString("pt-BR")}</strong><small>No período selecionado</small></div></article>
+      <article className="report-stat"><span className="report-stat-icon gold"><Clock3 /></span><div><span>Tempo economizado no período</span><strong>{fmtMinutes(summaries.time)}</strong><small>1 min manual por produto − lotes de 5 em 40s</small></div></article>
+    </section>
+
+    <section className="panel reports-available"><div className="reports-section-head"><div><h2>Relatórios disponíveis</h2><p>Escolha um modelo para visualizar ou exportar.</p></div></div><div className="report-card-grid">{reportCards.map(card => { const Icon = card.icon; return <article className="available-report" key={card.kind}><span className={`available-icon ${card.tone}`}><Icon /></span><div className="available-copy"><h3>{REPORT_LABELS[card.kind]}</h3><p>{card.text}</p></div><div className="available-actions"><button onClick={() => selectReport(card.kind)}><Eye size={15} />Visualizar</button><button onClick={() => exportCsv(card.kind)} aria-label={`Exportar ${REPORT_LABELS[card.kind]}`}><Download size={15} />Exportar</button></div></article>; })}</div></section>
+
+    <div className="reports-content-grid">
+      <section className="panel reports-preview" ref={previewRef}><div className="reports-section-head preview-head"><div><h2>Prévia do relatório</h2><p>{REPORT_LABELS[reportKind]} · {formatDateInput(filters.start)} a {formatDateInput(filters.end)}</p></div><span className="preview-count">{previewCount.toLocaleString("pt-BR")} registros</span></div><div className="table-wrap reports-preview-table">
+        {reportKind === "marca" ? <table><thead><tr><th>Marca</th><th>Produtos únicos</th><th>Processamentos</th><th>Sucessos</th><th>Erros</th></tr></thead><tbody>{visibleBrands.length ? visibleBrands.map(row => <tr key={row.brand}><td><b>{row.brand}</b></td><td>{row.products.toLocaleString("pt-BR")}</td><td>{row.total.toLocaleString("pt-BR")}</td><td><span className="badge badge-success">{row.successes.toLocaleString("pt-BR")}</span></td><td><span className={row.errors ? "badge badge-error" : "badge badge-success"}>{row.errors.toLocaleString("pt-BR")}</span></td></tr>) : <tr><td colSpan={5} className="empty">Nenhuma marca encontrada com os filtros selecionados.</td></tr>}</tbody></table>
+        : reportKind === "produtividade" ? <table><thead><tr><th>Data</th><th>Processamentos</th><th>Com alteração</th><th>Sucessos</th><th>Erros</th><th>Tempo economizado</th></tr></thead><tbody>{visibleProductivity.length ? visibleProductivity.map(row => <tr key={row.sort}><td><b>{row.date}</b></td><td>{row.total.toLocaleString("pt-BR")}</td><td>{row.changed.toLocaleString("pt-BR")}</td><td><span className="badge badge-success">{row.successes.toLocaleString("pt-BR")}</span></td><td><span className={row.errors ? "badge badge-error" : "badge badge-success"}>{row.errors.toLocaleString("pt-BR")}</span></td><td>{fmtMinutes(row.minutes)}</td></tr>) : <tr><td colSpan={6} className="empty">Nenhum dado de produtividade encontrado.</td></tr>}</tbody></table>
+        : <table><thead><tr><th>Data e hora</th><th>Produto</th><th>Marca</th><th>Tipo de alteração</th><th>Status</th></tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={`${row.sku}-${row.dataHora}-${index}`}><td>{row.dataHora}</td><td><b>{row.tituloDepois || row.tituloAntes || "Produto sem título"}</b><small>SKU {row.sku || "—"}</small></td><td>{row.marca || "—"}</td><td><div className="change-tags">{rowChanges(row).length ? rowChanges(row).map(item => <span key={item}>{item}</span>) : <span className="muted-change">Sem alteração</span>}</div></td><td><span className={`badge ${isError(row) ? "badge-error" : "badge-success"}`}>{isError(row) ? "Erro" : "Sucesso"}</span></td></tr>) : <tr><td colSpan={5} className="empty">Nenhum registro encontrado com os filtros selecionados.</td></tr>}</tbody></table>}
+      </div><div className="preview-footer"><span>Exibindo {rangeStart}–{rangeEnd} de {previewCount.toLocaleString("pt-BR")}</span><div className="pagination"><button disabled={showAll || page === 1} onClick={() => setPage(value => Math.max(1, value - 1))}><ChevronLeft size={15} /></button><span>{showAll ? "Todos" : `${page} / ${totalPages}`}</span><button disabled={showAll || page === totalPages} onClick={() => setPage(value => Math.min(totalPages, value + 1))}><ChevronRight size={15} /></button></div><button className="btn preview-full" onClick={() => { setShowAll(value => !value); setPage(1); }}>{showAll ? "Ver prévia paginada" : "Ver relatório completo"}</button></div></section>
+
+    </div>
+
+    <section className="panel exports-history"><div className="reports-section-head"><div><h2>Histórico de exportações</h2><p>Últimos arquivos gerados por este navegador.</p></div><button className="icon-refresh" onClick={() => load(true)} aria-label="Atualizar dados"><RefreshCw size={16} /></button></div><div className="table-wrap"><table><thead><tr><th>Data e hora</th><th>Relatório</th><th>Período</th><th>Registros</th><th>Formato</th><th>Status</th></tr></thead><tbody>{exports.length ? exports.map(item => <tr key={item.id}><td>{item.createdAt}</td><td><b>{item.report}</b></td><td>{item.period}</td><td>{item.rows.toLocaleString("pt-BR")}</td><td><span className="format-pill">CSV</span></td><td><span className="badge badge-success">{item.status}</span></td></tr>) : <tr><td colSpan={6} className="empty">Nenhuma exportação realizada ainda.</td></tr>}</tbody></table></div></section>
+
+  </>;
 }

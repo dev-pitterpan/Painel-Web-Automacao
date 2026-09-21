@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { ChevronLeft, ChevronRight, CircleAlert, FileText, LayoutDashboard, LogOut, Package, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleAlert, FileText, LayoutDashboard, LogOut, Package, RotateCcw, ScrollText, UserCog } from "lucide-react";
 import type { AuthUser } from "@/lib/auth";
 
 const items: Array<[string, string, LucideIcon]> = [
@@ -19,6 +19,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const navigationItems = user.role === "admin" ? [...items, ["Usuários", "/usuarios", UserCog] as [string, string, LucideIcon], ["Auditoria", "/auditoria", ScrollText] as [string, string, LucideIcon]] : items;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -45,7 +46,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
         </div>
       </div>
       <nav className="nav">
-        {items.map(([label, href, Icon]) => (
+        {navigationItems.map(([label, href, Icon]) => (
           <Link
             key={href}
             href={href}

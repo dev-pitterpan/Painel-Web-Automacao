@@ -7,6 +7,7 @@ let cache:
   | {
       rows: HistoryRow[];
       expiresAt: number;
+      syncedAt: string;
     }
   | null = null;
 
@@ -277,8 +278,8 @@ export async function getHistoryRows(
 
     cache = {
       rows,
-      expiresAt:
-        now + 30_000
+      expiresAt: now + 30_000,
+      syncedAt: new Date().toISOString()
     };
 
     return rows;
@@ -293,4 +294,13 @@ export async function getHistoryRows(
       `Falha ao ler o Google Sheets. ${message}`
     );
   }
+}
+
+export async function getHistoryRowsWithStatus(force = false) {
+  const rows = await getHistoryRows(force);
+  return {
+    rows,
+    lastSyncedAt: cache?.syncedAt || new Date().toISOString(),
+    sheetName: getGoogleConfig().sheetName
+  };
 }

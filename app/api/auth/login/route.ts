@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticate, clearLoginFailures, createSession, isLoginRateLimited, recordLoginFailure } from "@/lib/auth";
+import { authenticate, clearLoginFailures, createSession, isLoginRateLimited, recordAudit, recordLoginFailure } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -16,10 +16,12 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     recordLoginFailure(identifier);
+    recordAudit({ action: "login_failed", entity: "auth", details: { email: email.trim().toLowerCase(), address } });
     return NextResponse.json({ error: "E-mail ou senha inválidos." }, { status: 401 });
   }
 
   clearLoginFailures(identifier);
+  recordAudit({ userId: user.id, action: "login_success", entity: "auth", details: { address } });
   const session = createSession(user.id);
   const response = NextResponse.json({ user });
   response.cookies.set("pitter_session", session.token, {

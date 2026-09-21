@@ -1,12 +1,13 @@
 import type { DashboardData, HistoryRow } from "./types";
 
-function parseDate(value: string) {
+export function parseHistoryDate(value: string) {
+	const match = String(value || "").match(/^(\d{2})\/(\d{2})\/(\d{4}),?\s*(\d{2}):(\d{2})(?::(\d{2}))?$/);
+	if (match) {
+		const [, day, month, year, hour, minute, second = "00"] = match;
+		return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`);
+	}
 	const date = new Date(value);
-	if (!Number.isNaN(date.getTime())) return date;
-	const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4}),?\s*(\d{2}):(\d{2})(?::(\d{2}))?$/);
-	if (!match) return null;
-	const [, day, month, year, hour, minute, second = "00"] = match;
-	return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`);
+	return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function matches(row: HistoryRow, options: { q: string; marca: string; status: string }) {
@@ -32,6 +33,14 @@ function percentageChange(current: number, previous: number) {
 	return ((current - previous) / previous) * 100;
 }
 
+export function calculateTimeSavedMinutes(productCount: number) {
+	if (!Number.isFinite(productCount) || productCount <= 0) return 0;
+	const normalizedCount = Math.floor(productCount);
+	const manualSeconds = normalizedCount * 60;
+	const automatedSeconds = Math.ceil(normalizedCount / 5) * 40;
+	return Math.max(0, (manualSeconds - automatedSeconds) / 60);
+}
+
 function calculateMetrics(rows: HistoryRow[]) {
 	const sucesso = rows.filter(row => !row.status.toLowerCase().startsWith("erro")).length;
 	const erros = rows.length - sucesso;
@@ -44,23 +53,30 @@ function calculateMetrics(rows: HistoryRow[]) {
 		tagsAlteradas: rows.filter(row => row.tagsAlteradas).length,
 		colecoesAlteradas: rows.filter(row => row.colecoesAlteradas).length,
 		descricoesGeradas: rows.filter(row => row.descricaoGerada).length,
-		tempoEconomizadoMin: Math.round(rows.length * 48 / 60)
+		tempoEconomizadoMin: calculateTimeSavedMinutes(rows.length)
 	};
 }
 
-export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?: string; status?: string; days?: number } = {}): DashboardData {
+export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?: string; status?: string; days?: number; month?: string } = {}): DashboardData {
 	const days = options.days || 30;
 	const now = Date.now();
-	const currentCutoff = now - days * 86400000;
-	const previousCutoff = currentCutoff - days * 86400000;
+	const fullPeriod = options.month === "all";
+	const validMonth = /^\d{4}-\d{2}$/.test(options.month || "") ? options.month! : null;
+	const [selectedYear, selectedMonth] = validMonth ? validMonth.split("-").map(Number) : [0, 0];
+	const currentStart = fullPeriod ? Number.NEGATIVE_INFINITY : validMonth ? new Date(`${validMonth}-01T00:00:00-03:00`).getTime() : now - days * 86400000;
+	const currentEnd = fullPeriod ? Number.POSITIVE_INFINITY : validMonth ? new Date(`${selectedYear}-${String(selectedMonth === 12 ? 1 : selectedMonth + 1).padStart(2, "0")}-01T00:00:00-03:00`).setFullYear(selectedMonth === 12 ? selectedYear + 1 : selectedYear) : now;
+	const previousYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+	const previousMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+	const previousStart = validMonth ? new Date(`${previousYear}-${String(previousMonth).padStart(2, "0")}-01T00:00:00-03:00`).getTime() : currentStart - days * 86400000;
+	const previousEnd = validMonth ? currentStart : currentStart;
 	const filters = { q: (options.q || "").toLowerCase(), marca: options.marca || "", status: (options.status || "").toLowerCase() };
 	const currentRows = rows.filter(row => {
-		const date = parseDate(row.dataHora);
-		return (!date || date.getTime() >= currentCutoff) && matches(row, filters);
+		const date = parseHistoryDate(row.dataHora);
+		return date !== null && date.getTime() >= currentStart && date.getTime() < currentEnd && matches(row, filters);
 	});
-	const previousRows = rows.filter(row => {
-		const date = parseDate(row.dataHora);
-		return date !== null && date.getTime() >= previousCutoff && date.getTime() < currentCutoff && matches(row, filters);
+	const previousRows = fullPeriod ? [] : rows.filter(row => {
+		const date = parseHistoryDate(row.dataHora);
+		return date !== null && date.getTime() >= previousStart && date.getTime() < previousEnd && matches(row, filters);
 	});
 	const metrics = calculateMetrics(currentRows);
 	const previous = calculateMetrics(previousRows);
@@ -77,7 +93,7 @@ export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?
 	};
 	const daily = new Map<string, { sucesso: number; erros: number }>();
 	currentRows.forEach(row => {
-		const date = parseDate(row.dataHora);
+		const date = parseHistoryDate(row.dataHora);
 		const key = date ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date) : "Sem data";
 		const value = daily.get(key) || { sucesso: 0, erros: 0 };
 		row.status.toLowerCase().startsWith("erro") ? value.erros++ : value.sucesso++;

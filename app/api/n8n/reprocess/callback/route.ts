@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { completeReprocess, isCompleteReprocessResult } from "@/lib/auth";
+import { completeReprocess, isCompleteReprocessResult, recordAudit } from "@/lib/auth";
 
 function hasValidToken(request: NextRequest) {
   const expected = String(process.env.N8N_REPROCESS_CALLBACK_TOKEN || process.env.N8N_REPROCESS_TOKEN || "").trim();
@@ -20,5 +20,6 @@ export async function POST(request: NextRequest) {
   if (!requestId) return NextResponse.json({ error: "request_id obrigatório." }, { status: 400 });
   if (!isCompleteReprocessResult(result)) return NextResponse.json({ error: "Resultado ainda não concluído.", completed: false }, { status: 202 });
   if (!completeReprocess(requestId, result)) return NextResponse.json({ error: "Reprocessamento pendente não encontrado." }, { status: 404 });
+  recordAudit({ action: "reprocess_completed", entity: "product", details: { requestId } });
   return NextResponse.json({ ok: true, completed: true, requestId });
 }
