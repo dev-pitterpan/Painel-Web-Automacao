@@ -105,7 +105,7 @@ const Metric = ({
 
 
 
-type TimeGrouping = "daily" | "weekly" | "monthly" | "full";
+type TimeGrouping = "daily" | "weekly";
 
 function formatShortDate(date: Date) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -115,22 +115,6 @@ function formatShortDate(date: Date) {
 }
 
 function buildTimeSeries(rows: HistoryRow[], grouping: TimeGrouping) {
-  if (grouping === "full") {
-    const totals = rows.reduce(
-      (acc, row) => {
-        if (String(row.status || "").toLowerCase().startsWith("erro")) {
-          acc.erros += 1;
-        } else {
-          acc.sucesso += 1;
-        }
-        return acc;
-      },
-      { sucesso: 0, erros: 0 }
-    );
-
-    return [{ data: "Período completo", ...totals }];
-  }
-
   const grouped = new Map<
     string,
     { sortKey: number; data: string; sucesso: number; erros: number }
@@ -155,15 +139,6 @@ function buildTimeSeries(rows: HistoryRow[], grouping: TimeGrouping) {
 
       key = `week-${bucket.getFullYear()}-${bucket.getMonth()}-${bucket.getDate()}`;
       label = `${formatShortDate(bucket)}–${formatShortDate(end)}`;
-    } else if (grouping === "monthly") {
-      bucket = new Date(bucket.getFullYear(), bucket.getMonth(), 1);
-      key = `month-${bucket.getFullYear()}-${bucket.getMonth()}`;
-      label = new Intl.DateTimeFormat("pt-BR", {
-        month: "short",
-        year: "numeric"
-      })
-        .format(bucket)
-        .replace(" de ", "/");
     } else {
       bucket.setHours(0, 0, 0, 0);
       key = `day-${bucket.getFullYear()}-${bucket.getMonth()}-${bucket.getDate()}`;
@@ -654,8 +629,16 @@ export function DashboardClient({
         </button>
       </div>
 
+      {mode === "dashboard" && data.rows.length === 0 && (
+        <section className="dashboard-empty-period" role="status" aria-live="polite">
+          <img src="/pitter-logo.svg" alt="Pitter Pan Festas" />
+          <h2>Não há registros para este período</h2>
+          <p>Nenhum produto foi encontrado no mês selecionado. Escolha outro mês para visualizar os dados.</p>
+        </section>
+      )}
+
       {mode === "dashboard" && (
-        <>
+        data.rows.length > 0 && <>
           <section className="metrics">
             <Metric
               label="Produtos processados"
@@ -752,8 +735,6 @@ export function DashboardClient({
               >
                 <option value="daily">Diário</option>
                 <option value="weekly">Semanal</option>
-                <option value="monthly">Mensal</option>
-                <option value="full">Período completo</option>
               </select></div>
 
               <div
@@ -847,7 +828,7 @@ export function DashboardClient({
         </>
       )}
 
-      <section className={`panel ${mode === "dashboard" ? "latest-processings" : mode === "products" ? "products-list" : ""}`}>
+      {!(mode === "dashboard" && data.rows.length === 0) && <section className={`panel ${mode === "dashboard" ? "latest-processings" : mode === "products" ? "products-list" : ""}`}>
         <div className="panel-head">
           <div className="panel-title">
             {mode === "errors"
@@ -971,7 +952,7 @@ export function DashboardClient({
             </table>
           </div>
         )}
-      </section>
+      </section>}
     </>
   );
 }
