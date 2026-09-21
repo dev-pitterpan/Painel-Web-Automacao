@@ -3,7 +3,7 @@ import { ScrollText } from "lucide-react";
 import { getCurrentUser, listAuditLogs } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
-const labels: Record<string, string> = { login_success: "Login realizado", login_failed: "Falha de login", logout: "Logout", report_exported: "Relatório exportado", reprocess_requested: "Reprocessamento solicitado", reprocess_completed: "Reprocessamento concluído", user_created: "Usuário criado", user_role_changed: "Perfil alterado" };
+const labels: Record<string, string> = { login_success: "Login realizado", login_failed: "Falha de login", logout: "Logout", report_exported: "Relatório exportado", reprocess_requested: "Reprocessamento solicitado", reprocess_completed: "Reprocessamento concluído", reprocess_failed: "Falha no n8n", user_created: "Usuário criado", user_role_changed: "Perfil alterado" };
 export default async function AuditPage() {
   const user = await getCurrentUser(); if (!user || user.role !== "admin") redirect("/");
   const records = listAuditLogs();

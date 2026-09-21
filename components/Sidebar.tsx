@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { ChevronLeft, ChevronRight, CircleAlert, FileText, LayoutDashboard, LogOut, Package, RotateCcw, ScrollText, UserCog } from "lucide-react";
+import { Activity, ChevronLeft, ChevronRight, CircleAlert, FileText, LayoutDashboard, LogOut, Package, RotateCcw, ScrollText, UserCog } from "lucide-react";
 import type { AuthUser } from "@/lib/auth";
 
 const items: Array<[string, string, LucideIcon]> = [
@@ -19,7 +19,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const navigationItems = user.role === "admin" ? [...items, ["Usuários", "/usuarios", UserCog] as [string, string, LucideIcon], ["Auditoria", "/auditoria", ScrollText] as [string, string, LucideIcon]] : items;
+  const navigationItems = user.role === "admin" ? [...items, ["Integrações", "/saude", Activity] as [string, string, LucideIcon], ["Usuários", "/usuarios", UserCog] as [string, string, LucideIcon], ["Auditoria", "/auditoria", ScrollText] as [string, string, LucideIcon]] : items;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -39,7 +39,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
         {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
       <div className="brand">
-        <img className="brand-logo" src="/logo-pitter-com-fundo.png" alt="Pitter Pan Festas" />
+        <img className="brand-logo" src="/pitter-logo.svg" alt="Pitter Pan Festas" />
         <div>
           <div className="brand-title">Catálogo Pro</div>
           <div className="brand-sub">Automação de e-commerce</div>

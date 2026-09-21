@@ -8,7 +8,7 @@
   --ink: #172238;
   --muted: #758198;
   --line: #e6ebf3;
-  --bg: #f5f7fb;
+  --bg: #f4f7fb;
   --card: #fff;
 }
 
@@ -24,8 +24,8 @@ body {
 }
 body {
   font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-  background-image: radial-gradient(#e7ecf4 0.7px, transparent 0.7px);
-  background-size: 18px 18px;
+  background-image: radial-gradient(circle at 76% -10%, rgba(47, 112, 237, .08), transparent 34%), linear-gradient(180deg, #f8faff 0, var(--bg) 260px);
+  background-attachment: fixed;
 }
 button,
 input,

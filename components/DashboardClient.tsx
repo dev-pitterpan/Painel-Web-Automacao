@@ -26,12 +26,15 @@ import {
   Image,
   LoaderCircle,
   Percent,
+  Eye,
   RefreshCw,
+  RotateCcw,
   Wrench,
   X
 } from "lucide-react";
 import type { DashboardData, HistoryRow } from "@/lib/types";
 import { parseHistoryDate } from "@/lib/metrics";
+import { ProductDetailsDrawer } from "@/components/ProductDetailsDrawer";
 
 const colors = [
   "#233b8f",
@@ -198,6 +201,8 @@ export function DashboardClient({
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [filterVersion, setFilterVersion] = useState(0);
+  const [selectedProduct, setSelectedProduct] = useState<HistoryRow | null>(null);
 
   const timeSeriesData = useMemo(
     () => buildTimeSeries(data?.rows || [], timeGrouping),
@@ -315,7 +320,17 @@ export function DashboardClient({
 
   useEffect(() => {
     load();
-  }, [days, month, marca, mode]);
+  }, [days, month, marca, mode, filterVersion]);
+
+  const hasActiveFilters = Boolean(q || marca || (mode === "dashboard" ? month !== "all" : days !== "30"));
+
+  function resetFilters() {
+    setQ("");
+    setMarca("");
+    setDays("30");
+    setMonth("all");
+    setFilterVersion(value => value + 1);
+  }
 
   useEffect(() => {
     if (!loading) {
@@ -532,6 +547,7 @@ export function DashboardClient({
 
   return (
     <>
+      <ProductDetailsDrawer row={selectedProduct} onClose={() => setSelectedProduct(null)} />
       {toast && (
         <div className={`integration-toast integration-toast-${toast.tone}`} role="status" aria-live="polite">
           {toast.tone === "success" ? (
@@ -621,12 +637,10 @@ export function DashboardClient({
           <option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option><option value="3650">Tudo</option>
         </select>}
 
-        <button
-          className="btn btn-primary"
-          onClick={() => load()}
-        >
-          Aplicar filtros
-        </button>
+        <div className="filter-actions">
+          <button className="btn btn-primary" onClick={() => load()}>Aplicar filtros</button>
+          {hasActiveFilters && <button className="btn filter-reset" onClick={resetFilters}><RotateCcw size={15} />Resetar</button>}
+        </div>
       </div>
 
       {mode === "dashboard" && data.rows.length === 0 && (
@@ -751,9 +765,9 @@ export function DashboardClient({
                       vertical={false}
                       stroke="#e8edf5"
                     />
-                    <XAxis dataKey="data" />
-                    <YAxis />
-                    <Tooltip />
+                    <XAxis dataKey="data" axisLine={false} tickLine={false} tick={{ fill: "#758198", fontSize: 10 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#758198", fontSize: 10 }} />
+                    <Tooltip contentStyle={{ border: "1px solid #e6ebf3", borderRadius: 10, boxShadow: "0 12px 30px rgba(20,39,78,.12)", fontSize: 11 }} cursor={{ stroke: "#b9c9e8", strokeDasharray: "4 4" }} />
                     <Line
                       type="monotone"
                       dataKey="sucesso"
@@ -818,8 +832,8 @@ export function DashboardClient({
                         )
                       )}
                     </Pie>
-                    <Tooltip />
-                    <Legend />
+                    <Tooltip contentStyle={{ border: "1px solid #e6ebf3", borderRadius: 10, boxShadow: "0 12px 30px rgba(20,39,78,.12)", fontSize: 11 }} />
+                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -884,10 +898,7 @@ export function DashboardClient({
                       </strong>
                     </td>
 
-                    <td>
-                      {row.tituloDepois ||
-                        row.tituloAntes}
-                    </td>
+                    <td><button className="product-link" type="button" onClick={() => setSelectedProduct(row)}>{row.tituloDepois || row.tituloAntes || "Produto sem título"}</button></td>
 
                     <td>
                       {row.marca || "—"}
@@ -920,7 +931,7 @@ export function DashboardClient({
                         const state = reprocessState[reprocessKey(row)];
 
                         return (
-                          <button
+                          <div className="row-actions"><button className="btn details-btn" type="button" onClick={() => setSelectedProduct(row)} title="Ver valores antes e depois"><Eye size={14} />Detalhes</button><button
                             className={`btn reprocess-btn ${state ? `is-${state}` : ""}`}
                             disabled={state === "sending" || state === "pending" || state === "success"}
                             onClick={() => reprocess(row)}
@@ -942,7 +953,7 @@ export function DashboardClient({
                               : state === "error"
                               ? "Tentar novamente"
                               : "Reprocessar"}
-                          </button>
+                          </button></div>
                         );
                       })()}
                     </td>

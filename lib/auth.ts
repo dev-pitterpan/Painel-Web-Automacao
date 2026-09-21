@@ -174,6 +174,28 @@ export function listAuditLogs(limit = 500): AuditRecord[] {
   return rows.map(({ details_json, ...row }) => ({ ...row, details: details_json ? JSON.parse(details_json) as Record<string, unknown> : null }));
 }
 
+export function getN8nHealthSummary() {
+  const jobs = database.prepare(`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN status = 'processando' THEN 1 ELSE 0 END) AS pending,
+      MAX(CASE WHEN status = 'enviado' AND result_json IS NOT NULL THEN created_at END) AS lastResponse
+    FROM reprocess_jobs
+  `).get() as { total: number; pending: number | null; lastResponse: string | null };
+  const lastFailure = database.prepare(`
+    SELECT created_at AS createdAt, details_json AS detailsJson
+    FROM audit_logs WHERE action = 'reprocess_failed'
+    ORDER BY id DESC LIMIT 1
+  `).get() as { createdAt: string; detailsJson: string | null } | undefined;
+  return {
+    total: jobs.total,
+    pending: jobs.pending || 0,
+    lastResponse: jobs.lastResponse ? `${jobs.lastResponse}Z` : null,
+    lastFailureAt: lastFailure ? `${lastFailure.createdAt}Z` : null,
+    lastFailure: lastFailure?.detailsJson ? JSON.parse(lastFailure.detailsJson) as Record<string, unknown> : null
+  };
+}
+
 export function authenticate(email: string, password: string) {
   const record = database.prepare("SELECT * FROM users WHERE email = ?").get(normalizeEmail(email)) as UserRecord | undefined;
   if (!record || !verifyPassword(password, record.password_hash)) return null;

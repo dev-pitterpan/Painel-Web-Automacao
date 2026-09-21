@@ -3,7 +3,7 @@
   top: 0;
   height: 100vh;
   padding: 20px 12px 14px;
-  background: linear-gradient(165deg, #0a2346 0%, #06152b 75%);
+  background: radial-gradient(circle at 20% 4%, rgba(62, 124, 240, .27), transparent 27%), linear-gradient(165deg, #0a2346 0%, #06152b 75%);
   color: #fff;
   display: flex;
   flex-direction: column;
@@ -91,8 +91,9 @@
   outline: none;
 }
 .nav a.is-active {
-  background: var(--blue);
+  background: linear-gradient(135deg, #3c7cf2, #2963d4);
   color: #fff;
+  box-shadow: 0 8px 18px rgba(22, 75, 180, .28), inset 0 1px rgba(255,255,255,.18);
 }
 .sidebar.is-collapsed {
   align-items: center;

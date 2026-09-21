@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-// Next.js processes global CSS imports at build time; no TypeScript module is emitted for them.
-// @ts-expect-error Global CSS has no runtime TypeScript declarations.
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { getCurrentUser } from "@/lib/auth";
@@ -11,9 +9,9 @@ export const metadata: Metadata = {
   title: "Pitter Pan | Automação Shopify",
   description: "Dashboard da automação da Pitter Pan Festas",
   icons: {
-    icon: "/logo-pitter-com-fundo.png",
-    shortcut: "/logo-pitter-com-fundo.png",
-    apple: "/logo-pitter-com-fundo.png"
+    icon: "/pitter-logo.svg",
+    shortcut: "/pitter-logo.svg",
+    apple: "/pitter-logo.svg"
   }
 };
 
