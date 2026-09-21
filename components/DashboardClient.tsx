@@ -466,7 +466,7 @@ export function DashboardClient({
         <div className="loading-card">
           <img
             className="loading-logo"
-            src="/pitter-logo.svg"
+            src="/favicon.svg"
             alt="Pitter Pan Festas"
           />
           <h1>Carregando dados da planilha...</h1>
@@ -645,7 +645,7 @@ export function DashboardClient({
 
       {mode === "dashboard" && data.rows.length === 0 && (
         <section className="dashboard-empty-period" role="status" aria-live="polite">
-          <img src="/pitter-logo.svg" alt="Pitter Pan Festas" />
+          <img src="/favicon.svg" alt="Pitter Pan Festas" />
           <h2>Não há registros para este período</h2>
           <p>Nenhum produto foi encontrado no mês selecionado. Escolha outro mês para visualizar os dados.</p>
         </section>

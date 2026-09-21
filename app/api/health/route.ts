@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
       { label: "Webhook", value: configured ? "Configurado" : "Não configurado" },
       { label: "Reprocessamentos", value: n8nSummary.total.toLocaleString("pt-BR") },
       { label: "Pendentes", value: n8nSummary.pending.toLocaleString("pt-BR") },
+      { label: "Registros expirados", value: n8nSummary.expired.toLocaleString("pt-BR") },
       { label: "Última falha", value: n8nSummary.lastFailureAt ? new Date(n8nSummary.lastFailureAt).toLocaleString("pt-BR") : "Nenhuma registrada" }
     ]
   };

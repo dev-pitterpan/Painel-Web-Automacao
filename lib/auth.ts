@@ -178,10 +178,11 @@ export function getN8nHealthSummary() {
   const jobs = database.prepare(`
     SELECT
       COUNT(*) AS total,
-      SUM(CASE WHEN status = 'processando' THEN 1 ELSE 0 END) AS pending,
+      SUM(CASE WHEN status = 'processando' AND datetime(created_at) >= datetime('now', '-30 minutes') THEN 1 ELSE 0 END) AS pending,
+      SUM(CASE WHEN status = 'processando' AND datetime(created_at) < datetime('now', '-30 minutes') THEN 1 ELSE 0 END) AS expired,
       MAX(CASE WHEN status = 'enviado' AND result_json IS NOT NULL THEN created_at END) AS lastResponse
     FROM reprocess_jobs
-  `).get() as { total: number; pending: number | null; lastResponse: string | null };
+  `).get() as { total: number; pending: number | null; expired: number | null; lastResponse: string | null };
   const lastFailure = database.prepare(`
     SELECT created_at AS createdAt, details_json AS detailsJson
     FROM audit_logs WHERE action = 'reprocess_failed'
@@ -190,6 +191,7 @@ export function getN8nHealthSummary() {
   return {
     total: jobs.total,
     pending: jobs.pending || 0,
+    expired: jobs.expired || 0,
     lastResponse: jobs.lastResponse ? `${jobs.lastResponse}Z` : null,
     lastFailureAt: lastFailure ? `${lastFailure.createdAt}Z` : null,
     lastFailure: lastFailure?.detailsJson ? JSON.parse(lastFailure.detailsJson) as Record<string, unknown> : null

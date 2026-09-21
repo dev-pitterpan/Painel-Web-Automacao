@@ -56,9 +56,9 @@ button:hover {
   margin: 0 auto;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 640px) {
   .app-shell {
-    grid-template-columns: 1fr;
+    display: block;
   }
   .content {
     padding: 20px 14px 32px;

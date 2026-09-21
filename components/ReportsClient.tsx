@@ -250,7 +250,7 @@ export function ReportsClient() {
     fetch("/api/audit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "report_exported", details: { report: REPORT_LABELS[kind], rows: selected.length, period: item.period } }) }).catch(() => undefined);
     setToast("Arquivo CSV exportado com sucesso.");
   }
-  if (loading || loadingExiting) return <div className={`loading-screen ${loadingExiting ? "is-exiting" : ""}`} role="status" aria-live="polite"><div className="loading-card"><img className="loading-logo" src="/pitter-logo.svg" alt="Pitter Pan Festas" /><h1>Carregando dados da planilha...</h1><div className="loading-progress-row"><div className="loading-progress" aria-hidden="true"><span className="loading-progress-fill" style={{ width: `${loadingProgress}%` }} /></div><strong>{loadingProgress}%</strong></div></div></div>;
+  if (loading || loadingExiting) return <div className={`loading-screen ${loadingExiting ? "is-exiting" : ""}`} role="status" aria-live="polite"><div className="loading-card"><img className="loading-logo" src="/favicon.svg" alt="Pitter Pan Festas" /><h1>Carregando dados da planilha...</h1><div className="loading-progress-row"><div className="loading-progress" aria-hidden="true"><span className="loading-progress-fill" style={{ width: `${loadingProgress}%` }} /></div><strong>{loadingProgress}%</strong></div></div></div>;
   if (error) return <div className="panel reports-state"><b>Erro ao carregar relatórios</b><p>{error}</p><button className="btn" onClick={() => load(true)}><RefreshCw size={16} />Tentar novamente</button></div>;
 
   const filters = applied || { start, end, brand, status, change };
