@@ -21,6 +21,8 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--ink);
+  max-width: 100%;
+  overflow-x: clip;
 }
 body {
   font-family: "Trebuchet MS", "Segoe UI", sans-serif;
@@ -61,6 +63,8 @@ button:hover {
     display: block;
   }
   .content {
+    width: 100%;
+    min-width: 0;
     padding: 20px 14px 32px;
   }
 }

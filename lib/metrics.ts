@@ -86,7 +86,7 @@ function matchesQuality(row: HistoryRow, quality: string) {
 	return true;
 }
 
-export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?: string; status?: string; days?: number; month?: string; compareMonth?: string; quality?: string; timeSettings?: { manualSecondsPerProduct: number; batchSize: number; batchSeconds: number } } = {}): DashboardData {
+export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?: string; status?: string; days?: number; month?: string; compareMonth?: string; quality?: string; catalog?: boolean; timeSettings?: { manualSecondsPerProduct: number; batchSize: number; batchSeconds: number } } = {}): DashboardData {
 	const days = options.days || 30;
 	const timeSettings = options.timeSettings || { manualSecondsPerProduct: 60, batchSize: 5, batchSeconds: 40 };
 	const now = Date.now();
@@ -100,11 +100,21 @@ export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?
 	const previousStart = comparisonRange?.start ?? currentStart - days * 86400000;
 	const previousEnd = comparisonRange?.end ?? currentStart;
 	const filters = { q: (options.q || "").toLowerCase(), marca: options.marca || "", status: (options.status || "").toLowerCase() };
-	const currentRows = rows.filter(row => {
+	const periodRows = rows.filter(row => {
 		const date = parseHistoryDate(row.dataHora);
 		return date !== null && date.getTime() >= currentStart && date.getTime() < currentEnd && matches(row, filters) && matchesQuality(row, options.quality || "");
 	}).sort((a, b) => (parseHistoryDate(b.dataHora)?.getTime() || 0) - (parseHistoryDate(a.dataHora)?.getTime() || 0));
-	const previousRows = fullPeriod ? [] : rows.filter(row => {
+	const catalogRows = rows
+		.filter(row => matches(row, filters) && matchesQuality(row, options.quality || ""))
+		.sort((a, b) => (parseHistoryDate(b.dataHora)?.getTime() || 0) - (parseHistoryDate(a.dataHora)?.getTime() || 0));
+	const seenProducts = new Set<string>();
+	const currentRows = options.catalog ? catalogRows.filter((row, index) => {
+		const key = String(row.sku || row.tituloDepois || row.tituloAntes).trim().toLocaleLowerCase("pt-BR") || `linha-${index}`;
+		if (seenProducts.has(key)) return false;
+		seenProducts.add(key);
+		return true;
+	}) : periodRows;
+	const previousRows = options.catalog || fullPeriod ? [] : rows.filter(row => {
 		const date = parseHistoryDate(row.dataHora);
 		return date !== null && date.getTime() >= previousStart && date.getTime() < previousEnd && matches(row, filters) && matchesQuality(row, options.quality || "");
 	});

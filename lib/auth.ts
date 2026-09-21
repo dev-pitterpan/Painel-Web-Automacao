@@ -210,6 +210,45 @@ export function updateUserRole(actor: AuthUser, userId: number, role: "user" | "
   recordAudit({ userId: actor.id, action: "user_role_changed", entity: "user", details: { targetUserId: userId, targetEmail: target.email, previousRole: target.role, newRole: role } });
 }
 
+export function updateManagedUser(actor: AuthUser, userId: number, input: { name?: string; email?: string; role?: "user" | "admin"; password?: string }) {
+  if (actor.role !== "admin") throw new Error("Apenas administradores podem editar usuários.");
+  const target = database.prepare("SELECT id, name, email, role FROM users WHERE id = ?").get(userId) as AuthUser | undefined;
+  if (!target) throw new Error("Usuário não encontrado.");
+
+  const name = input.name === undefined ? target.name : String(input.name).trim();
+  const email = input.email === undefined ? target.email : normalizeEmail(String(input.email));
+  const role = input.role || (target.role as "user" | "admin");
+  const password = String(input.password || "");
+  if (name.length < 2 || name.length > 100) throw new Error("O nome precisa ter entre 2 e 100 caracteres.");
+  if (!isValidEmail(email)) throw new Error("E-mail inválido.");
+  if (!/^(user|admin)$/.test(role)) throw new Error("Perfil de usuário inválido.");
+  if (password && (password.length < 12 || password.length > 256)) throw new Error("A nova senha precisa ter entre 12 e 256 caracteres.");
+  if (actor.id === userId && role !== "admin") throw new Error("A conta administrativa atual não pode remover o próprio acesso.");
+  if (target.role === "admin" && role !== "admin") {
+    const admins = database.prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'admin'").get() as { total: number };
+    if (admins.total <= 1) throw new Error("O sistema precisa manter pelo menos um administrador.");
+  }
+
+  const duplicate = database.prepare("SELECT id FROM users WHERE email = ? AND id <> ?").get(email, userId) as { id: number } | undefined;
+  if (duplicate) throw new Error("Já existe um usuário com este e-mail.");
+  if (password) database.prepare("UPDATE users SET name = ?, email = ?, role = ?, password_hash = ? WHERE id = ?").run(name, email, role, hashPassword(password), userId);
+  else database.prepare("UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?").run(name, email, role, userId);
+  recordAudit({ userId: actor.id, action: "user_updated", entity: "user", details: { targetUserId: userId, previousName: target.name, name, previousEmail: target.email, email, previousRole: target.role, role, passwordChanged: Boolean(password) } });
+}
+
+export function deleteManagedUser(actor: AuthUser, userId: number) {
+  if (actor.role !== "admin") throw new Error("Apenas administradores podem excluir usuários.");
+  if (actor.id === userId) throw new Error("Você não pode excluir a conta que está usando.");
+  const target = database.prepare("SELECT id, name, email, role FROM users WHERE id = ?").get(userId) as AuthUser | undefined;
+  if (!target) throw new Error("Usuário não encontrado.");
+  if (target.role === "admin") {
+    const admins = database.prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'admin'").get() as { total: number };
+    if (admins.total <= 1) throw new Error("O sistema precisa manter pelo menos um administrador.");
+  }
+  database.prepare("DELETE FROM users WHERE id = ?").run(userId);
+  recordAudit({ userId: actor.id, action: "user_deleted", entity: "user", details: { targetUserId: userId, name: target.name, email: target.email, role: target.role } });
+}
+
 export function recordAudit(entry: { userId?: number | null; action: string; entity: string; details?: Record<string, unknown> | null }) {
   database.prepare("INSERT INTO audit_logs (user_id, action, entity, details_json) VALUES (?, ?, ?, ?)").run(entry.userId ?? null, entry.action.slice(0, 80), entry.entity.slice(0, 80), entry.details ? JSON.stringify(entry.details) : null);
 }

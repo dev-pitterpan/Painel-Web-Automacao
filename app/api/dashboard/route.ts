@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
 			month: (params.get("month") || "").slice(0, 7),
 			compareMonth: (params.get("compareMonth") || "").slice(0, 7),
 			quality: (params.get("quality") || "").slice(0, 40),
+			catalog: params.get("catalog") === "1",
 			timeSettings: settings
 		});
 		return NextResponse.json({

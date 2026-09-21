@@ -8,13 +8,13 @@ const labels: Record<string, string> = {
   login_success: "Login realizado", login_failed: "Falha de login", logout: "Logout",
   report_exported: "Relatório exportado", reprocess_requested: "Reprocessamento solicitado",
   reprocess_completed: "Reprocessamento concluído", reprocess_failed: "Falha no n8n",
-  user_created: "Usuário criado", user_role_changed: "Perfil alterado", settings_updated: "Configurações alteradas",
+  user_created: "Usuário criado", user_role_changed: "Perfil alterado", user_updated: "Usuário editado", user_deleted: "Usuário excluído", settings_updated: "Configurações alteradas",
 };
 
 const eventTones: Record<string, string> = {
   login_success: "success", login_failed: "danger", logout: "neutral",
   report_exported: "blue", reprocess_requested: "warning", reprocess_completed: "success",
-  reprocess_failed: "danger", user_created: "cyan", user_role_changed: "violet", settings_updated: "blue",
+  reprocess_failed: "danger", user_created: "cyan", user_role_changed: "violet", user_updated: "violet", user_deleted: "danger", settings_updated: "blue",
 };
 
 export default async function AuditPage() {

@@ -1,7 +1,11 @@
 .sidebar {
   position: sticky;
   top: 0;
+  align-self: start;
   height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
   padding: 20px 12px 14px;
   background: radial-gradient(circle at 20% 4%, rgba(62, 124, 240, .27), transparent 27%), linear-gradient(165deg, #0a2346 0%, #06152b 75%);
   color: #fff;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createUser, getCurrentUser, listUsers, recordAudit, updateUserRole } from "@/lib/auth";
+import { createUser, deleteManagedUser, getCurrentUser, listUsers, recordAudit, updateManagedUser } from "@/lib/auth";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -26,8 +26,22 @@ export async function PATCH(request: NextRequest) {
   if (!actor || actor.role !== "admin") return NextResponse.json({ error: "Acesso restrito a administradores." }, { status: 403 });
   const body = await request.json().catch(() => null);
   const userId = Number(body?.userId);
-  const role = body?.role === "admin" ? "admin" : body?.role === "user" ? "user" : null;
-  if (!Number.isInteger(userId) || !role) return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
-  try { updateUserRole(actor, userId, role); return NextResponse.json({ ok: true }); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Não foi possível alterar o perfil." }, { status: 400 }); }
+  if (!Number.isInteger(userId)) return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
+  const role = body?.role === "admin" ? "admin" : body?.role === "user" ? "user" : undefined;
+  try {
+    updateManagedUser(actor, userId, { name: body?.name === undefined ? undefined : String(body.name), email: body?.email === undefined ? undefined : String(body.email), role, password: body?.password === undefined ? undefined : String(body.password) });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Não foi possível editar o usuário." }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const actor = await getCurrentUser();
+  if (!actor || actor.role !== "admin") return NextResponse.json({ error: "Acesso restrito a administradores." }, { status: 403 });
+  const body = await request.json().catch(() => null);
+  const userId = Number(body?.userId);
+  if (!Number.isInteger(userId)) return NextResponse.json({ error: "Usuário inválido." }, { status: 400 });
+  try { deleteManagedUser(actor, userId); return NextResponse.json({ ok: true }); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Não foi possível excluir o usuário." }, { status: 400 }); }
 }

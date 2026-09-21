@@ -33,6 +33,8 @@ import {
   Tags,
   RefreshCw,
   RotateCcw,
+  ChevronLeft,
+  ChevronRight,
   X,
 } from "lucide-react";
 import type { DashboardData, HistoryRow } from "@/lib/types";
@@ -57,6 +59,7 @@ const QUALITY_LABELS: Record<string, string> = {
   missingSku: "Sem SKU",
   errors: "Com erro",
 };
+const PRODUCTS_PER_PAGE = 100;
 
 const fmt = (minutes: number) => {
   const totalMinutes = Math.floor(minutes);
@@ -275,6 +278,7 @@ export function DashboardClient({
   const [selectedProduct, setSelectedProduct] = useState<HistoryRow | null>(
     null,
   );
+  const [productsPage, setProductsPage] = useState(1);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -401,6 +405,7 @@ export function DashboardClient({
       });
 
       if (mode === "dashboard") p.set("month", month);
+      if (mode === "products") p.set("catalog", "1");
       if (mode === "dashboard" && compareMonth)
         p.set("compareMonth", compareMonth);
       if (qualityFilter) p.set("quality", qualityFilter);
@@ -465,6 +470,7 @@ export function DashboardClient({
       };
 
       setData(safeData);
+      setProductsPage(1);
     } catch (err) {
       setData(null);
       setError(
@@ -497,7 +503,7 @@ export function DashboardClient({
     marca ||
     qualityFilter ||
     compareMonth ||
-    (mode === "dashboard" ? month !== "all" : days !== "30"),
+    (mode === "dashboard" ? month !== "all" : mode === "errors" ? days !== "30" : false),
   );
 
   function resetFilters() {
@@ -774,7 +780,7 @@ export function DashboardClient({
       )}
 
       <form
-        className="dashboard-topbar"
+        className={`dashboard-topbar dashboard-topbar-${mode}`}
         onSubmit={(event) => {
           event.preventDefault();
           load();
@@ -788,7 +794,7 @@ export function DashboardClient({
             onChange={(event) => setQ(event.target.value)}
           />
         </div>
-        <select
+        {mode !== "products" && <select
           className="topbar-period"
           value={mode === "dashboard" ? month : days}
           onChange={(event) =>
@@ -812,7 +818,7 @@ export function DashboardClient({
               <option value="3650">Tudo</option>
             </>
           )}
-        </select>
+        </select>}
         {mode === "dashboard" && (
           <select
             className="topbar-compare"
@@ -1302,10 +1308,10 @@ export function DashboardClient({
         >
           <div className="panel-head">
             <div className="panel-title">
-              {mode === "errors" ? "Últimos erros" : "Últimos processamentos"}
+              {mode === "errors" ? "Últimos erros" : mode === "products" ? "Produtos do catálogo" : "Últimos processamentos"}
             </div>
 
-            <div className="metric-note">{data.rows.length} registros</div>
+            <div className="metric-note">{data.rows.length} {mode === "products" ? "produtos" : "registros"}</div>
           </div>
 
           {data.rows.length === 0 ? (
@@ -1329,7 +1335,7 @@ export function DashboardClient({
               <table>
                 <thead>
                   <tr>
-                    <th>Data/Hora</th>
+                    <th>{mode === "products" ? "Última atualização" : "Data/Hora"}</th>
                     <th>SKU</th>
                     <th>Produto</th>
                     <th>Marca</th>
@@ -1341,7 +1347,10 @@ export function DashboardClient({
 
                 <tbody>
                   {data.rows
-                    .slice(0, mode === "dashboard" ? 10 : 200)
+                    .slice(
+                      mode === "products" ? (productsPage - 1) * PRODUCTS_PER_PAGE : 0,
+                      mode === "products" ? productsPage * PRODUCTS_PER_PAGE : mode === "dashboard" ? 10 : 200,
+                    )
                     .map((row, index) => (
                       <tr key={`${row.sku}-${index}`}>
                         <td>{row.dataHora}</td>
@@ -1443,6 +1452,18 @@ export function DashboardClient({
               <button type="button" className="btn" onClick={() => window.location.assign("/produtos")}>
                 Ver todos os produtos
               </button>
+            </div>
+          )}
+          {mode === "products" && data.rows.length > 0 && (
+            <div className="products-pagination">
+              <span>
+                Exibindo {((productsPage - 1) * PRODUCTS_PER_PAGE + 1).toLocaleString("pt-BR")}–{Math.min(productsPage * PRODUCTS_PER_PAGE, data.rows.length).toLocaleString("pt-BR")} de {data.rows.length.toLocaleString("pt-BR")}
+              </span>
+              <div className="pagination">
+                <button type="button" aria-label="Página anterior" disabled={productsPage === 1} onClick={() => setProductsPage(page => Math.max(1, page - 1))}><ChevronLeft size={16} /></button>
+                <strong>{productsPage} / {Math.max(1, Math.ceil(data.rows.length / PRODUCTS_PER_PAGE))}</strong>
+                <button type="button" aria-label="Próxima página" disabled={productsPage >= Math.ceil(data.rows.length / PRODUCTS_PER_PAGE)} onClick={() => setProductsPage(page => Math.min(Math.ceil(data.rows.length / PRODUCTS_PER_PAGE), page + 1))}><ChevronRight size={16} /></button>
+              </div>
             </div>
           )}
         </section>
