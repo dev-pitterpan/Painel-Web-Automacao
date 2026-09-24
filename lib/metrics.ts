@@ -107,13 +107,10 @@ export function buildDashboard(rows: HistoryRow[], options: { q?: string; marca?
 	const catalogRows = rows
 		.filter(row => matches(row, filters) && matchesQuality(row, options.quality || ""))
 		.sort((a, b) => (parseHistoryDate(b.dataHora)?.getTime() || 0) - (parseHistoryDate(a.dataHora)?.getTime() || 0));
-	const seenProducts = new Set<string>();
-	const currentRows = options.catalog ? catalogRows.filter((row, index) => {
-		const key = String(row.sku || row.tituloDepois || row.tituloAntes).trim().toLocaleLowerCase("pt-BR") || `linha-${index}`;
-		if (seenProducts.has(key)) return false;
-		seenProducts.add(key);
-		return true;
-	}) : periodRows;
+	// Na aba Produtos, cada linha preenchida da planilha representa um produto
+	// processado e precisa permanecer visível, inclusive quando o SKU se repete.
+	// A planilha já descarta linhas totalmente vazias durante a leitura.
+	const currentRows = options.catalog ? catalogRows : periodRows;
 	const previousRows = options.catalog || fullPeriod ? [] : rows.filter(row => {
 		const date = parseHistoryDate(row.dataHora);
 		return date !== null && date.getTime() >= previousStart && date.getTime() < previousEnd && matches(row, filters) && matchesQuality(row, options.quality || "");
