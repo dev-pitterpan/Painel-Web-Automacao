@@ -52,7 +52,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
       <div className="brand">
         <img className="brand-logo" src="/favicon.svg" alt="Pitter Pan Festas" />
         <div>
-          <div className="brand-title">Catálogo Pro</div>
+          <div className="brand-title">Painel Web Automação</div>
           <div className="brand-sub">Automação de e-commerce</div>
         </div>
       </div>
