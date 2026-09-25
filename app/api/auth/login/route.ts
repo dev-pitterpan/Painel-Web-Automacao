@@ -8,21 +8,21 @@ export async function POST(request: NextRequest) {
   const address = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const identifier = address;
 
-  if (isLoginRateLimited(identifier)) {
+  if (await isLoginRateLimited(identifier)) {
     return NextResponse.json({ error: "Muitas tentativas. Aguarde 15 minutos e tente novamente." }, { status: 429 });
   }
 
-  const user = authenticate(email, password);
+  const user = await authenticate(email, password);
 
   if (!user) {
-    recordLoginFailure(identifier);
-    recordAudit({ action: "login_failed", entity: "auth", details: { email: email.trim().toLowerCase(), address } });
+    await recordLoginFailure(identifier);
+    await recordAudit({ action: "login_failed", entity: "auth", details: { email: email.trim().toLowerCase(), address } });
     return NextResponse.json({ error: "E-mail ou senha inválidos." }, { status: 401 });
   }
 
-  clearLoginFailures(identifier);
-  recordAudit({ userId: user.id, action: "login_success", entity: "auth", details: { address } });
-  const session = createSession(user.id);
+  await clearLoginFailures(identifier);
+  await recordAudit({ userId: user.id, action: "login_success", entity: "auth", details: { address } });
+  const session = await createSession(user.id);
   const response = NextResponse.json({ user });
   response.cookies.set("pitter_session", session.token, {
     httpOnly: true,

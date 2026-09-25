@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         raw ||
         `HTTP ${response.status}`;
 
-      recordAudit({ userId: user.id, action: "reprocess_failed", entity: "integration", details: { requestId, sku, status: response.status, error: String(detail).slice(0, 500) } });
+      await recordAudit({ userId: user.id, action: "reprocess_failed", entity: "integration", details: { requestId, sku, status: response.status, error: String(detail).slice(0, 500) } });
       return NextResponse.json(
         {
           ok: false,
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
     const completed = isCompleteReprocessResult(parsed);
 
     if (completed) {
-      recordReprocess({
+      await recordReprocess({
         requestId,
         sku,
         title: titulo,
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
         result: parsed
       });
     } else {
-      recordPendingReprocess({
+      await recordPendingReprocess({
         requestId,
         sku,
         title: titulo,
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
         userId: user.id
       });
     }
-    recordAudit({ userId: user.id, action: "reprocess_requested", entity: "product", details: { requestId, sku, completed } });
+    await recordAudit({ userId: user.id, action: "reprocess_requested", entity: "product", details: { requestId, sku, completed } });
 
     return NextResponse.json({
       ok: true,
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
       n8n: parsed || (raw ? { response: raw.slice(0, 1200) } : null)
     });
   } catch (error) {
-    recordAudit({ userId: user.id, action: "reprocess_failed", entity: "integration", details: { requestId, sku, error: error instanceof Error ? error.message : "Falha desconhecida" } });
+    await recordAudit({ userId: user.id, action: "reprocess_failed", entity: "integration", details: { requestId, sku, error: error instanceof Error ? error.message : "Falha desconhecida" } });
     if (error instanceof Error && error.name === "AbortError") {
       return NextResponse.json(
         {

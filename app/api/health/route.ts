@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user || user.role !== "admin") return NextResponse.json({ error: "Acesso restrito a administradores." }, { status: 403 });
   const startedAt = Date.now();
-  const settings = getAppSettings();
+  const settings = await getAppSettings();
   let sheets;
   try {
     const result = await getHistoryRowsWithStatus(request.nextUrl.searchParams.get("refresh") === "1");
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     sheets = { id: "sheets", name: "Google Sheets", status: "error" as const, message: error instanceof Error ? error.message : "Falha ao consultar a planilha.", lastResponse: null, latencyMs: Date.now() - startedAt, details: [{ label: "Conexão", value: "Indisponível" }] };
   }
-  const n8nSummary = getN8nHealthSummary();
+  const n8nSummary = await getN8nHealthSummary();
   const configured = Boolean(String(process.env.N8N_REPROCESS_WEBHOOK_URL || "").trim());
   const n8nStatus = !configured ? "error" : n8nSummary.pending > 0 ? "warning" : "operational";
   const n8n = {

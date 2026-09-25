@@ -26,7 +26,7 @@ function showValue(value: unknown) {
 export default async function ReprocessedPage() {
   const user = await getCurrentUser();
   if (!user) return null;
-  const records = listReprocesses(user);
+  const records = await listReprocesses(user);
 
   return (
     <>

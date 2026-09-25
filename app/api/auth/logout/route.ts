@@ -6,8 +6,8 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   }
-  recordAudit({ userId: user.id, action: "logout", entity: "auth" });
-  deleteSession(request.cookies.get("pitter_session")?.value);
+  await recordAudit({ userId: user.id, action: "logout", entity: "auth" });
+  await deleteSession(request.cookies.get("pitter_session")?.value);
   const response = NextResponse.json({ ok: true });
   response.cookies.set("pitter_session", "", { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", expires: new Date(0), path: "/" });
   return response;

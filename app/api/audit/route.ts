@@ -9,6 +9,6 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const action = String(body?.action || "");
   if (!allowedActions.has(action)) return NextResponse.json({ error: "Evento inválido." }, { status: 400 });
-  recordAudit({ userId: user.id, action, entity: "report", details: typeof body?.details === "object" ? body.details : null });
+  await recordAudit({ userId: user.id, action, entity: "report", details: typeof body?.details === "object" ? body.details : null });
   return NextResponse.json({ ok: true });
 }

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
   if (!requestId) return NextResponse.json({ error: "request_id obrigatório." }, { status: 400 });
   if (!isCompleteReprocessResult(result)) return NextResponse.json({ error: "Resultado ainda não concluído.", completed: false }, { status: 202 });
-  if (!completeReprocess(requestId, result)) return NextResponse.json({ error: "Reprocessamento pendente não encontrado." }, { status: 404 });
-  recordAudit({ action: "reprocess_completed", entity: "product", details: { requestId } });
+  if (!await completeReprocess(requestId, result)) return NextResponse.json({ error: "Reprocessamento pendente não encontrado." }, { status: 404 });
+  await recordAudit({ action: "reprocess_completed", entity: "product", details: { requestId } });
   return NextResponse.json({ ok: true, completed: true, requestId });
 }

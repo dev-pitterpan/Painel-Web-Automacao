@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 		const requestedDays = Number(params.get("days") || 30);
 		const days = Number.isFinite(requestedDays) ? Math.min(Math.max(Math.floor(requestedDays), 1), 3650) : 30;
 		const sheet = await getHistoryRowsWithStatus(params.get("refresh") === "1");
-		const settings = getAppSettings();
+		const settings = await getAppSettings();
 		const dashboard = buildDashboard(sheet.rows, {
 			q: (params.get("q") || "").slice(0, 120),
 			marca: (params.get("marca") || "").slice(0, 120),

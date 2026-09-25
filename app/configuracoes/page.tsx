@@ -6,5 +6,5 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   if (!user || user.role !== "admin") redirect("/");
-  return <SettingsClient initialSettings={getAppSettings()} />;
+  return <SettingsClient initialSettings={await getAppSettings()} />;
 }

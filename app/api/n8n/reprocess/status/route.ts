@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
 
-  const status = getReprocessStatus(user, requestId);
+  const status = await getReprocessStatus(user, requestId);
   if (!status)
     return NextResponse.json(
       { error: "Reprocessamento não encontrado." },

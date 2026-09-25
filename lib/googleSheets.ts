@@ -46,22 +46,21 @@ function getGoogleConfig() {
     );
   }
 
-  const keyFile =
-    path.resolve(
-      process.cwd(),
-      credentialsFile
-    );
+  const keyFile = path.resolve(process.cwd(), credentialsFile);
+  const clientEmail = String(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "").trim();
+  const privateKey = String(process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n").trim();
 
-  if (!fs.existsSync(keyFile)) {
+  if ((!clientEmail || !privateKey) && !fs.existsSync(keyFile)) {
     throw new Error(
-      `Arquivo da Service Account não encontrado em: ${keyFile}`
+      "Configure GOOGLE_SERVICE_ACCOUNT_EMAIL e GOOGLE_PRIVATE_KEY ou forneça o arquivo da Service Account."
     );
   }
 
   return {
     sheetId,
     sheetName,
-    keyFile
+    keyFile,
+    credentials: clientEmail && privateKey ? { client_email: clientEmail, private_key: privateKey } : undefined,
   };
 }
 
@@ -78,18 +77,13 @@ export async function getHistoryRows(
     return cache.rows;
   }
 
-  const {
-    sheetId,
-    sheetName,
-    keyFile
-  } = getGoogleConfig();
+    const { sheetId, sheetName, keyFile, credentials } = getGoogleConfig();
 
   try {
     // O GoogleAuth lê o JSON oficial diretamente do disco.
     // Não há conversão de PEM, Base64 ou \n.
-    const auth =
-      new google.auth.GoogleAuth({
-        keyFile,
+    const auth = new google.auth.GoogleAuth({
+        ...(credentials ? { credentials } : { keyFile }),
         scopes: [
           "https://www.googleapis.com/auth/spreadsheets.readonly"
         ]
