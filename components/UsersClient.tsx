@@ -5,6 +5,12 @@ import { CheckCircle2, Pencil, Save, ShieldCheck, Trash2, UserPlus, Users, X } f
 
 type ManagedUser = { id: number; name: string; email: string; role: string; createdAt: string };
 
+function formatCreatedAt(value: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+}
+
 export function UsersClient() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [currentUserId, setCurrentUserId] = useState(0);
@@ -86,7 +92,7 @@ export function UsersClient() {
           <td data-label="Usuário"><b>{user.name}</b>{user.id === currentUserId && <small className="current-user">Conta atual</small>}</td>
           <td data-label="E-mail">{user.email}</td>
           <td data-label="Perfil"><span className={`user-role-badge ${user.role === "admin" ? "is-admin" : ""}`}>{user.role === "admin" ? "Administrador" : "Usuário"}</span></td>
-          <td data-label="Criado em">{new Date(`${user.createdAt}Z`).toLocaleString("pt-BR")}</td>
+          <td data-label="Criado em">{formatCreatedAt(user.createdAt)}</td>
           <td data-label="Ações"><div className="user-actions"><button type="button" className="user-action-btn" onClick={() => openEdit(user)}><Pencil size={14} />Editar</button><button type="button" className="user-action-btn is-danger" disabled={user.id === currentUserId || deletingId === user.id} title={user.id === currentUserId ? "Você não pode excluir sua própria conta." : "Excluir usuário"} onClick={() => removeUser(user)}><Trash2 size={14} />{deletingId === user.id ? "Excluindo..." : "Excluir"}</button></div></td>
         </tr>)}</tbody></table></div>}
       </section>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Activity, ChevronLeft, ChevronRight, CircleAlert, FileText, LayoutDashboard, LogOut, Menu, Package, RotateCcw, ScrollText, Settings, UserCog, X } from "lucide-react";
+import { Activity, ChevronLeft, ChevronRight, CircleAlert, FileText, LayoutDashboard, LogOut, Menu, Package, RotateCcw, ScrollText, Settings, UserCog, UserRound, X } from "lucide-react";
 import type { AuthUser } from "@/lib/auth";
 
 const items: Array<[string, string, LucideIcon]> = [
@@ -20,7 +20,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const navigationItems = user.role === "admin" ? [...items, ["Integrações", "/saude", Activity] as [string, string, LucideIcon], ["Usuários", "/usuarios", UserCog] as [string, string, LucideIcon], ["Auditoria", "/auditoria", ScrollText] as [string, string, LucideIcon], ["Configurações", "/configuracoes", Settings] as [string, string, LucideIcon]] : items;
+  const navigationItems = user.role === "admin" ? [...items, ["Integrações", "/saude", Activity] as [string, string, LucideIcon], ["Usuários", "/usuarios", UserCog] as [string, string, LucideIcon], ["Auditoria", "/auditoria", ScrollText] as [string, string, LucideIcon], ["Meu perfil", "/perfil", UserRound] as [string, string, LucideIcon], ["Configurações", "/configuracoes", Settings] as [string, string, LucideIcon]] : [...items, ["Meu perfil", "/perfil", UserRound] as [string, string, LucideIcon]];
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
   useEffect(() => {
@@ -52,7 +52,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
       <div className="brand">
         <img className="brand-logo" src="/favicon.svg" alt="Pitter Pan Festas" />
         <div>
-          <div className="brand-title">Painel Web Automação</div>
+          <div className="brand-title">Catálogo Pro</div>
           <div className="brand-sub">Automação de e-commerce</div>
         </div>
       </div>
@@ -70,8 +70,10 @@ export function Sidebar({ user }: { user: AuthUser }) {
         ))}
       </nav>
       <div className="sidebar-user">
-        <span className="avatar">{user.name.slice(0, 2).toUpperCase()}</span>
-        <span><strong>{user.name}</strong><small>{user.email}</small></span>
+        <Link className="sidebar-user-profile" href="/perfil" title="Personalizar perfil" aria-label="Personalizar perfil">
+          <span className="avatar">{user.name.slice(0, 2).toUpperCase()}</span>
+          <span className="sidebar-user-details"><strong>{user.name}</strong><small>{user.email}</small></span>
+        </Link>
         <button className="user-logout" type="button" onClick={logout} aria-label="Sair" title="Sair"><LogOut size={15} /></button>
       </div>
     </aside>

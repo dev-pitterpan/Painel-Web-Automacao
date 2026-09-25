@@ -229,6 +229,46 @@ export async function updateManagedUser(actor: AuthUser, userId: number, input: 
   await recordAudit({ userId: actor.id, action: "user_updated", entity: "user", details: { targetUserId: userId, previousName: target.name, name, previousEmail: target.email, email, previousRole: target.role, role, passwordChanged: Boolean(password) } });
 }
 
+export async function updateOwnProfile(actor: AuthUser, input: { name: string; email: string; currentPassword: string; newPassword?: string }) {
+  await ensureDatabase();
+  const [target] = await query<UserRecord>("SELECT id, name, email, role, password_hash FROM users WHERE id = $1", [actor.id]);
+  if (!target) throw new Error("Usuário não encontrado.");
+
+  const name = String(input.name || "").trim();
+  const email = normalizeEmail(String(input.email || ""));
+  const currentPassword = String(input.currentPassword || "");
+  const newPassword = String(input.newPassword || "");
+
+  if (name.length < 2 || name.length > 100) throw new Error("O nome precisa ter entre 2 e 100 caracteres.");
+  if (!isValidEmail(email)) throw new Error("E-mail inválido.");
+  if (!currentPassword || !verifyPassword(currentPassword, target.password_hash)) throw new Error("A senha atual está incorreta.");
+  if (newPassword && (newPassword.length < 12 || newPassword.length > 256)) throw new Error("A nova senha precisa ter entre 12 e 256 caracteres.");
+
+  const [duplicate] = await query<{ id: number }>("SELECT id FROM users WHERE email = $1 AND id <> $2", [email, actor.id]);
+  if (duplicate) throw new Error("Já existe um usuário com este e-mail.");
+
+  if (newPassword) {
+    await query("UPDATE users SET name = $1, email = $2, password_hash = $3 WHERE id = $4", [name, email, hashPassword(newPassword), actor.id]);
+  } else {
+    await query("UPDATE users SET name = $1, email = $2 WHERE id = $3", [name, email, actor.id]);
+  }
+
+  await recordAudit({
+    userId: actor.id,
+    action: "profile_updated",
+    entity: "user",
+    details: {
+      previousName: target.name,
+      name,
+      previousEmail: target.email,
+      email,
+      passwordChanged: Boolean(newPassword),
+    },
+  });
+
+  return { id: actor.id, name, email, role: target.role } satisfies AuthUser;
+}
+
 export async function deleteManagedUser(actor: AuthUser, userId: number) {
   if (actor.role !== "admin") throw new Error("Apenas administradores podem excluir usuários.");
   if (actor.id === userId) throw new Error("Você não pode excluir a conta que está usando.");
