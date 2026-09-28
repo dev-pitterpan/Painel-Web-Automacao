@@ -60,6 +60,9 @@ export type DashboardData = {
     available: boolean;
     label: string;
   };
+  permissions?: {
+    canReprocess: boolean;
+  };
   source?: {
     status: "connected";
     lastSyncedAt: string;

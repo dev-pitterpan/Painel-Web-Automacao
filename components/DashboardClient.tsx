@@ -60,6 +60,29 @@ const QUALITY_LABELS: Record<string, string> = {
   errors: "Com erro",
 };
 const PRODUCTS_PER_PAGE = 100;
+const EMPTY_CATALOG_VALUES = new Set([
+  "",
+  "-",
+  "—",
+  "0",
+  "null",
+  "undefined",
+  "não informado",
+  "nao informado",
+]);
+
+function hasCatalogValue(value: unknown) {
+  return !EMPTY_CATALOG_VALUES.has(
+    String(value ?? "")
+      .trim()
+      .toLocaleLowerCase("pt-BR"),
+  );
+}
+
+function hasValidBrand(value: unknown) {
+  const brand = String(value ?? "").trim();
+  return hasCatalogValue(brand) && /\p{L}/u.test(brand);
+}
 
 const fmt = (minutes: number) => {
   const totalMinutes = Math.floor(minutes);
@@ -245,6 +268,26 @@ type NotificationItem = {
   createdAt: string;
 };
 
+type AppliedFilters = {
+  q: string;
+  marca: string;
+  days: string;
+  month: string;
+  compareMonth: string;
+  qualityFilter: string;
+  statusFilter: string;
+};
+
+const DEFAULT_FILTERS: AppliedFilters = {
+  q: "",
+  marca: "",
+  days: "30",
+  month: "all",
+  compareMonth: "",
+  qualityFilter: "",
+  statusFilter: "",
+};
+
 export function DashboardClient({
   mode = "dashboard",
 }: {
@@ -261,6 +304,9 @@ export function DashboardClient({
   const [compareMonth, setCompareMonth] = useState("");
   const [qualityFilter, setQualityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [appliedFilters, setAppliedFilters] =
+    useState<AppliedFilters>(DEFAULT_FILTERS);
+  const [filtersReady, setFiltersReady] = useState(false);
   const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>("daily");
   const [brandTop, setBrandTop] = useState(5);
   const [loadingProgress, setLoadingProgress] = useState(14);
@@ -274,7 +320,6 @@ export function DashboardClient({
   } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [filterVersion, setFilterVersion] = useState(0);
   const [selectedProduct, setSelectedProduct] = useState<HistoryRow | null>(
     null,
   );
@@ -282,8 +327,16 @@ export function DashboardClient({
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setQualityFilter(params.get("quality") || "");
-    setStatusFilter(params.get("status") || "");
+    const quality = params.get("quality") || "";
+    const status = params.get("status") || "";
+    setQualityFilter(quality);
+    setStatusFilter(status);
+    setAppliedFilters({
+      ...DEFAULT_FILTERS,
+      qualityFilter: quality,
+      statusFilter: status,
+    });
+    setFiltersReady(true);
   }, []);
 
   const timeSeriesData = useMemo(
@@ -297,8 +350,9 @@ export function DashboardClient({
   );
   const catalogQuality = useMemo(() => {
     const products = new Map<string, HistoryRow>();
-    (data?.rows || []).forEach((row) => {
-      const key = String(row.sku || row.tituloDepois || row.tituloAntes).trim();
+    (data?.rows || []).forEach((row, index) => {
+      const sku = String(row.sku || "").trim();
+      const key = sku ? `sku:${sku}` : `row:${index}`;
       if (key && !products.has(key)) products.set(key, row);
     });
     const rows = [...products.values()];
@@ -307,7 +361,7 @@ export function DashboardClient({
         key: "missingTitle",
         label: "Sem título",
         count: rows.filter(
-          (row) => !String(row.tituloDepois || row.tituloAntes).trim(),
+          (row) => !hasCatalogValue(row.tituloDepois || row.tituloAntes),
         ).length,
         icon: FileText,
         tone: "blue",
@@ -316,7 +370,7 @@ export function DashboardClient({
       {
         key: "missingBrand",
         label: "Sem marca",
-        count: rows.filter((row) => !String(row.marca).trim()).length,
+        count: rows.filter((row) => !hasValidBrand(row.marca)).length,
         icon: Box,
         tone: "red",
         weight: 20,
@@ -325,7 +379,7 @@ export function DashboardClient({
         key: "missingTags",
         label: "Sem tags",
         count: rows.filter(
-          (row) => !String(row.tagsDepois || row.tagsAntes).trim(),
+          (row) => !hasCatalogValue(row.tagsDepois || row.tagsAntes),
         ).length,
         icon: Tags,
         tone: "gold",
@@ -335,7 +389,7 @@ export function DashboardClient({
         key: "missingCollection",
         label: "Sem coleção",
         count: rows.filter(
-          (row) => !String(row.colecoesDepois || row.colecoesAntes).trim(),
+          (row) => !hasCatalogValue(row.colecoesDepois || row.colecoesAntes),
         ).length,
         icon: FolderOpen,
         tone: "violet",
@@ -344,7 +398,7 @@ export function DashboardClient({
       {
         key: "missingSku",
         label: "Sem SKU",
-        count: rows.filter((row) => !String(row.sku).trim()).length,
+        count: rows.filter((row) => !hasCatalogValue(row.sku)).length,
         icon: Box,
         tone: "red",
         weight: 15,
@@ -399,21 +453,22 @@ export function DashboardClient({
 
     try {
       const p = new URLSearchParams({
-        days,
-        q,
-        marca,
+        days: appliedFilters.days,
+        q: appliedFilters.q,
+        marca: appliedFilters.marca,
       });
 
-      if (mode === "dashboard") p.set("month", month);
+      if (mode === "dashboard") p.set("month", appliedFilters.month);
       if (mode === "products") p.set("catalog", "1");
-      if (mode === "dashboard" && compareMonth)
-        p.set("compareMonth", compareMonth);
-      if (qualityFilter) p.set("quality", qualityFilter);
+      if (mode === "dashboard" && appliedFilters.compareMonth)
+        p.set("compareMonth", appliedFilters.compareMonth);
+      if (appliedFilters.qualityFilter)
+        p.set("quality", appliedFilters.qualityFilter);
 
       if (mode === "errors") {
         p.set("status", "erro");
-      } else if (statusFilter) {
-        p.set("status", statusFilter);
+      } else if (appliedFilters.statusFilter) {
+        p.set("status", appliedFilters.statusFilter);
       }
 
       if (refresh) {
@@ -462,6 +517,7 @@ export function DashboardClient({
         byBrand: Array.isArray(json.byBrand) ? json.byBrand : [],
 
         brands: Array.isArray(json.brands) ? json.brands : [],
+        permissions: json.permissions,
         source: json.source,
         comparison: json.comparison || {
           available: false,
@@ -486,25 +542,33 @@ export function DashboardClient({
   }
 
   useEffect(() => {
+    if (!filtersReady) return;
     load();
-  }, [
-    days,
-    month,
-    compareMonth,
-    marca,
-    qualityFilter,
-    statusFilter,
-    mode,
-    filterVersion,
-  ]);
+  }, [appliedFilters, filtersReady, mode]);
 
   const hasActiveFilters = Boolean(
-    q ||
-    marca ||
-    qualityFilter ||
-    compareMonth ||
-    (mode === "dashboard" ? month !== "all" : mode === "errors" ? days !== "30" : false),
+    appliedFilters.q ||
+    appliedFilters.marca ||
+    appliedFilters.qualityFilter ||
+    appliedFilters.compareMonth ||
+    (mode === "dashboard"
+      ? appliedFilters.month !== "all"
+      : mode === "errors"
+        ? appliedFilters.days !== "30"
+        : false),
   );
+
+  function applyFilters() {
+    setAppliedFilters({
+      q,
+      marca,
+      days,
+      month,
+      compareMonth,
+      qualityFilter,
+      statusFilter,
+    });
+  }
 
   function resetFilters() {
     setQ("");
@@ -513,7 +577,8 @@ export function DashboardClient({
     setMonth("all");
     setCompareMonth("");
     setQualityFilter("");
-    setFilterVersion((value) => value + 1);
+    setStatusFilter("");
+    setAppliedFilters(DEFAULT_FILTERS);
   }
 
   useEffect(() => {
@@ -750,6 +815,8 @@ export function DashboardClient({
       : mode === "products"
         ? "Produtos"
         : "Erros";
+  const canReprocess = Boolean(data.permissions?.canReprocess);
+  const showActions = mode !== "products" || canReprocess;
 
   return (
     <>
@@ -757,9 +824,23 @@ export function DashboardClient({
         row={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onProductUpdated={(sku, product) => {
-          const updateRow = (row: HistoryRow) => row.sku === sku ? { ...row, tituloDepois: product.title, tagsDepois: product.tags.join(", "), colecoesDepois: product.collections.join(", ") } : row;
-          setData(current => current ? { ...current, rows: current.rows.map(updateRow) } : current);
-          setSelectedProduct(current => current ? updateRow(current) : current);
+          const updateRow = (row: HistoryRow) =>
+            row.sku === sku
+              ? {
+                  ...row,
+                  tituloDepois: product.title,
+                  tagsDepois: product.tags.join(", "),
+                  colecoesDepois: product.collections.join(", "),
+                }
+              : row;
+          setData((current) =>
+            current
+              ? { ...current, rows: current.rows.map(updateRow) }
+              : current,
+          );
+          setSelectedProduct((current) =>
+            current ? updateRow(current) : current,
+          );
         }}
       />
       {toast && (
@@ -788,7 +869,7 @@ export function DashboardClient({
         className={`dashboard-topbar dashboard-topbar-${mode}`}
         onSubmit={(event) => {
           event.preventDefault();
-          load();
+          applyFilters();
         }}
       >
         <div className="topbar-search">
@@ -797,33 +878,42 @@ export function DashboardClient({
             placeholder="Buscar produtos, SKUs ou marcas..."
             value={q}
             onChange={(event) => setQ(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              setAppliedFilters((current) => ({ ...current, q }));
+            }}
           />
         </div>
-        {mode !== "products" && <select
-          className="topbar-period"
-          value={mode === "dashboard" ? month : days}
-          onChange={(event) =>
-            mode === "dashboard"
-              ? setMonth(event.target.value)
-              : setDays(event.target.value)
-          }
-          aria-label={mode === "dashboard" ? "Período do dashboard" : "Período"}
-        >
-          {mode === "dashboard" ? (
-            monthOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))
-          ) : (
-            <>
-              <option value="7">7 dias</option>
-              <option value="30">30 dias</option>
-              <option value="90">90 dias</option>
-              <option value="3650">Tudo</option>
-            </>
-          )}
-        </select>}
+        {mode !== "products" && (
+          <select
+            className="topbar-period"
+            value={mode === "dashboard" ? month : days}
+            onChange={(event) =>
+              mode === "dashboard"
+                ? setMonth(event.target.value)
+                : setDays(event.target.value)
+            }
+            aria-label={
+              mode === "dashboard" ? "Período do dashboard" : "Período"
+            }
+          >
+            {mode === "dashboard" ? (
+              monthOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="7">7 dias</option>
+                <option value="30">30 dias</option>
+                <option value="90">90 dias</option>
+                <option value="3650">Tudo</option>
+              </>
+            )}
+          </select>
+        )}
         {mode === "dashboard" && (
           <select
             className="topbar-compare"
@@ -964,14 +1054,26 @@ export function DashboardClient({
           <div className="page-sub">Automação de catálogo</div>
         </div>
       </div>
-      {qualityFilter && (
+      {appliedFilters.qualityFilter && (
         <div className="active-quality-filter">
           <ListChecks size={15} />
           <span>
             Filtro de qualidade ativo:{" "}
-            <b>{QUALITY_LABELS[qualityFilter] || qualityFilter}</b>
+            <b>
+              {QUALITY_LABELS[appliedFilters.qualityFilter] ||
+                appliedFilters.qualityFilter}
+            </b>
           </span>
-          <button type="button" onClick={() => setQualityFilter("")}>
+          <button
+            type="button"
+            onClick={() => {
+              setQualityFilter("");
+              setAppliedFilters((current) => ({
+                ...current,
+                qualityFilter: "",
+              }));
+            }}
+          >
             <X size={14} />
             Limpar
           </button>
@@ -1192,7 +1294,10 @@ export function DashboardClient({
                       onClick={(entry) => {
                         if (entry?.marca) {
                           setMarca(String(entry.marca));
-                          setFilterVersion((value) => value + 1);
+                          setAppliedFilters((current) => ({
+                            ...current,
+                            marca: String(entry.marca),
+                          }));
                         }
                       }}
                       style={{ cursor: "pointer" }}
@@ -1313,10 +1418,17 @@ export function DashboardClient({
         >
           <div className="panel-head">
             <div className="panel-title">
-              {mode === "errors" ? "Últimos erros" : mode === "products" ? "Produtos do catálogo" : "Últimos processamentos"}
+              {mode === "errors"
+                ? "Últimos erros"
+                : mode === "products"
+                  ? "Produtos do catálogo"
+                  : "Últimos processamentos"}
             </div>
 
-            <div className="metric-note">{data.rows.length} {mode === "products" ? "produtos" : "registros"}</div>
+            <div className="metric-note">
+              {data.rows.length}{" "}
+              {mode === "products" ? "produtos" : "registros"}
+            </div>
           </div>
 
           {data.rows.length === 0 ? (
@@ -1340,24 +1452,59 @@ export function DashboardClient({
               <table>
                 <thead>
                   <tr>
-                    <th>{mode === "products" ? "Última atualização" : "Data/Hora"}</th>
+                    <th>
+                      {mode === "products" ? "Última atualização" : "Data/Hora"}
+                    </th>
                     <th>SKU</th>
                     <th>Produto</th>
                     <th>Marca</th>
                     <th>Status</th>
                     <th>Alterações</th>
-                    <th>Ação</th>
+                    {showActions && <th>Ação</th>}
                   </tr>
                 </thead>
 
                 <tbody>
                   {data.rows
                     .slice(
-                      mode === "products" ? (productsPage - 1) * PRODUCTS_PER_PAGE : 0,
-                      mode === "products" ? productsPage * PRODUCTS_PER_PAGE : mode === "dashboard" ? 10 : 200,
+                      mode === "products"
+                        ? (productsPage - 1) * PRODUCTS_PER_PAGE
+                        : 0,
+                      mode === "products"
+                        ? productsPage * PRODUCTS_PER_PAGE
+                        : mode === "dashboard"
+                          ? 10
+                          : 200,
                     )
                     .map((row, index) => (
-                      <tr key={`${row.sku}-${index}`}>
+                      <tr
+                        key={`${row.sku}-${index}`}
+                        className={
+                          mode === "products"
+                            ? "product-row-clickable"
+                            : undefined
+                        }
+                        role={mode === "products" ? "button" : undefined}
+                        tabIndex={mode === "products" ? 0 : undefined}
+                        onClick={
+                          mode === "products"
+                            ? () => setSelectedProduct(row)
+                            : undefined
+                        }
+                        onKeyDown={
+                          mode === "products"
+                            ? (event) => {
+                                if (
+                                  event.key === "Enter" ||
+                                  event.key === " "
+                                ) {
+                                  event.preventDefault();
+                                  setSelectedProduct(row);
+                                }
+                              }
+                            : undefined
+                        }
+                      >
                         <td>{row.dataHora}</td>
 
                         <td>
@@ -1365,15 +1512,23 @@ export function DashboardClient({
                         </td>
 
                         <td>
-                          <button
-                            className="product-link"
-                            type="button"
-                            onClick={() => setSelectedProduct(row)}
-                          >
-                            {row.tituloDepois ||
-                              row.tituloAntes ||
-                              "Produto sem título"}
-                          </button>
+                          {mode === "products" ? (
+                            <strong>
+                              {row.tituloDepois ||
+                                row.tituloAntes ||
+                                "Produto sem título"}
+                            </strong>
+                          ) : (
+                            <button
+                              className="product-link"
+                              type="button"
+                              onClick={() => setSelectedProduct(row)}
+                            >
+                              {row.tituloDepois ||
+                                row.tituloAntes ||
+                                "Produto sem título"}
+                            </button>
+                          )}
                         </td>
 
                         <td>{row.marca || "—"}</td>
@@ -1393,59 +1548,69 @@ export function DashboardClient({
                             .join(", ") || "Nenhuma"}
                         </td>
 
-                        <td>
-                          {(() => {
-                            const state = reprocessState[reprocessKey(row)];
+                        {showActions && (
+                          <td onClick={(event) => event.stopPropagation()}>
+                            {(() => {
+                              const state = reprocessState[reprocessKey(row)];
 
-                            return (
-                              <div className="row-actions">
-                                <button
-                                  className="btn details-btn"
-                                  type="button"
-                                  onClick={() => setSelectedProduct(row)}
-                                  title="Ver valores antes e depois"
-                                >
-                                  <Eye size={14} />
-                                  Detalhes
-                                </button>
-                                <button
-                                  className={`btn reprocess-btn ${state ? `is-${state}` : ""}`}
-                                  disabled={
-                                    state === "sending" ||
-                                    state === "pending" ||
-                                    state === "success"
-                                  }
-                                  onClick={() => reprocess(row)}
-                                  title={
-                                    state === "error"
-                                      ? "Tentar enviar novamente"
-                                      : "Reprocessar produto no n8n"
-                                  }
-                                >
-                                  {(state === "sending" ||
-                                    state === "pending") && (
-                                    <LoaderCircle className="spin" size={14} />
+                              return (
+                                <div className="row-actions">
+                                  {mode !== "products" && (
+                                    <button
+                                      className="btn details-btn"
+                                      type="button"
+                                      onClick={() => setSelectedProduct(row)}
+                                      title="Ver valores antes e depois"
+                                    >
+                                      <Eye size={14} />
+                                      Detalhes
+                                    </button>
                                   )}
-                                  {state === "success" && (
-                                    <CheckCircle2 size={14} />
-                                  )}
-                                  {state === "error" && (
-                                    <AlertCircle size={14} />
-                                  )}
-                                  {!state && <RefreshCw size={14} />}
+                                  {canReprocess && (
+                                    <button
+                                      className={`btn reprocess-btn ${state ? `is-${state}` : ""}`}
+                                      disabled={
+                                        state === "sending" ||
+                                        state === "pending" ||
+                                        state === "success"
+                                      }
+                                      onClick={() => reprocess(row)}
+                                      title={
+                                        state === "error"
+                                          ? "Tentar enviar novamente"
+                                          : "Reprocessar produto no n8n"
+                                      }
+                                    >
+                                      {(state === "sending" ||
+                                        state === "pending") && (
+                                        <LoaderCircle
+                                          className="spin"
+                                          size={14}
+                                        />
+                                      )}
+                                      {state === "success" && (
+                                        <CheckCircle2 size={14} />
+                                      )}
+                                      {state === "error" && (
+                                        <AlertCircle size={14} />
+                                      )}
+                                      {!state && <RefreshCw size={14} />}
 
-                                  {state === "sending" || state === "pending"
-                                    ? "Processando"
-                                    : state === "success"
-                                      ? "Enviado"
-                                      : state === "error"
-                                        ? "Tentar novamente"
-                                        : "Reprocessar"}
-                                </button>
-                              </div>
-                            );
-                          })()}
-                        </td>
+                                      {state === "sending" ||
+                                      state === "pending"
+                                        ? "Processando"
+                                        : state === "success"
+                                          ? "Enviado"
+                                          : state === "error"
+                                            ? "Tentar novamente"
+                                            : "Reprocessar"}
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+                        )}
                       </tr>
                     ))}
                 </tbody>
@@ -1454,7 +1619,11 @@ export function DashboardClient({
           )}
           {mode === "dashboard" && data.rows.length > 0 && (
             <div className="latest-processings-footer">
-              <button type="button" className="btn" onClick={() => window.location.assign("/produtos")}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => window.location.assign("/produtos")}
+              >
                 Ver todos os produtos
               </button>
             </div>
@@ -1462,12 +1631,50 @@ export function DashboardClient({
           {mode === "products" && data.rows.length > 0 && (
             <div className="products-pagination">
               <span>
-                Exibindo {((productsPage - 1) * PRODUCTS_PER_PAGE + 1).toLocaleString("pt-BR")}–{Math.min(productsPage * PRODUCTS_PER_PAGE, data.rows.length).toLocaleString("pt-BR")} de {data.rows.length.toLocaleString("pt-BR")}
+                Exibindo{" "}
+                {((productsPage - 1) * PRODUCTS_PER_PAGE + 1).toLocaleString(
+                  "pt-BR",
+                )}
+                –
+                {Math.min(
+                  productsPage * PRODUCTS_PER_PAGE,
+                  data.rows.length,
+                ).toLocaleString("pt-BR")}{" "}
+                de {data.rows.length.toLocaleString("pt-BR")}
               </span>
               <div className="pagination">
-                <button type="button" aria-label="Página anterior" disabled={productsPage === 1} onClick={() => setProductsPage(page => Math.max(1, page - 1))}><ChevronLeft size={16} /></button>
-                <strong>{productsPage} / {Math.max(1, Math.ceil(data.rows.length / PRODUCTS_PER_PAGE))}</strong>
-                <button type="button" aria-label="Próxima página" disabled={productsPage >= Math.ceil(data.rows.length / PRODUCTS_PER_PAGE)} onClick={() => setProductsPage(page => Math.min(Math.ceil(data.rows.length / PRODUCTS_PER_PAGE), page + 1))}><ChevronRight size={16} /></button>
+                <button
+                  type="button"
+                  aria-label="Página anterior"
+                  disabled={productsPage === 1}
+                  onClick={() =>
+                    setProductsPage((page) => Math.max(1, page - 1))
+                  }
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <strong>
+                  {productsPage} /{" "}
+                  {Math.max(1, Math.ceil(data.rows.length / PRODUCTS_PER_PAGE))}
+                </strong>
+                <button
+                  type="button"
+                  aria-label="Próxima página"
+                  disabled={
+                    productsPage >=
+                    Math.ceil(data.rows.length / PRODUCTS_PER_PAGE)
+                  }
+                  onClick={() =>
+                    setProductsPage((page) =>
+                      Math.min(
+                        Math.ceil(data.rows.length / PRODUCTS_PER_PAGE),
+                        page + 1,
+                      ),
+                    )
+                  }
+                >
+                  <ChevronRight size={16} />
+                </button>
               </div>
             </div>
           )}

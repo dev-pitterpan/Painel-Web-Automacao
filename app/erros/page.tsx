@@ -1,1 +1,4 @@
-import {DashboardClient} from "@/components/DashboardClient";export default function Page(){return <DashboardClient mode="errors"/>}
+import { DashboardClient } from "@/components/DashboardClient";
+export default function Page() {
+  return <DashboardClient mode="errors" />;
+}

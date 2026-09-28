@@ -1,1 +1,4 @@
-import {DashboardClient} from "@/components/DashboardClient";export default function Page(){return <DashboardClient mode="products"/>}
+import { DashboardClient } from "@/components/DashboardClient";
+export default function Page() {
+  return <DashboardClient mode="products" />;
+}

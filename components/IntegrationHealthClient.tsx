@@ -114,7 +114,9 @@ export function IntegrationHealthClient() {
             >
               <header>
                 <span className="integration-brand-icon">
-                  {iconSrc ? <img src={iconSrc} alt="" aria-hidden="true" /> : null}
+                  {iconSrc ? (
+                    <img src={iconSrc} alt="" aria-hidden="true" />
+                  ) : null}
                 </span>
                 <div>
                   <h2>{integration.name}</h2>

@@ -11,11 +11,15 @@ export const metadata: Metadata = {
   icons: {
     icon: [{ url: "/logo-pitter-com-fundo.png?v=3", type: "image/png" }],
     shortcut: [{ url: "/logo-pitter-com-fundo.png?v=3", type: "image/png" }],
-    apple: [{ url: "/logo-pitter-com-fundo.png?v=3", type: "image/png" }]
-  }
+    apple: [{ url: "/logo-pitter-com-fundo.png?v=3", type: "image/png" }],
+  },
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const user = await getCurrentUser();
   const pathname = (await headers()).get("x-pitter-pathname") || "/";
 
@@ -30,7 +34,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Sidebar user={user} />
             <main className="content">{children}</main>
           </div>
-        ) : children}
+        ) : (
+          children
+        )}
       </body>
     </html>
   );
