@@ -2159,7 +2159,7 @@ tbody tr:hover {
 }
 .product-window-bar:active { cursor: grabbing; }
 .product-window-bar button { cursor: pointer; }
-.product-window-back:disabled { opacity: 0.35; cursor: default; }
+.product-window-back:disabled,
 .product-window-forward:disabled {
   opacity: 1;
   background: #dfe4eb;
