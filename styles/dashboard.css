@@ -1125,6 +1125,11 @@ tbody tr:hover {
   display: flex;
   gap: 9px;
 }
+.reports-csv-secondary {
+  min-width: auto;
+  padding-inline: 12px;
+  color: #5d6980;
+}
 .reports-state {
   min-height: 180px;
   display: flex;

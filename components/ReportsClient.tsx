@@ -12,6 +12,7 @@ import {
   Download,
   Eye,
   FileBarChart,
+  FileSpreadsheet,
   FileText,
   Layers3,
   PackageCheck,
@@ -40,6 +41,7 @@ type ExportItem = {
   period: string;
   rows: number;
   status: string;
+  format?: "XLSX" | "CSV";
 };
 type BrandReportRow = {
   brand: string;
@@ -158,6 +160,7 @@ export function ReportsClient() {
   const [exports, setExports] = useState<ExportItem[]>([]);
   const [generations, setGenerations] = useState<string[]>([]);
   const [toast, setToast] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectingEnd, setSelectingEnd] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -481,17 +484,227 @@ export function ReportsClient() {
       0,
     );
   }
+  function selectedRowsFor(kind: ReportKind) {
+    return kind === "marca"
+      ? brandRows
+      : kind === "produtividade"
+        ? productivityRows
+        : kind === "erros"
+          ? filteredRows.filter(isError)
+          : kind === "alteracoes"
+            ? filteredRows.filter(hasChange)
+            : filteredRows;
+  }
+
+  function registerExport(
+    report: string,
+    rows: number,
+    format: "XLSX" | "CSV",
+  ) {
+    const filters = applied || { start, end };
+    const item: ExportItem = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toLocaleString("pt-BR"),
+      report,
+      period: `${formatDateInput(filters.start)} a ${formatDateInput(filters.end)}`,
+      rows,
+      status: "Concluído",
+      format,
+    };
+    const next = [item, ...exports].slice(0, 12);
+    setExports(next);
+    localStorage.setItem("pitter-report-exports", JSON.stringify(next));
+    fetch("/api/audit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "report_exported",
+        details: { report, rows, period: item.period, format },
+      }),
+    }).catch(() => undefined);
+  }
+
+  async function exportXlsx(kind?: ReportKind) {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const ExcelJSModule = await import("exceljs");
+      const ExcelJS = ExcelJSModule.default;
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "Catálogo Pro";
+      workbook.created = new Date();
+
+      const filters = applied || { start, end, brand, status, change };
+      const historyHeaders = [
+        "Data/Hora",
+        "SKU",
+        "Produto",
+        "Marca",
+        "Status",
+        "Alterações",
+      ];
+      const historyValues = (rows: HistoryRow[]) =>
+        rows.map((row) => [
+          row.dataHora,
+          row.sku,
+          row.tituloDepois || row.tituloAntes,
+          row.marca,
+          isError(row) ? "Erro" : "Sucesso",
+          rowChanges(row).join(", ") || "Sem alteração",
+        ]);
+      const definitions: Record<
+        ReportKind,
+        { name: string; headers: string[]; rows: Array<Array<string | number>> }
+      > = {
+        executivo: {
+          name: "Resumo",
+          headers: ["Indicador", "Valor"],
+          rows: [
+            [
+              "Período",
+              `${formatDateInput(filters.start)} a ${formatDateInput(filters.end)}`,
+            ],
+            ["Marca", filters.brand || "Todas as marcas"],
+            ["Status", filters.status || "Todos os status"],
+            ["Tipo de alteração", filters.change || "Todos os tipos"],
+            ["Processamentos", filteredRows.length],
+            ["Produtos com alteração", summaries.changed],
+            ["Erros", summaries.errors],
+            ["Tempo economizado", fmtMinutes(summaries.time)],
+          ],
+        },
+        marca: {
+          name: "Marcas",
+          headers: [
+            "Marca",
+            "Produtos únicos",
+            "Processamentos",
+            "Sucessos",
+            "Erros",
+          ],
+          rows: brandRows.map((row) => [
+            row.brand,
+            row.products,
+            row.total,
+            row.successes,
+            row.errors,
+          ]),
+        },
+        erros: {
+          name: "Erros",
+          headers: historyHeaders,
+          rows: historyValues(filteredRows.filter(isError)),
+        },
+        alteracoes: {
+          name: "Alterações",
+          headers: historyHeaders,
+          rows: historyValues(filteredRows.filter(hasChange)),
+        },
+        produtividade: {
+          name: "Produtividade",
+          headers: [
+            "Data",
+            "Processamentos",
+            "Produtos alterados",
+            "Sucessos",
+            "Erros",
+            "Tempo economizado",
+          ],
+          rows: productivityRows.map((row) => [
+            row.date,
+            row.total,
+            row.changed,
+            row.successes,
+            row.errors,
+            fmtMinutes(row.minutes),
+          ]),
+        },
+      };
+
+      const kinds: ReportKind[] = kind
+        ? [kind]
+        : ["executivo", "marca", "erros", "alteracoes", "produtividade"];
+      kinds.forEach((itemKind) => {
+        const definition = definitions[itemKind];
+        const worksheet = workbook.addWorksheet(definition.name, {
+          views: [{ state: "frozen", ySplit: 1 }],
+        });
+        worksheet.addRow(definition.headers);
+        definition.rows.forEach((row) => worksheet.addRow(row));
+        worksheet.autoFilter = {
+          from: { row: 1, column: 1 },
+          to: { row: 1, column: definition.headers.length },
+        };
+        const header = worksheet.getRow(1);
+        header.height = 24;
+        header.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        header.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF233B8F" },
+        };
+        header.alignment = { vertical: "middle" };
+        worksheet.eachRow((row, rowNumber) => {
+          row.alignment = { vertical: "middle" };
+          if (rowNumber > 1 && rowNumber % 2 === 1) {
+            row.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFF5F8FD" },
+            };
+          }
+          row.eachCell((cell) => {
+            cell.border = {
+              bottom: { style: "thin", color: { argb: "FFDCE4F2" } },
+            };
+            if (cell.value === "Erro") {
+              cell.font = { bold: true, color: { argb: "FFC41E2C" } };
+            } else if (cell.value === "Sucesso") {
+              cell.font = { bold: true, color: { argb: "FF0D8D5B" } };
+            }
+          });
+        });
+        worksheet.columns.forEach((column, index) => {
+          const values = [
+            definition.headers[index],
+            ...definition.rows.map((row) => String(row[index] ?? "")),
+          ];
+          column.width = Math.min(
+            45,
+            Math.max(12, ...values.map((value) => value.length + 2)),
+          );
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([new Uint8Array(buffer)], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${kind ? REPORT_LABELS[kind].toLowerCase().replaceAll(" ", "-") : "relatorios-completos"}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      registerExport(
+        kind ? REPORT_LABELS[kind] : "Relatórios completos",
+        kind ? selectedRowsFor(kind).length : filteredRows.length,
+        "XLSX",
+      );
+      setToast("Arquivo Excel exportado com sucesso.");
+    } catch (cause) {
+      setToast(
+        cause instanceof Error
+          ? `Não foi possível gerar o Excel: ${cause.message}`
+          : "Não foi possível gerar o arquivo Excel.",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function exportCsv(kind: ReportKind = reportKind) {
-    const selected =
-      kind === "marca"
-        ? brandRows
-        : kind === "produtividade"
-          ? productivityRows
-          : kind === "erros"
-            ? filteredRows.filter(isError)
-            : kind === "alteracoes"
-              ? filteredRows.filter(hasChange)
-              : filteredRows;
+    const selected = selectedRowsFor(kind);
     let lines: string[];
     if (kind === "marca") {
       lines = [
@@ -560,30 +773,7 @@ export function ReportsClient() {
     anchor.download = `${REPORT_LABELS[kind].toLowerCase().replaceAll(" ", "-")}-${new Date().toISOString().slice(0, 10)}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
-    const filters = applied || { start, end };
-    const item: ExportItem = {
-      id: crypto.randomUUID(),
-      createdAt: new Date().toLocaleString("pt-BR"),
-      report: REPORT_LABELS[kind],
-      period: `${formatDateInput(filters.start)} a ${formatDateInput(filters.end)}`,
-      rows: selected.length,
-      status: "Concluído",
-    };
-    const next = [item, ...exports].slice(0, 12);
-    setExports(next);
-    localStorage.setItem("pitter-report-exports", JSON.stringify(next));
-    fetch("/api/audit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "report_exported",
-        details: {
-          report: REPORT_LABELS[kind],
-          rows: selected.length,
-          period: item.period,
-        },
-      }),
-    }).catch(() => undefined);
+    registerExport(REPORT_LABELS[kind], selected.length, "CSV");
     setToast("Arquivo CSV exportado com sucesso.");
   }
   if (loading || loadingExiting)
@@ -698,9 +888,25 @@ export function ReportsClient() {
           </div>
         </div>
         <div className="reports-head-actions">
-          <button className="btn" onClick={() => exportCsv()}>
-            <Download size={16} />
-            Exportar CSV
+          <button
+            className="btn btn-primary"
+            onClick={() => exportXlsx()}
+            disabled={exporting}
+          >
+            {exporting ? (
+              <RefreshCw className="spin" size={16} />
+            ) : (
+              <FileSpreadsheet size={16} />
+            )}
+            {exporting ? "Gerando Excel" : "Exportar Excel"}
+          </button>
+          <button
+            className="btn reports-csv-secondary"
+            onClick={() => exportCsv()}
+            title="Exportar o relatório selecionado em CSV"
+          >
+            <Download size={15} />
+            CSV
           </button>
         </div>
       </div>
@@ -934,11 +1140,12 @@ export function ReportsClient() {
                     Visualizar
                   </button>
                   <button
-                    onClick={() => exportCsv(card.kind)}
+                    onClick={() => exportXlsx(card.kind)}
+                    disabled={exporting}
                     aria-label={`Exportar ${REPORT_LABELS[card.kind]}`}
                   >
-                    <Download size={15} />
-                    Exportar
+                    <FileSpreadsheet size={15} />
+                    Excel
                   </button>
                 </div>
               </article>
@@ -1212,7 +1419,9 @@ export function ReportsClient() {
                     <td>{item.period}</td>
                     <td>{item.rows.toLocaleString("pt-BR")}</td>
                     <td>
-                      <span className="format-pill">CSV</span>
+                      <span className="format-pill">
+                        {item.format || "CSV"}
+                      </span>
                     </td>
                     <td>
                       <span className="badge badge-success">{item.status}</span>
