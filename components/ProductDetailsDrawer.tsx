@@ -1,60 +1,103 @@
 "use client";
 
-import { useEffect } from "react";
-import { ArrowRight, CheckCircle2, CircleAlert, Package, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, CheckCircle2, CircleAlert, Info, LoaderCircle, Package, Pencil, Scale, X } from "lucide-react";
 import type { HistoryRow } from "@/lib/types";
 
+type DrawerStep = "details" | "edit" | "review";
+type EditForm = { title: string; description: string; tags: string; collections: string; weight: string; weightUnit: "g" | "kg" };
+
+const currentTitle = (row: HistoryRow) => row.tituloDepois || row.tituloAntes || "";
+const currentTags = (row: HistoryRow) => row.tagsDepois || row.tagsAntes || "";
+const currentCollections = (row: HistoryRow) => row.colecoesDepois || row.colecoesAntes || "";
+const fallbackForm = (row: HistoryRow): EditForm => ({ title: currentTitle(row), description: "", tags: currentTags(row), collections: currentCollections(row), weight: "", weightUnit: "g" });
+const listText = (value: unknown) => Array.isArray(value) ? value.map(String).join(", ") : String(value ?? "");
+
 function ValueCard({ label, before, after, changed }: { label: string; before: string; after: string; changed: boolean }) {
-  return (
-    <section className="comparison-card">
-      <div className="comparison-card-head">
-        <strong>{label}</strong>
-        <span className={changed ? "change-state is-changed" : "change-state"}>{changed ? "Alterado" : "Sem alteração"}</span>
-      </div>
-      <div className="comparison-values">
-        <div><small>Antes</small><p>{before || "Não informado"}</p></div>
-        <ArrowRight size={16} aria-hidden="true" />
-        <div><small>Depois</small><p>{after || "Não informado"}</p></div>
-      </div>
-    </section>
-  );
+  return <section className="comparison-card"><div className="comparison-card-head"><strong>{label}</strong><span className={changed ? "change-state is-changed" : "change-state"}>{changed ? "Alterado" : "Sem alteração"}</span></div><div className="comparison-values"><div><small>Antes</small><p>{before || "Não informado"}</p></div><ArrowRight size={16} /><div><small>Depois</small><p>{after || "Não informado"}</p></div></div></section>;
+}
+
+function ReviewRow({ label, before, after }: { label: string; before: string; after: string }) {
+  const changed = before.trim() !== after.trim();
+  return <div className={`edit-review-row ${changed ? "is-changed" : ""}`}><div className="edit-review-label"><strong>{label}</strong><span>{changed ? "Será alterado" : "Sem alteração"}</span></div><div className="edit-review-values"><div><small>Atual</small><p>{before || "Não informado"}</p></div><ArrowRight size={15} /><div><small>Novo</small><p>{after || "Não informado"}</p></div></div></div>;
 }
 
 export function ProductDetailsDrawer({ row, onClose }: { row: HistoryRow | null; onClose: () => void }) {
+  const [step, setStep] = useState<DrawerStep>("details");
+  const [form, setForm] = useState<EditForm | null>(null);
+  const [original, setOriginal] = useState<EditForm | null>(null);
+  const [loadingProduct, setLoadingProduct] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
   useEffect(() => {
     if (!row) return;
-    const close = (event: KeyboardEvent) => event.key === "Escape" && onClose();
-    document.addEventListener("keydown", close);
-    document.body.classList.add("drawer-open");
-    return () => { document.removeEventListener("keydown", close); document.body.classList.remove("drawer-open"); };
-  }, [row, onClose]);
+    const initial = fallbackForm(row);
+    setStep("details"); setForm(initial); setOriginal(initial); setMessage(""); setError("");
+  }, [row]);
 
-  if (!row) return null;
+  useEffect(() => {
+    if (!row) return;
+    const close = (event: KeyboardEvent) => event.key === "Escape" && !saving && onClose();
+    document.addEventListener("keydown", close); document.body.classList.add("drawer-open");
+    return () => { document.removeEventListener("keydown", close); document.body.classList.remove("drawer-open"); };
+  }, [row, onClose, saving]);
+
+  const changedFields = useMemo(() => {
+    if (!form || !original) return 0;
+    return (["title", "description", "tags", "collections", "weight", "weightUnit"] as const).filter(field => form[field].trim() !== original[field].trim()).length;
+  }, [form, original]);
+
+  if (!row || !form || !original) return null;
   const failed = String(row.status || "").toLowerCase().startsWith("erro");
-  return (
-    <div className="drawer-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && onClose()}>
-      <aside className="product-drawer" role="dialog" aria-modal="true" aria-labelledby="product-drawer-title">
-        <header className="product-drawer-head">
-          <span className="product-drawer-icon"><Package size={20} /></span>
-          <div><small>Detalhes do processamento</small><h2 id="product-drawer-title">{row.tituloDepois || row.tituloAntes || "Produto sem título"}</h2></div>
-          <button type="button" onClick={onClose} aria-label="Fechar detalhes"><X size={19} /></button>
-        </header>
-        <div className="product-drawer-meta">
-          <span><small>SKU</small><strong>{row.sku || "—"}</strong></span>
-          <span><small>Marca</small><strong>{row.marca || "—"}</strong></span>
-          <span><small>Data e hora</small><strong>{row.dataHora || "—"}</strong></span>
-          <span className={failed ? "drawer-status is-error" : "drawer-status"}>{failed ? <CircleAlert size={14} /> : <CheckCircle2 size={14} />}{failed ? "Erro" : "Sucesso"}</span>
-        </div>
-        <div className="product-drawer-body">
-          <ValueCard label="Título" before={row.tituloAntes} after={row.tituloDepois} changed={row.tituloAlterado} />
-          <ValueCard label="Tags" before={row.tagsAntes} after={row.tagsDepois} changed={row.tagsAlteradas} />
-          <ValueCard label="Coleções" before={row.colecoesAntes} after={row.colecoesDepois} changed={row.colecoesAlteradas} />
-          <section className="description-result">
-            <div><strong>Descrição do produto</strong><small>A planilha registra a geração, mas não armazena o texto anterior e posterior.</small></div>
-            <span className={row.descricaoGerada ? "is-generated" : ""}>{row.descricaoGerada ? "Gerada" : "Não gerada"}</span>
-          </section>
-        </div>
-      </aside>
-    </div>
-  );
+  const title = currentTitle(row) || "Produto sem título";
+  const update = (field: keyof EditForm, value: string) => setForm(current => current ? { ...current, [field]: value } : current);
+
+  async function openEditor() {
+    setLoadingProduct(true); setError(""); setMessage("");
+    try {
+      const response = await fetch(`/api/n8n/product-editor?sku=${encodeURIComponent(row!.sku)}`, { cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Não foi possível carregar o produto.");
+      const product = body.product || {};
+      const next: EditForm = {
+        title: String(product.title ?? currentTitle(row!)),
+        description: String(product.description ?? product.descriptionHtml ?? ""),
+        tags: listText(product.tags ?? currentTags(row!)),
+        collections: listText(product.collections ?? currentCollections(row!)),
+        weight: String(product.weight ?? ""),
+        weightUnit: product.weightUnit === "kg" ? "kg" : "g",
+      };
+      setForm(next); setOriginal(next); setStep("edit");
+    } catch (cause) {
+      const initial = fallbackForm(row!);
+      setForm(initial); setOriginal(initial); setStep("edit");
+      setError(`${cause instanceof Error ? cause.message : "Falha ao consultar o Shopify."} Você ainda pode visualizar o editor; o envio ficará disponível após configurar o workflow.`);
+    } finally { setLoadingProduct(false); }
+  }
+
+  async function saveProduct() {
+    setSaving(true); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/n8n/product-editor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sku: row!.sku, title: form!.title, description: form!.description, tags: form!.tags.split(",").map(item => item.trim()).filter(Boolean), collections: form!.collections.split(",").map(item => item.trim()).filter(Boolean), weight: Number(form!.weight || 0), weightUnit: form!.weightUnit }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Não foi possível atualizar o produto.");
+      setOriginal(form!); setMessage(body.message || "Produto atualizado no Shopify com sucesso."); setStep("details");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Falha ao atualizar o Shopify.");
+    } finally { setSaving(false); }
+  }
+
+  return <div className="drawer-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && !saving && onClose()}><aside className="product-drawer product-editor-drawer" role="dialog" aria-modal="true" aria-labelledby="product-drawer-title">
+    <header className="product-drawer-head"><span className="product-drawer-icon">{step === "details" ? <Package size={20} /> : <Pencil size={19} />}</span><div><small>{step === "details" ? "Detalhes do produto" : step === "edit" ? "Editar produto" : "Revisar alterações"}</small><h2 id="product-drawer-title">{title}</h2></div><button type="button" onClick={onClose} disabled={saving} aria-label="Fechar detalhes"><X size={19} /></button></header>
+    <div className="product-drawer-meta"><span><small>SKU</small><strong>{row.sku || "—"}</strong></span><span><small>Marca</small><strong>{row.marca || "—"}</strong></span><span><small>Última atualização</small><strong>{row.dataHora || "—"}</strong></span><span className={failed ? "drawer-status is-error" : "drawer-status"}>{failed ? <CircleAlert size={14} /> : <CheckCircle2 size={14} />}{failed ? "Erro" : "Sincronizado"}</span></div>
+    {(error || message) && <div className={`product-editor-message ${error ? "is-error" : "is-success"}`}>{error ? <CircleAlert size={16} /> : <CheckCircle2 size={16} />}<span>{error || message}</span><button type="button" onClick={() => { setError(""); setMessage(""); }} aria-label="Fechar aviso"><X size={14} /></button></div>}
+
+    {step === "details" && <><div className="drawer-edit-banner"><div><strong>Editar informações no Shopify</strong><span>Carregue os valores atuais e altere título, descrição, tags, coleções e peso.</span></div><button className="btn btn-primary" type="button" onClick={openEditor} disabled={loadingProduct}>{loadingProduct ? <LoaderCircle className="spin" size={14} /> : <Pencil size={14} />}{loadingProduct ? "Carregando..." : "Editar produto"}</button></div><div className="product-drawer-body"><ValueCard label="Título" before={row.tituloAntes} after={row.tituloDepois} changed={row.tituloAlterado} /><ValueCard label="Tags" before={row.tagsAntes} after={row.tagsDepois} changed={row.tagsAlteradas} /><ValueCard label="Coleções" before={row.colecoesAntes} after={row.colecoesDepois} changed={row.colecoesAlteradas} /><section className="description-result"><div><strong>Descrição do produto</strong><small>O conteúdo atual será carregado diretamente do Shopify ao editar.</small></div><span className={row.descricaoGerada ? "is-generated" : ""}>{row.descricaoGerada ? "Gerada" : "Não gerada"}</span></section></div></>}
+
+    {step === "edit" && <form className="product-edit-form" onSubmit={event => { event.preventDefault(); setStep("review"); }}><div className="editor-phase-notice"><Info size={16} /><span>Os valores abaixo foram consultados no Shopify. A atualização só acontece depois da confirmação.</span></div><label className="product-edit-field"><span>Título</span><input value={form.title} onChange={event => update("title", event.target.value)} maxLength={255} required /><small>{form.title.length}/255 caracteres</small></label><label className="product-edit-field"><span>Descrição</span><textarea value={form.description} onChange={event => update("description", event.target.value)} rows={7} placeholder="Descrição do produto" /></label><label className="product-edit-field"><span>Tags</span><textarea value={form.tags} onChange={event => update("tags", event.target.value)} rows={3} placeholder="Separe as tags por vírgulas" /><small>Separe cada tag por vírgula.</small></label><label className="product-edit-field"><span>Coleções</span><textarea value={form.collections} onChange={event => update("collections", event.target.value)} rows={3} placeholder="Separe as coleções por vírgulas" /><small>Use os nomes exatos das coleções existentes.</small></label><div className="product-edit-field"><span>Peso</span><div className="weight-field"><Scale size={17} /><input type="number" min="0" step="0.001" value={form.weight} onChange={event => update("weight", event.target.value)} placeholder="0" required /><select value={form.weightUnit} onChange={event => update("weightUnit", event.target.value)}><option value="g">g</option><option value="kg">kg</option></select></div></div><footer className="product-editor-actions"><button className="btn" type="button" onClick={() => { setForm(original); setStep("details"); }}>Cancelar</button><button className="btn btn-primary" type="submit" disabled={!changedFields}>Revisar alterações <ArrowRight size={15} /></button></footer></form>}
+
+    {step === "review" && <div className="product-review"><div className="review-summary"><strong>{changedFields} {changedFields === 1 ? "campo alterado" : "campos alterados"}</strong><span>Confira os valores antes de enviar.</span></div><ReviewRow label="Título" before={original.title} after={form.title} /><ReviewRow label="Descrição" before={original.description} after={form.description} /><ReviewRow label="Tags" before={original.tags} after={form.tags} /><ReviewRow label="Coleções" before={original.collections} after={form.collections} /><ReviewRow label="Peso" before={original.weight ? `${original.weight} ${original.weightUnit}` : ""} after={form.weight ? `${form.weight} ${form.weightUnit}` : ""} /><div className="shopify-integration-pending"><Info size={17} /><div><strong>Atualização segura via n8n</strong><span>Ao confirmar, o n8n validará o produto pelo SKU e aplicará as mudanças no Shopify.</span></div></div><footer className="product-editor-actions"><button className="btn" type="button" disabled={saving} onClick={() => setStep("edit")}><ArrowLeft size={15} /> Voltar e editar</button><button className="btn btn-primary" type="button" disabled={saving || !changedFields} onClick={saveProduct}>{saving && <LoaderCircle className="spin" size={14} />}{saving ? "Atualizando..." : "Atualizar no Shopify"}</button></footer></div>}
+  </aside></div>;
 }
