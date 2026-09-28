@@ -308,6 +308,11 @@ export function DashboardClient({
   const [filtersReady, setFiltersReady] = useState(false);
   const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>("daily");
   const [brandTop, setBrandTop] = useState(5);
+  const [brandOverview, setBrandOverview] = useState<{
+    byBrand: DashboardData["byBrand"];
+    total: number;
+  } | null>(null);
+  const [brandOverviewLoading, setBrandOverviewLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(14);
   const [loadingExiting, setLoadingExiting] = useState(false);
   const [reprocessState, setReprocessState] = useState<
@@ -529,6 +534,12 @@ export function DashboardClient({
       };
 
       setData(safeData);
+      if (!appliedFilters.marca) {
+        setBrandOverview({
+          byBrand: safeData.byBrand,
+          total: safeData.metrics.total,
+        });
+      }
       setProductsPage(1);
     } catch (err) {
       setData(null);
@@ -547,6 +558,47 @@ export function DashboardClient({
   useEffect(() => {
     if (!filtersReady) return;
     load();
+  }, [appliedFilters, filtersReady, mode]);
+
+  useEffect(() => {
+    if (!filtersReady || mode !== "dashboard" || !appliedFilters.marca) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      days: appliedFilters.days,
+      q: appliedFilters.q,
+      month: appliedFilters.month,
+    });
+    if (appliedFilters.compareMonth)
+      params.set("compareMonth", appliedFilters.compareMonth);
+    if (appliedFilters.qualityFilter)
+      params.set("quality", appliedFilters.qualityFilter);
+    if (appliedFilters.statusFilter)
+      params.set("status", appliedFilters.statusFilter);
+
+    setBrandOverview(null);
+    setBrandOverviewLoading(true);
+    fetch(`/api/dashboard?${params.toString()}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("Falha ao carregar comparação");
+        return response.json() as Promise<DashboardData>;
+      })
+      .then((overview) => {
+        setBrandOverview({
+          byBrand: overview.byBrand || [],
+          total: overview.metrics?.total || 0,
+        });
+        setBrandOverviewLoading(false);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setBrandOverview(null);
+          setBrandOverviewLoading(false);
+        }
+      });
+    return () => controller.abort();
   }, [appliedFilters, filtersReady, mode]);
 
   const hasActiveFilters = Boolean(
@@ -868,7 +920,6 @@ export function DashboardClient({
         </div>
       )}
 
-      
       <div className="page-head dashboard-title-row">
         <div>
           <h1 className="page-title">{title}</h1>
@@ -1084,7 +1135,6 @@ export function DashboardClient({
         </div>
       </form>
 
-
       {mode === "dashboard" && data.rows.length === 0 && (
         <section
           className="dashboard-empty-period"
@@ -1282,66 +1332,122 @@ export function DashboardClient({
               </div>
 
               <div
-                style={{
-                  height: 300,
-                }}
+                className={`brand-chart-layout${appliedFilters.marca ? " is-filtered" : ""}`}
               >
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie
-                      data={brandChartData}
-                      dataKey="total"
-                      nameKey="marca"
-                      innerRadius={72}
-                      outerRadius={105}
-                      paddingAngle={2}
-                      cornerRadius={4}
-                      onClick={(entry) => {
-                        if (entry?.marca) {
-                          setMarca(String(entry.marca));
-                          setAppliedFilters((current) => ({
-                            ...current,
-                            marca: String(entry.marca),
-                          }));
-                        }
-                      }}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <Label
-                        value={data.metrics.total.toLocaleString("pt-BR")}
-                        position="center"
-                        className="donut-total"
-                      />
-                      {brandChartData.map((_, index) => (
-                        <Cell
-                          key={index}
-                          fill={colors[index % colors.length]}
+                <div className="brand-chart-main">
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie
+                        data={brandChartData}
+                        dataKey="total"
+                        nameKey="marca"
+                        innerRadius={72}
+                        outerRadius={105}
+                        paddingAngle={2}
+                        cornerRadius={4}
+                        onClick={(entry) => {
+                          if (entry?.marca) {
+                            setMarca(String(entry.marca));
+                            setAppliedFilters((current) => ({
+                              ...current,
+                              marca: String(entry.marca),
+                            }));
+                          }
+                        }}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <Label
+                          value={data.metrics.total.toLocaleString("pt-BR")}
+                          position="center"
+                          className="donut-total"
                         />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        border: "1px solid #e6ebf3",
-                        borderRadius: 10,
-                        boxShadow: "0 12px 30px rgba(20,39,78,.12)",
-                        fontSize: 11,
-                      }}
-                      formatter={(
-                        value: number,
-                        _name: string,
-                        item: { payload?: { marca?: string } },
-                      ) => [
-                        `${value.toLocaleString("pt-BR")} (${data.metrics.total ? ((value / data.metrics.total) * 100).toFixed(1) : "0.0"}%)`,
-                        item.payload?.marca || "Marca",
-                      ]}
-                    />
-                    <Legend
-                      iconType="circle"
-                      iconSize={8}
-                      wrapperStyle={{ fontSize: 11 }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                        {brandChartData.map((_, index) => (
+                          <Cell
+                            key={index}
+                            fill={colors[index % colors.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          border: "1px solid #e6ebf3",
+                          borderRadius: 10,
+                          boxShadow: "0 12px 30px rgba(20,39,78,.12)",
+                          fontSize: 11,
+                        }}
+                        formatter={(
+                          value: number,
+                          _name: string,
+                          item: { payload?: { marca?: string } },
+                        ) => [
+                          `${value.toLocaleString("pt-BR")} (${data.metrics.total ? ((value / data.metrics.total) * 100).toFixed(1) : "0.0"}%)`,
+                          item.payload?.marca || "Marca",
+                        ]}
+                      />
+                      <Legend
+                        iconType="circle"
+                        iconSize={8}
+                        wrapperStyle={{ fontSize: 11 }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                {appliedFilters.marca && (
+                  <button
+                    type="button"
+                    className="brand-overview"
+                    onClick={() => {
+                      setMarca("");
+                      setAppliedFilters((current) => ({
+                        ...current,
+                        marca: "",
+                      }));
+                    }}
+                    aria-label="Voltar à visualização de todas as marcas"
+                    title="Voltar à visualização de todas as marcas"
+                  >
+                    <span className="brand-overview-title">
+                      Todas as marcas
+                    </span>
+                    <span className="brand-overview-chart" aria-hidden="true">
+                      {brandOverview ? (
+                        <ResponsiveContainer>
+                          <PieChart>
+                            <Pie
+                              data={brandOverview.byBrand.slice(0, brandTop)}
+                              dataKey="total"
+                              nameKey="marca"
+                              innerRadius={30}
+                              outerRadius={49}
+                              paddingAngle={2}
+                              isAnimationActive={false}
+                            >
+                              {brandOverview.byBrand
+                                .slice(0, brandTop)
+                                .map((_, index) => (
+                                  <Cell
+                                    key={index}
+                                    fill={colors[index % colors.length]}
+                                  />
+                                ))}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <span className="brand-overview-loading">
+                          {brandOverviewLoading ? "Carregando" : "Indisponível"}
+                        </span>
+                      )}
+                    </span>
+                    <span className="brand-overview-total">
+                      {brandOverview?.total.toLocaleString("pt-BR") || "—"}{" "}
+                      produtos
+                    </span>
+                    <span className="brand-overview-action">
+                      Voltar à visão geral
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           </section>
