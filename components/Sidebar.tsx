@@ -121,6 +121,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
               key={href}
               href={href}
               className={pathname === href ? "is-active" : undefined}
+              data-tooltip={collapsed ? label : undefined}
               onClick={() => setMobileOpen(false)}
             >
               {Icon && <Icon size={17} strokeWidth={2} />}
