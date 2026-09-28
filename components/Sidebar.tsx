@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Activity, ChevronLeft, ChevronRight, CircleAlert, FileText, LayoutDashboard, LogOut, Menu, Package, RotateCcw, ScrollText, Settings, UserCog, UserRound, X } from "lucide-react";
+import { Activity, ArchiveX, ChevronLeft, ChevronRight, CircleAlert, FileText, LayoutDashboard, LogOut, Menu, Package, RotateCcw, ScrollText, Settings, UserCog, UserRound, X } from "lucide-react";
 import type { AuthUser } from "@/lib/auth";
 
 const items: Array<[string, string, LucideIcon]> = [
   ["Dashboard", "/", LayoutDashboard],
   ["Produtos", "/produtos", Package],
+  ["Excluídos", "/excluidos", ArchiveX],
   ["Reprocessados", "/reprocessados", RotateCcw],
   ["Erros", "/erros", CircleAlert],
   ["Relatórios", "/relatorios", FileText],

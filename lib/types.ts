@@ -15,6 +15,18 @@ export type HistoryRow = {
   status: string;
 };
 
+export type ExcludedProductRow = {
+  productCode: string;
+  manufacturerCode: string;
+  barcode: string;
+  description: string;
+  unit: string;
+  exclusionDate: string;
+  shopifyStatus: string;
+  shopifyId: string;
+  shopifyError: string;
+};
+
 type MetricComparisons = {
   total: number | null;
   sucesso: number | null;
