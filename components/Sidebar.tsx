@@ -51,7 +51,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
         {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
       <div className="brand">
-        <img className="brand-logo" src="/favicon.svg" alt="Pitter Pan Festas" />
+        <img className="brand-logo" src="/logo-pitter-com-fundo.png" alt="Pitter Pan Festas" width={60} height={60} />
         <div>
           <div className="brand-title">Catálogo Pro</div>
           <div className="brand-sub">Automação de e-commerce</div>

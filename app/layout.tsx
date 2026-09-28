@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: "Pitter Pan | Automação Shopify",
   description: "Dashboard da automação da Pitter Pan Festas",
   icons: {
-    icon: "/favicon.svg?v=2",
-    shortcut: "/favicon.svg?v=2",
-    apple: "/favicon.svg?v=2"
+    icon: [{ url: "/logo-pitter-com-fundo.png?v=3", type: "image/png" }],
+    shortcut: [{ url: "/logo-pitter-com-fundo.png?v=3", type: "image/png" }],
+    apple: [{ url: "/logo-pitter-com-fundo.png?v=3", type: "image/png" }]
   }
 };
 

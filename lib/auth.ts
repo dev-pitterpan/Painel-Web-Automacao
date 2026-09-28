@@ -30,6 +30,16 @@ export type AuditRecord = {
   userName: string | null;
   userEmail: string | null;
 };
+export type ProductOverride = {
+  sku: string;
+  title: string;
+  description: string;
+  tags: string[];
+  collections: string[];
+  weight: number;
+  weightUnit: "g" | "kg";
+  updatedAt: string;
+};
 
 type UserRecord = AuthUser & { password_hash: string };
 const DEFAULT_SETTINGS: AppSettings = {
@@ -101,6 +111,17 @@ async function ensureDatabase() {
         `CREATE TABLE IF NOT EXISTS app_settings (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`,
+        `CREATE TABLE IF NOT EXISTS product_overrides (
+          sku TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          collections_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          weight DOUBLE PRECISION NOT NULL DEFAULT 0,
+          weight_unit TEXT NOT NULL DEFAULT 'g',
+          updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`,
         "CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC)",
@@ -286,6 +307,44 @@ export async function deleteManagedUser(actor: AuthUser, userId: number) {
 export async function recordAudit(entry: { userId?: number | null; action: string; entity: string; details?: Record<string, unknown> | null }) {
   await ensureDatabase();
   await query("INSERT INTO audit_logs (user_id, action, entity, details_json) VALUES ($1, $2, $3, $4::jsonb)", [entry.userId ?? null, entry.action.slice(0, 80), entry.entity.slice(0, 80), entry.details ? JSON.stringify(entry.details) : null]);
+}
+
+export async function upsertProductOverride(actor: AuthUser, product: Omit<ProductOverride, "updatedAt">) {
+  await ensureDatabase();
+  await query(`INSERT INTO product_overrides
+    (sku, title, description, tags_json, collections_json, weight, weight_unit, updated_by, updated_at)
+    VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, NOW())
+    ON CONFLICT (sku) DO UPDATE SET
+      title = EXCLUDED.title,
+      description = EXCLUDED.description,
+      tags_json = EXCLUDED.tags_json,
+      collections_json = EXCLUDED.collections_json,
+      weight = EXCLUDED.weight,
+      weight_unit = EXCLUDED.weight_unit,
+      updated_by = EXCLUDED.updated_by,
+      updated_at = NOW()`, [
+    product.sku.trim(), product.title, product.description,
+    JSON.stringify(product.tags), JSON.stringify(product.collections),
+    product.weight, product.weightUnit, actor.id,
+  ]);
+}
+
+export async function getProductOverrides() {
+  await ensureDatabase();
+  const rows = await query<{
+    sku: string; title: string; description: string; tags_json: unknown;
+    collections_json: unknown; weight: number; weight_unit: string; updated_at: unknown;
+  }>("SELECT sku, title, description, tags_json, collections_json, weight, weight_unit, updated_at FROM product_overrides");
+  return new Map(rows.map(row => [row.sku.trim(), {
+    sku: row.sku,
+    title: row.title,
+    description: row.description,
+    tags: Array.isArray(row.tags_json) ? row.tags_json.map(String) : [],
+    collections: Array.isArray(row.collections_json) ? row.collections_json.map(String) : [],
+    weight: Number(row.weight),
+    weightUnit: row.weight_unit === "kg" ? "kg" as const : "g" as const,
+    updatedAt: iso(row.updated_at),
+  }]));
 }
 
 export async function listAuditLogs(limit = 500): Promise<AuditRecord[]> {

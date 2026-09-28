@@ -263,7 +263,11 @@ export function ReportsClient() {
   ];
 
   return <>
-    <ProductDetailsDrawer row={selectedProduct} onClose={() => setSelectedProduct(null)} />
+    <ProductDetailsDrawer row={selectedProduct} onClose={() => setSelectedProduct(null)} onProductUpdated={(sku, product) => {
+      const updateRow = (row: HistoryRow) => row.sku === sku ? { ...row, tituloDepois: product.title, tagsDepois: product.tags.join(", "), colecoesDepois: product.collections.join(", ") } : row;
+      setAllRows(current => current.map(updateRow));
+      setSelectedProduct(current => current ? updateRow(current) : current);
+    }} />
     {toast && <div className="reports-toast"><Check size={16} />{toast}</div>}
     <div className="page-head reports-page-head"><div><h1 className="page-title">Relatórios</h1><div className="page-sub">Gere, visualize e acompanhe relatórios da operação de produtos.</div></div><div className="reports-head-actions"><button className="btn" onClick={() => exportCsv()}><Download size={16} />Exportar CSV</button></div></div>
 

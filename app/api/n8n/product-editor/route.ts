@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getCurrentUser, recordAudit } from "@/lib/auth";
+import { getCurrentUser, recordAudit, upsertProductOverride } from "@/lib/auth";
 
 const TIMEOUT_MS = 25000;
 const DEFAULT_WEBHOOK = "https://n8n.pitterpan.com.br/webhook/dashboard-editar-produto";
@@ -71,8 +71,9 @@ export async function POST(req: NextRequest) {
   const payload = { action: "update", request_id: requestId, sku, product: { title, description, tags, collections, weight, weightUnit }, origem: "dashboard-pitter-pan", solicitado_em: new Date().toISOString(), solicitado_por: { id: user.id, nome: user.name, email: user.email, perfil: user.role } };
   try {
     const result = await callN8n(payload);
+    await upsertProductOverride(user, { sku, title, description, tags, collections, weight, weightUnit });
     await recordAudit({ userId: user.id, action: "product_updated", entity: "product", details: { requestId, sku, fields: ["title", "description", "tags", "collections", "weight"] } });
-    return NextResponse.json({ ok: true, requestId, message: cleanText(result?.message || "Produto atualizado no Shopify.", 500), product: result?.product || result?.data || null });
+    return NextResponse.json({ ok: true, requestId, message: cleanText(result?.message || "Produto atualizado no Shopify.", 500), product: { title, description, tags, collections, weight, weightUnit } });
   } catch (error) {
     await recordAudit({ userId: user.id, action: "product_update_failed", entity: "product", details: { requestId, sku, error: error instanceof Error ? error.message : "Falha desconhecida" } });
     return NextResponse.json({ error: error instanceof Error && error.name === "AbortError" ? "O n8n demorou para responder." : `Não foi possível atualizar o Shopify: ${error instanceof Error ? error.message : "falha desconhecida"}` }, { status: 502 });

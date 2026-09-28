@@ -6,6 +6,7 @@ import type { HistoryRow } from "@/lib/types";
 
 type DrawerStep = "details" | "edit" | "review";
 type EditForm = { title: string; description: string; tags: string; collections: string; weight: string; weightUnit: "g" | "kg" };
+export type UpdatedProduct = { title: string; description: string; tags: string[]; collections: string[]; weight: number; weightUnit: "g" | "kg" };
 
 const currentTitle = (row: HistoryRow) => row.tituloDepois || row.tituloAntes || "";
 const currentTags = (row: HistoryRow) => row.tagsDepois || row.tagsAntes || "";
@@ -22,7 +23,7 @@ function ReviewRow({ label, before, after }: { label: string; before: string; af
   return <div className={`edit-review-row ${changed ? "is-changed" : ""}`}><div className="edit-review-label"><strong>{label}</strong><span>{changed ? "Será alterado" : "Sem alteração"}</span></div><div className="edit-review-values"><div><small>Atual</small><p>{before || "Não informado"}</p></div><ArrowRight size={15} /><div><small>Novo</small><p>{after || "Não informado"}</p></div></div></div>;
 }
 
-export function ProductDetailsDrawer({ row, onClose }: { row: HistoryRow | null; onClose: () => void }) {
+export function ProductDetailsDrawer({ row, onClose, onProductUpdated }: { row: HistoryRow | null; onClose: () => void; onProductUpdated?: (sku: string, product: UpdatedProduct) => void }) {
   const [step, setStep] = useState<DrawerStep>("details");
   const [form, setForm] = useState<EditForm | null>(null);
   const [original, setOriginal] = useState<EditForm | null>(null);
@@ -83,6 +84,7 @@ export function ProductDetailsDrawer({ row, onClose }: { row: HistoryRow | null;
       const response = await fetch("/api/n8n/product-editor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sku: row!.sku, title: form!.title, description: form!.description, tags: form!.tags.split(",").map(item => item.trim()).filter(Boolean), collections: form!.collections.split(",").map(item => item.trim()).filter(Boolean), weight: Number(form!.weight || 0), weightUnit: form!.weightUnit }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Não foi possível atualizar o produto.");
+      onProductUpdated?.(row!.sku, body.product);
       setOriginal(form!); setMessage(body.message || "Produto atualizado no Shopify com sucesso."); setStep("details");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Falha ao atualizar o Shopify.");

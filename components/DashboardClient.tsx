@@ -756,6 +756,11 @@ export function DashboardClient({
       <ProductDetailsDrawer
         row={selectedProduct}
         onClose={() => setSelectedProduct(null)}
+        onProductUpdated={(sku, product) => {
+          const updateRow = (row: HistoryRow) => row.sku === sku ? { ...row, tituloDepois: product.title, tagsDepois: product.tags.join(", "), colecoesDepois: product.collections.join(", ") } : row;
+          setData(current => current ? { ...current, rows: current.rows.map(updateRow) } : current);
+          setSelectedProduct(current => current ? updateRow(current) : current);
+        }}
       />
       {toast && (
         <div

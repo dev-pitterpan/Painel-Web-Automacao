@@ -60,6 +60,9 @@
   height: 60px;
   flex: 0 0 auto;
   border-radius: 15px;
+  object-fit: contain;
+  background: #fff;
+  padding: 3px;
 }
 
 .brand-title {
