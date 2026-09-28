@@ -72,18 +72,22 @@ export async function GET(request: NextRequest) {
   );
   const n8nStatus = !configured
     ? "error"
-    : n8nSummary.pending > 0
-      ? "warning"
-      : "operational";
+    : n8nSummary.expired > 0
+      ? "error"
+      : n8nSummary.pending > 0
+        ? "warning"
+        : "operational";
   const n8n = {
     id: "n8n",
     name: "n8n",
     status: n8nStatus,
     message: !configured
       ? "Webhook de reprocessamento não configurado."
-      : n8nSummary.pending
-        ? `${n8nSummary.pending} processamento(s) aguardando conclusão.`
-        : "Automação configurada e sem pendências.",
+      : n8nSummary.expired
+        ? `${n8nSummary.expired} processamento(s) sem resposta há mais de 30 minutos.`
+        : n8nSummary.pending
+          ? `${n8nSummary.pending} processamento(s) aguardando conclusão.`
+          : "Automação configurada e sem pendências.",
     lastResponse: n8nSummary.lastResponse,
     details: [
       {

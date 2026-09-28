@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   AreaChart,
@@ -318,6 +318,10 @@ export function DashboardClient({
   const [reprocessState, setReprocessState] = useState<
     Record<string, "sending" | "pending" | "success" | "error">
   >({});
+  const [selectedReprocessKeys, setSelectedReprocessKeys] = useState<string[]>(
+    [],
+  );
+  const [batchReprocessing, setBatchReprocessing] = useState(false);
   const [toast, setToast] = useState<{
     tone: "success" | "error";
     message: string;
@@ -329,6 +333,9 @@ export function DashboardClient({
   );
   const [productsPage, setProductsPage] = useState(1);
   const [productsSort, setProductsSort] = useState<"recent" | "az">("recent");
+  const automationHealthRef = useRef<
+    "unknown" | "operational" | "warning" | "error"
+  >("unknown");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -433,6 +440,18 @@ export function DashboardClient({
       ),
     );
   }, [data, mode, productsSort]);
+  const visibleRows = useMemo(
+    () =>
+      displayedRows.slice(
+        mode === "products" ? (productsPage - 1) * PRODUCTS_PER_PAGE : 0,
+        mode === "products"
+          ? productsPage * PRODUCTS_PER_PAGE
+          : mode === "dashboard"
+            ? 10
+            : 200,
+      ),
+    [displayedRows, mode, productsPage],
+  );
   const monthOptions = useMemo(
     () => [
       { value: "all", label: "Período completo" },
@@ -680,18 +699,69 @@ export function DashboardClient({
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
+  useEffect(() => {
+    if (!data?.permissions?.canReprocess) return;
+
+    let active = true;
+    async function checkAutomationHealth() {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        const health = await response.json().catch(() => null);
+        if (!active || !response.ok) return;
+        const automation = health?.integrations?.find(
+          (integration: { id?: string }) => integration.id === "n8n",
+        ) as
+          | {
+              status: "operational" | "warning" | "error";
+              message?: string;
+            }
+          | undefined;
+        if (!automation) return;
+
+        const previous = automationHealthRef.current;
+        automationHealthRef.current = automation.status;
+        if (automation.status === "error" && previous !== "error") {
+          addNotification(
+            "error",
+            `Automação indisponível. ${automation.message || "Verifique a integração com o n8n."}`,
+          );
+        } else if (
+          previous === "error" &&
+          automation.status === "operational"
+        ) {
+          addNotification(
+            "success",
+            "A automação voltou a funcionar normalmente.",
+          );
+        }
+      } catch {
+        // A própria tela de saúde continua disponível para diagnóstico manual.
+      }
+    }
+
+    checkAutomationHealth();
+    const interval = window.setInterval(checkAutomationHealth, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [data?.permissions?.canReprocess]);
+
   function reprocessKey(row: HistoryRow) {
     return `${row.sku}::${row.dataHora}`;
   }
 
-  async function reprocess(row: HistoryRow) {
+  async function reprocess(
+    row: HistoryRow,
+    options: { silent?: boolean } = {},
+  ) {
     const key = reprocessKey(row);
 
     if (
       reprocessState[key] === "sending" ||
       reprocessState[key] === "pending"
     ) {
-      return;
+      return false;
     }
 
     setReprocessState((current) => ({
@@ -727,10 +797,11 @@ export function DashboardClient({
           ...current,
           [key]: "pending",
         }));
-        addNotification(
-          "success",
-          "Produto aceito pelo n8n. Aguardando a conclusão da execução...",
-        );
+        if (!options.silent)
+          addNotification(
+            "success",
+            "Produto aceito pelo n8n. Aguardando a conclusão da execução...",
+          );
 
         const maxAttempts = 120;
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -749,11 +820,12 @@ export function DashboardClient({
             );
           if (statusJson?.completed) {
             setReprocessState((current) => ({ ...current, [key]: "success" }));
-            addNotification(
-              "success",
-              "Reprocessamento concluído. As informações atualizadas já foram salvas.",
-            );
-            return;
+            if (!options.silent)
+              addNotification(
+                "success",
+                "Reprocessamento concluído. As informações atualizadas já foram salvas.",
+              );
+            return true;
           }
         }
 
@@ -767,23 +839,69 @@ export function DashboardClient({
         [key]: "success",
       }));
 
-      addNotification(
-        "success",
-        json?.message || `SKU ${row.sku} reprocessado com sucesso.`,
-      );
+      if (!options.silent)
+        addNotification(
+          "success",
+          json?.message || `SKU ${row.sku} reprocessado com sucesso.`,
+        );
+      return true;
     } catch (err) {
       setReprocessState((current) => ({
         ...current,
         [key]: "error",
       }));
 
-      addNotification(
-        "error",
-        err instanceof Error
-          ? err.message
-          : "Falha ao enviar o produto para o n8n.",
-      );
+      if (!options.silent)
+        addNotification(
+          "error",
+          err instanceof Error
+            ? err.message
+            : "Falha ao enviar o produto para o n8n.",
+        );
+      return false;
     }
+  }
+
+  function toggleReprocessSelection(row: HistoryRow) {
+    const key = reprocessKey(row);
+    setSelectedReprocessKeys((current) =>
+      current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key],
+    );
+  }
+
+  async function reprocessSelected() {
+    if (batchReprocessing) return;
+    const selectedRows = displayedRows.filter((row) =>
+      selectedReprocessKeys.includes(reprocessKey(row)),
+    );
+    if (!selectedRows.length) return;
+
+    setBatchReprocessing(true);
+    let nextIndex = 0;
+    let successes = 0;
+    let failures = 0;
+    const worker = async () => {
+      while (nextIndex < selectedRows.length) {
+        const row = selectedRows[nextIndex];
+        nextIndex += 1;
+        if (await reprocess(row, { silent: true })) successes += 1;
+        else failures += 1;
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(3, selectedRows.length) }, () => worker()),
+    );
+    setBatchReprocessing(false);
+    setSelectedReprocessKeys([]);
+    addNotification(
+      failures ? "error" : "success",
+      failures
+        ? `Lote concluído: ${successes} com sucesso e ${failures} com falha.`
+        : `Lote concluído: ${successes} produto${successes === 1 ? "" : "s"} reprocessado${successes === 1 ? "" : "s"} com sucesso.`,
+    );
   }
 
   if (loading || loadingExiting) {
@@ -872,6 +990,15 @@ export function DashboardClient({
         : "Erros";
   const canReprocess = Boolean(data.permissions?.canReprocess);
   const showActions = canReprocess;
+  const selectableVisibleRows = visibleRows.filter((row) => {
+    const state = reprocessState[reprocessKey(row)];
+    return state !== "sending" && state !== "pending" && state !== "success";
+  });
+  const allVisibleSelected =
+    selectableVisibleRows.length > 0 &&
+    selectableVisibleRows.every((row) =>
+      selectedReprocessKeys.includes(reprocessKey(row)),
+    );
 
   return (
     <>
@@ -1536,28 +1663,49 @@ export function DashboardClient({
                   : "Últimos processamentos"}
             </div>
 
-            {mode === "products" ? (
-              <div className="products-panel-controls">
-                <label>
-                  Ordenar por
-                  <select
-                    value={productsSort}
-                    onChange={(event) => {
-                      setProductsSort(
-                        event.target.value === "az" ? "az" : "recent",
-                      );
-                      setProductsPage(1);
-                    }}
-                  >
-                    <option value="recent">Mais recentes</option>
-                    <option value="az">A–Z</option>
-                  </select>
-                </label>
-                <div className="metric-note">{data.rows.length} produtos</div>
-              </div>
-            ) : (
-              <div className="metric-note">{data.rows.length} registros</div>
-            )}
+            <div className="table-panel-actions">
+              {mode === "products" ? (
+                <div className="products-panel-controls">
+                  <label>
+                    Ordenar por
+                    <select
+                      value={productsSort}
+                      onChange={(event) => {
+                        setProductsSort(
+                          event.target.value === "az" ? "az" : "recent",
+                        );
+                        setProductsPage(1);
+                      }}
+                    >
+                      <option value="recent">Mais recentes</option>
+                      <option value="az">A–Z</option>
+                    </select>
+                  </label>
+                  <div className="metric-note">{data.rows.length} produtos</div>
+                </div>
+              ) : (
+                <div className="metric-note">{data.rows.length} registros</div>
+              )}
+              {canReprocess && selectedReprocessKeys.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-primary batch-reprocess-btn"
+                  onClick={reprocessSelected}
+                  disabled={batchReprocessing}
+                >
+                  {batchReprocessing ? (
+                    <LoaderCircle className="spin" size={15} />
+                  ) : (
+                    <RefreshCw size={15} />
+                  )}
+                  {batchReprocessing
+                    ? "Processando lote"
+                    : selectedReprocessKeys.length === 1
+                      ? "Reprocessar"
+                      : `Reprocessar lote (${selectedReprocessKeys.length})`}
+                </button>
+              )}
+            </div>
           </div>
 
           {data.rows.length === 0 ? (
@@ -1581,6 +1729,26 @@ export function DashboardClient({
               <table>
                 <thead>
                   <tr>
+                    {canReprocess && (
+                      <th className="selection-column">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={() => {
+                            const visibleKeys =
+                              selectableVisibleRows.map(reprocessKey);
+                            setSelectedReprocessKeys((current) =>
+                              allVisibleSelected
+                                ? current.filter(
+                                    (key) => !visibleKeys.includes(key),
+                                  )
+                                : [...new Set([...current, ...visibleKeys])],
+                            );
+                          }}
+                          aria-label="Selecionar todos os produtos visíveis"
+                        />
+                      </th>
+                    )}
                     <th>
                       {mode === "products" ? "Última atualização" : "Data/Hora"}
                     </th>
@@ -1594,116 +1762,146 @@ export function DashboardClient({
                 </thead>
 
                 <tbody>
-                  {displayedRows
-                    .slice(
-                      mode === "products"
-                        ? (productsPage - 1) * PRODUCTS_PER_PAGE
-                        : 0,
-                      mode === "products"
-                        ? productsPage * PRODUCTS_PER_PAGE
-                        : mode === "dashboard"
-                          ? 10
-                          : 200,
-                    )
-                    .map((row, index) => (
-                      <tr
-                        key={`${row.sku}-${index}`}
-                        className="product-row-clickable"
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setSelectedProduct(row)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            setSelectedProduct(row);
-                          }
-                        }}
-                      >
-                        <td>{row.dataHora}</td>
-
-                        <td>
-                          <strong>{row.sku}</strong>
+                  {visibleRows.map((row, index) => (
+                    <tr
+                      key={`${row.sku}-${index}`}
+                      className="product-row-clickable"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedProduct(row)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedProduct(row);
+                        }
+                      }}
+                    >
+                      {canReprocess && (
+                        <td
+                          className="selection-column"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedReprocessKeys.includes(
+                              reprocessKey(row),
+                            )}
+                            disabled={
+                              reprocessState[reprocessKey(row)] === "sending" ||
+                              reprocessState[reprocessKey(row)] === "pending" ||
+                              reprocessState[reprocessKey(row)] === "success"
+                            }
+                            onChange={() => toggleReprocessSelection(row)}
+                            aria-label={`Selecionar SKU ${row.sku} para reprocessamento`}
+                          />
                         </td>
+                      )}
+                      <td>{row.dataHora}</td>
 
-                        <td>
-                          <strong>
-                            {row.tituloDepois ||
-                              row.tituloAntes ||
-                              "Produto sem título"}
-                          </strong>
+                      <td>
+                        <strong>{row.sku}</strong>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {row.tituloDepois ||
+                            row.tituloAntes ||
+                            "Produto sem título"}
+                        </strong>
+                      </td>
+
+                      <td>{row.marca || "—"}</td>
+
+                      <td>
+                        <Badge status={row.status} />
+                      </td>
+
+                      <td>
+                        <div className="change-tags">
+                          {row.tituloAlterado && (
+                            <span className="change-tag change-tag-title">
+                              Título
+                            </span>
+                          )}
+                          {row.tagsAlteradas && (
+                            <span className="change-tag change-tag-tags">
+                              Tags
+                            </span>
+                          )}
+                          {row.colecoesAlteradas && (
+                            <span className="change-tag change-tag-collections">
+                              Coleções
+                            </span>
+                          )}
+                          {row.descricaoGerada && (
+                            <span className="change-tag change-tag-description">
+                              Descrição
+                            </span>
+                          )}
+                          {!row.tituloAlterado &&
+                            !row.tagsAlteradas &&
+                            !row.colecoesAlteradas &&
+                            !row.descricaoGerada && (
+                              <span className="change-tag change-tag-none">
+                                Nenhuma
+                              </span>
+                            )}
+                        </div>
+                      </td>
+
+                      {showActions && (
+                        <td onClick={(event) => event.stopPropagation()}>
+                          {(() => {
+                            const state = reprocessState[reprocessKey(row)];
+
+                            return (
+                              <div className="row-actions">
+                                {canReprocess && (
+                                  <button
+                                    className={`btn reprocess-btn ${state ? `is-${state}` : ""}`}
+                                    disabled={
+                                      state === "sending" ||
+                                      state === "pending" ||
+                                      state === "success"
+                                    }
+                                    onClick={() => reprocess(row)}
+                                    title={
+                                      state === "error"
+                                        ? "Tentar enviar novamente"
+                                        : "Reprocessar produto no n8n"
+                                    }
+                                  >
+                                    {(state === "sending" ||
+                                      state === "pending") && (
+                                      <LoaderCircle
+                                        className="spin"
+                                        size={14}
+                                      />
+                                    )}
+                                    {state === "success" && (
+                                      <CheckCircle2 size={14} />
+                                    )}
+                                    {state === "error" && (
+                                      <AlertCircle size={14} />
+                                    )}
+                                    {!state && <RefreshCw size={14} />}
+
+                                    {state === "sending" || state === "pending"
+                                      ? "Processando"
+                                      : state === "success"
+                                        ? "Enviado"
+                                        : state === "error"
+                                          ? "Tentar novamente"
+                                          : "Reprocessar"}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
-
-                        <td>{row.marca || "—"}</td>
-
-                        <td>
-                          <Badge status={row.status} />
-                        </td>
-
-                        <td>
-                          {[
-                            row.tituloAlterado && "Título",
-                            row.tagsAlteradas && "Tags",
-                            row.colecoesAlteradas && "Coleções",
-                            row.descricaoGerada && "Descrição",
-                          ]
-                            .filter(Boolean)
-                            .join(", ") || "Nenhuma"}
-                        </td>
-
-                        {showActions && (
-                          <td onClick={(event) => event.stopPropagation()}>
-                            {(() => {
-                              const state = reprocessState[reprocessKey(row)];
-
-                              return (
-                                <div className="row-actions">
-                                  {canReprocess && (
-                                    <button
-                                      className={`btn reprocess-btn ${state ? `is-${state}` : ""}`}
-                                      disabled={
-                                        state === "sending" ||
-                                        state === "pending" ||
-                                        state === "success"
-                                      }
-                                      onClick={() => reprocess(row)}
-                                      title={
-                                        state === "error"
-                                          ? "Tentar enviar novamente"
-                                          : "Reprocessar produto no n8n"
-                                      }
-                                    >
-                                      {(state === "sending" ||
-                                        state === "pending") && (
-                                        <LoaderCircle
-                                          className="spin"
-                                          size={14}
-                                        />
-                                      )}
-                                      {state === "success" && (
-                                        <CheckCircle2 size={14} />
-                                      )}
-                                      {state === "error" && (
-                                        <AlertCircle size={14} />
-                                      )}
-                                      {!state && <RefreshCw size={14} />}
-
-                                      {state === "sending" ||
-                                      state === "pending"
-                                        ? "Processando"
-                                        : state === "success"
-                                          ? "Enviado"
-                                          : state === "error"
-                                            ? "Tentar novamente"
-                                            : "Reprocessar"}
-                                    </button>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          </td>
-                        )}
-                      </tr>
-                    ))}
+                      )}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
