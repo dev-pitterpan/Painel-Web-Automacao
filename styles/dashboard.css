@@ -2560,6 +2560,49 @@ tbody tr:hover {
   box-shadow: inset 3px 0 0 var(--blue);
   outline: none;
 }
+.products-panel-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.products-panel-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+}
+.products-panel-controls select {
+  height: 34px;
+  min-width: 145px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 30px 0 10px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+@media (max-width: 640px) {
+  .products-panel-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .products-panel-controls label {
+    flex: 1;
+  }
+  .products-panel-controls select {
+    min-width: 0;
+    flex: 1;
+  }
+}
 .product-drawer {
   width: min(600px, 100vw);
   height: 100%;

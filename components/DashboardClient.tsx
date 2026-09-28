@@ -26,7 +26,6 @@ import {
   FileText,
   FolderOpen,
   LoaderCircle,
-  Eye,
   ListChecks,
   ShieldCheck,
   Search,
@@ -324,6 +323,7 @@ export function DashboardClient({
     null,
   );
   const [productsPage, setProductsPage] = useState(1);
+  const [productsSort, setProductsSort] = useState<"recent" | "az">("recent");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -365,7 +365,6 @@ export function DashboardClient({
         ).length,
         icon: FileText,
         tone: "blue",
-        weight: 25,
       },
       {
         key: "missingBrand",
@@ -373,7 +372,6 @@ export function DashboardClient({
         count: rows.filter((row) => !hasValidBrand(row.marca)).length,
         icon: Box,
         tone: "red",
-        weight: 20,
       },
       {
         key: "missingTags",
@@ -383,7 +381,6 @@ export function DashboardClient({
         ).length,
         icon: Tags,
         tone: "gold",
-        weight: 15,
       },
       {
         key: "missingCollection",
@@ -393,7 +390,6 @@ export function DashboardClient({
         ).length,
         icon: FolderOpen,
         tone: "violet",
-        weight: 15,
       },
       {
         key: "missingSku",
@@ -401,7 +397,6 @@ export function DashboardClient({
         count: rows.filter((row) => !hasCatalogValue(row.sku)).length,
         icon: Box,
         tone: "red",
-        weight: 15,
       },
       {
         key: "errors",
@@ -411,20 +406,28 @@ export function DashboardClient({
         ).length,
         icon: AlertCircle,
         tone: "red",
-        weight: 10,
       },
     ];
-    const lostPoints = issues.reduce(
-      (sum, item) =>
-        sum + (rows.length ? (item.count / rows.length) * item.weight : 0),
-      0,
-    );
+    const issueCount = issues.reduce((sum, item) => sum + item.count, 0);
     return {
       total: rows.length,
       issues,
-      score: rows.length ? Math.max(0, 100 - lostPoints) : 100,
+      score: rows.length
+        ? Math.max(0, 100 - (issueCount / rows.length) * 100)
+        : 100,
     };
   }, [data]);
+  const displayedRows = useMemo(() => {
+    const rows = data?.rows || [];
+    if (mode !== "products" || productsSort === "recent") return rows;
+    return [...rows].sort((a, b) =>
+      String(a.tituloDepois || a.tituloAntes || "").localeCompare(
+        String(b.tituloDepois || b.tituloAntes || ""),
+        "pt-BR",
+        { sensitivity: "base", numeric: true },
+      ),
+    );
+  }, [data, mode, productsSort]);
   const monthOptions = useMemo(
     () => [
       { value: "all", label: "Período completo" },
@@ -816,7 +819,7 @@ export function DashboardClient({
         ? "Produtos"
         : "Erros";
   const canReprocess = Boolean(data.permissions?.canReprocess);
-  const showActions = mode !== "products" || canReprocess;
+  const showActions = canReprocess;
 
   return (
     <>
@@ -861,6 +864,39 @@ export function DashboardClient({
             aria-label="Fechar aviso"
           >
             ×
+          </button>
+        </div>
+      )}
+
+      
+      <div className="page-head dashboard-title-row">
+        <div>
+          <h1 className="page-title">{title}</h1>
+          <div className="page-sub">Automação de catálogo</div>
+        </div>
+      </div>
+      {appliedFilters.qualityFilter && (
+        <div className="active-quality-filter">
+          <ListChecks size={15} />
+          <span>
+            Filtro de qualidade ativo:{" "}
+            <b>
+              {QUALITY_LABELS[appliedFilters.qualityFilter] ||
+                appliedFilters.qualityFilter}
+            </b>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setQualityFilter("");
+              setAppliedFilters((current) => ({
+                ...current,
+                qualityFilter: "",
+              }));
+            }}
+          >
+            <X size={14} />
+            Limpar
           </button>
         </div>
       )}
@@ -1048,37 +1084,6 @@ export function DashboardClient({
         </div>
       </form>
 
-      <div className="page-head dashboard-title-row">
-        <div>
-          <h1 className="page-title">{title}</h1>
-          <div className="page-sub">Automação de catálogo</div>
-        </div>
-      </div>
-      {appliedFilters.qualityFilter && (
-        <div className="active-quality-filter">
-          <ListChecks size={15} />
-          <span>
-            Filtro de qualidade ativo:{" "}
-            <b>
-              {QUALITY_LABELS[appliedFilters.qualityFilter] ||
-                appliedFilters.qualityFilter}
-            </b>
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setQualityFilter("");
-              setAppliedFilters((current) => ({
-                ...current,
-                qualityFilter: "",
-              }));
-            }}
-          >
-            <X size={14} />
-            Limpar
-          </button>
-        </div>
-      )}
 
       {mode === "dashboard" && data.rows.length === 0 && (
         <section
@@ -1356,7 +1361,7 @@ export function DashboardClient({
                 >
                   <ShieldCheck size={17} />
                   <span>
-                    <strong>{catalogQuality.score.toFixed(1)}%</strong>
+                    <strong>{catalogQuality.score.toFixed(2)}%</strong>
                     <small>meta {data.source?.qualityTarget || 95}%</small>
                   </span>
                 </div>
@@ -1425,10 +1430,28 @@ export function DashboardClient({
                   : "Últimos processamentos"}
             </div>
 
-            <div className="metric-note">
-              {data.rows.length}{" "}
-              {mode === "products" ? "produtos" : "registros"}
-            </div>
+            {mode === "products" ? (
+              <div className="products-panel-controls">
+                <label>
+                  Ordenar por
+                  <select
+                    value={productsSort}
+                    onChange={(event) => {
+                      setProductsSort(
+                        event.target.value === "az" ? "az" : "recent",
+                      );
+                      setProductsPage(1);
+                    }}
+                  >
+                    <option value="recent">Mais recentes</option>
+                    <option value="az">A–Z</option>
+                  </select>
+                </label>
+                <div className="metric-note">{data.rows.length} produtos</div>
+              </div>
+            ) : (
+              <div className="metric-note">{data.rows.length} registros</div>
+            )}
           </div>
 
           {data.rows.length === 0 ? (
@@ -1465,7 +1488,7 @@ export function DashboardClient({
                 </thead>
 
                 <tbody>
-                  {data.rows
+                  {displayedRows
                     .slice(
                       mode === "products"
                         ? (productsPage - 1) * PRODUCTS_PER_PAGE
@@ -1479,31 +1502,16 @@ export function DashboardClient({
                     .map((row, index) => (
                       <tr
                         key={`${row.sku}-${index}`}
-                        className={
-                          mode === "products"
-                            ? "product-row-clickable"
-                            : undefined
-                        }
-                        role={mode === "products" ? "button" : undefined}
-                        tabIndex={mode === "products" ? 0 : undefined}
-                        onClick={
-                          mode === "products"
-                            ? () => setSelectedProduct(row)
-                            : undefined
-                        }
-                        onKeyDown={
-                          mode === "products"
-                            ? (event) => {
-                                if (
-                                  event.key === "Enter" ||
-                                  event.key === " "
-                                ) {
-                                  event.preventDefault();
-                                  setSelectedProduct(row);
-                                }
-                              }
-                            : undefined
-                        }
+                        className="product-row-clickable"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedProduct(row)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedProduct(row);
+                          }
+                        }}
                       >
                         <td>{row.dataHora}</td>
 
@@ -1512,23 +1520,11 @@ export function DashboardClient({
                         </td>
 
                         <td>
-                          {mode === "products" ? (
-                            <strong>
-                              {row.tituloDepois ||
-                                row.tituloAntes ||
-                                "Produto sem título"}
-                            </strong>
-                          ) : (
-                            <button
-                              className="product-link"
-                              type="button"
-                              onClick={() => setSelectedProduct(row)}
-                            >
-                              {row.tituloDepois ||
-                                row.tituloAntes ||
-                                "Produto sem título"}
-                            </button>
-                          )}
+                          <strong>
+                            {row.tituloDepois ||
+                              row.tituloAntes ||
+                              "Produto sem título"}
+                          </strong>
                         </td>
 
                         <td>{row.marca || "—"}</td>
@@ -1555,17 +1551,6 @@ export function DashboardClient({
 
                               return (
                                 <div className="row-actions">
-                                  {mode !== "products" && (
-                                    <button
-                                      className="btn details-btn"
-                                      type="button"
-                                      onClick={() => setSelectedProduct(row)}
-                                      title="Ver valores antes e depois"
-                                    >
-                                      <Eye size={14} />
-                                      Detalhes
-                                    </button>
-                                  )}
                                   {canReprocess && (
                                     <button
                                       className={`btn reprocess-btn ${state ? `is-${state}` : ""}`}
@@ -1638,9 +1623,9 @@ export function DashboardClient({
                 –
                 {Math.min(
                   productsPage * PRODUCTS_PER_PAGE,
-                  data.rows.length,
+                  displayedRows.length,
                 ).toLocaleString("pt-BR")}{" "}
-                de {data.rows.length.toLocaleString("pt-BR")}
+                de {displayedRows.length.toLocaleString("pt-BR")}
               </span>
               <div className="pagination">
                 <button
@@ -1655,19 +1640,22 @@ export function DashboardClient({
                 </button>
                 <strong>
                   {productsPage} /{" "}
-                  {Math.max(1, Math.ceil(data.rows.length / PRODUCTS_PER_PAGE))}
+                  {Math.max(
+                    1,
+                    Math.ceil(displayedRows.length / PRODUCTS_PER_PAGE),
+                  )}
                 </strong>
                 <button
                   type="button"
                   aria-label="Próxima página"
                   disabled={
                     productsPage >=
-                    Math.ceil(data.rows.length / PRODUCTS_PER_PAGE)
+                    Math.ceil(displayedRows.length / PRODUCTS_PER_PAGE)
                   }
                   onClick={() =>
                     setProductsPage((page) =>
                       Math.min(
-                        Math.ceil(data.rows.length / PRODUCTS_PER_PAGE),
+                        Math.ceil(displayedRows.length / PRODUCTS_PER_PAGE),
                         page + 1,
                       ),
                     )

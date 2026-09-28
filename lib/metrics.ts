@@ -202,11 +202,9 @@ export function buildDashboard(
         matchesQuality(row, options.quality || "")
       );
     })
-    .sort(
-      (a, b) =>
-        (parseHistoryDate(b.dataHora)?.getTime() || 0) -
-        (parseHistoryDate(a.dataHora)?.getTime() || 0),
-    );
+    // O histórico é anexado na planilha; a última linha preenchida é o
+    // processamento mais recente, mesmo quando o registro reutiliza uma data.
+    .reverse();
   const catalogRows = rows
     .filter(
       (row) =>

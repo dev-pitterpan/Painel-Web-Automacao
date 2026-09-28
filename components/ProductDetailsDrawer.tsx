@@ -18,7 +18,6 @@ import type { HistoryRow } from "@/lib/types";
 type DrawerStep = "details" | "edit" | "review";
 type EditForm = {
   title: string;
-  description: string;
   tags: string;
   collections: string;
   weight: string;
@@ -26,7 +25,6 @@ type EditForm = {
 };
 export type UpdatedProduct = {
   title: string;
-  description: string;
   tags: string[];
   collections: string[];
   weight: number;
@@ -40,7 +38,6 @@ const currentCollections = (row: HistoryRow) =>
   row.colecoesDepois || row.colecoesAntes || "";
 const fallbackForm = (row: HistoryRow): EditForm => ({
   title: currentTitle(row),
-  description: "",
   tags: currentTags(row),
   collections: currentCollections(row),
   weight: "",
@@ -193,14 +190,7 @@ export function ProductDetailsDrawer({
   const changedFields = useMemo(() => {
     if (!form || !original) return 0;
     return (
-      [
-        "title",
-        "description",
-        "tags",
-        "collections",
-        "weight",
-        "weightUnit",
-      ] as const
+      ["title", "tags", "collections", "weight", "weightUnit"] as const
     ).filter((field) => form[field].trim() !== original[field].trim()).length;
   }, [form, original]);
 
@@ -255,9 +245,6 @@ export function ProductDetailsDrawer({
       const product = body.product || {};
       const next: EditForm = {
         title: String(product.title ?? currentTitle(activeRow!)),
-        description: String(
-          product.description ?? product.descriptionHtml ?? "",
-        ),
         tags: listText(product.tags ?? currentTags(activeRow!)),
         collections: listText(
           product.collections ?? currentCollections(activeRow!),
@@ -292,7 +279,6 @@ export function ProductDetailsDrawer({
         body: JSON.stringify({
           sku: activeRow!.sku,
           title: form!.title,
-          description: form!.description,
           tags: form!.tags
             .split(",")
             .map((item) => item.trim())
@@ -427,8 +413,8 @@ export function ProductDetailsDrawer({
             <div>
               <strong>Editar informações no Shopify</strong>
               <span>
-                Carregue os valores atuais e altere título, descrição, tags,
-                coleções e peso.
+                Carregue os valores atuais e altere título, tags, coleções e
+                peso.
               </span>
             </div>
             <button
@@ -504,15 +490,6 @@ export function ProductDetailsDrawer({
               required
             />
             <small>{form.title.length}/255 caracteres</small>
-          </label>
-          <label className="product-edit-field">
-            <span>Descrição</span>
-            <textarea
-              value={form.description}
-              onChange={(event) => update("description", event.target.value)}
-              rows={7}
-              placeholder="Descrição do produto"
-            />
           </label>
           <label className="product-edit-field">
             <span>Tags</span>
@@ -591,11 +568,6 @@ export function ProductDetailsDrawer({
             label="Título"
             before={original.title}
             after={form.title}
-          />
-          <ReviewRow
-            label="Descrição"
-            before={original.description}
-            after={form.description}
           />
           <ReviewRow label="Tags" before={original.tags} after={form.tags} />
           <ReviewRow

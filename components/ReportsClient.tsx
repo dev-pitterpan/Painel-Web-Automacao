@@ -1075,18 +1075,26 @@ export function ReportsClient() {
                 <tbody>
                   {visibleRows.length ? (
                     visibleRows.map((row, index) => (
-                      <tr key={`${row.sku}-${row.dataHora}-${index}`}>
+                      <tr
+                        key={`${row.sku}-${row.dataHora}-${index}`}
+                        className="product-row-clickable"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedProduct(row)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedProduct(row);
+                          }
+                        }}
+                      >
                         <td>{row.dataHora}</td>
                         <td>
-                          <button
-                            className="product-link"
-                            type="button"
-                            onClick={() => setSelectedProduct(row)}
-                          >
+                          <strong>
                             {row.tituloDepois ||
                               row.tituloAntes ||
                               "Produto sem título"}
-                          </button>
+                          </strong>
                           <small>SKU {row.sku || "—"}</small>
                         </td>
                         <td>{row.marca || "—"}</td>

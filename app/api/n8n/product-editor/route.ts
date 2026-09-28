@@ -121,7 +121,6 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const sku = cleanText(body?.sku, 120);
   const title = cleanText(body?.title, 255);
-  const description = cleanText(body?.description, 100000);
   const tags = cleanList(body?.tags);
   const collections = cleanList(body?.collections);
   const weight = Number(body?.weight);
@@ -138,7 +137,7 @@ export async function POST(req: NextRequest) {
     action: "update",
     request_id: requestId,
     sku,
-    product: { title, description, tags, collections, weight, weightUnit },
+    product: { title, tags, collections, weight, weightUnit },
     origem: "dashboard-pitter-pan",
     solicitado_em: new Date().toISOString(),
     solicitado_por: {
@@ -153,7 +152,7 @@ export async function POST(req: NextRequest) {
     await upsertProductOverride(user, {
       sku,
       title,
-      description,
+      description: "",
       tags,
       collections,
       weight,
@@ -166,7 +165,7 @@ export async function POST(req: NextRequest) {
       details: {
         requestId,
         sku,
-        fields: ["title", "description", "tags", "collections", "weight"],
+        fields: ["title", "tags", "collections", "weight"],
       },
     });
     return NextResponse.json({
@@ -176,7 +175,7 @@ export async function POST(req: NextRequest) {
         result?.message || "Produto atualizado no Shopify.",
         500,
       ),
-      product: { title, description, tags, collections, weight, weightUnit },
+      product: { title, tags, collections, weight, weightUnit },
     });
   } catch (error) {
     await recordAudit({
