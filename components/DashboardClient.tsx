@@ -1004,6 +1004,7 @@ export function DashboardClient({
     <>
       <ProductDetailsDrawer
         row={selectedProduct}
+        canEdit={Boolean(data.permissions?.canEditProducts)}
         onClose={() => setSelectedProduct(null)}
         onProductUpdated={(sku, product) => {
           const updateRow = (row: HistoryRow) =>

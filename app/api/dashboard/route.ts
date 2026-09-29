@@ -45,7 +45,10 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json({
       ...dashboard,
-      permissions: { canReprocess: user.role === "admin" },
+      permissions: {
+        canReprocess: user.role === "admin",
+        canEditProducts: user.role === "admin",
+      },
       source: {
         status: "connected",
         lastSyncedAt: sheet.lastSyncedAt,

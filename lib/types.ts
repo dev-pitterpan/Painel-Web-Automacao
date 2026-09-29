@@ -62,6 +62,7 @@ export type DashboardData = {
   };
   permissions?: {
     canReprocess: boolean;
+    canEditProducts: boolean;
   };
   source?: {
     status: "connected";

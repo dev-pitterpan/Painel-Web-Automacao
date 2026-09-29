@@ -157,6 +157,7 @@ export function ReportsClient() {
   const [selectedProduct, setSelectedProduct] = useState<HistoryRow | null>(
     null,
   );
+  const [canEditProducts, setCanEditProducts] = useState(false);
   const [exports, setExports] = useState<ExportItem[]>([]);
   const [generations, setGenerations] = useState<string[]>([]);
   const [toast, setToast] = useState("");
@@ -186,6 +187,7 @@ export function ReportsClient() {
       if (!response.ok || data.error)
         throw new Error(data.error || `HTTP ${response.status}`);
       setAllRows(Array.isArray(data.rows) ? data.rows : []);
+      setCanEditProducts(Boolean(data.permissions?.canEditProducts));
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Erro ao carregar relatórios.",
@@ -857,6 +859,7 @@ export function ReportsClient() {
     <>
       <ProductDetailsDrawer
         row={selectedProduct}
+        canEdit={canEditProducts}
         onClose={() => setSelectedProduct(null)}
         onProductUpdated={(sku, product) => {
           const updateRow = (row: HistoryRow) =>

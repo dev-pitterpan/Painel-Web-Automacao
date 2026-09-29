@@ -2960,6 +2960,11 @@ tbody tr:hover {
   flex: 0 0 auto;
 }
 .drawer-edit-banner .btn:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  filter: grayscale(0.25);
+}
+.drawer-edit-banner .btn.is-loading:disabled {
   opacity: 0.7;
   cursor: wait;
 }

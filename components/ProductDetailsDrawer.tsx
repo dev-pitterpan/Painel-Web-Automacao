@@ -115,10 +115,12 @@ export function ProductDetailsDrawer({
   row,
   onClose,
   onProductUpdated,
+  canEdit = false,
 }: {
   row: HistoryRow | null;
   onClose: () => void;
   onProductUpdated?: (sku: string, product: UpdatedProduct) => void;
+  canEdit?: boolean;
 }) {
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -413,15 +415,21 @@ export function ProductDetailsDrawer({
             <div>
               <strong>Editar informações no Shopify</strong>
               <span>
-                Carregue os valores atuais e altere título, tags, coleções e
-                peso.
+                {canEdit
+                  ? "Carregue os valores atuais e altere título, tags, coleções e peso."
+                  : "Visualização liberada. Apenas administradores podem editar produtos."}
               </span>
             </div>
             <button
-              className="btn btn-primary"
+              className={`btn btn-primary ${loadingProduct ? "is-loading" : ""}`}
               type="button"
               onClick={openEditor}
-              disabled={loadingProduct}
+              disabled={loadingProduct || !canEdit}
+              title={
+                canEdit
+                  ? "Editar informações do produto"
+                  : "Apenas administradores podem editar produtos"
+              }
             >
               {loadingProduct ? (
                 <LoaderCircle className="spin" size={14} />
