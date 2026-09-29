@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
-  ArrowRight,
   ArchiveX,
   ChevronLeft,
   ChevronRight,
@@ -19,7 +18,6 @@ import {
   RotateCcw,
   ScrollText,
   Settings,
-  Zap,
   UserCog,
   UserRound,
   X,
@@ -131,20 +129,6 @@ export function Sidebar({ user }: { user: AuthUser }) {
             </Link>
           ))}
         </nav>
-        <Link className="sidebar-promo" href="/saude">
-          <span className="sidebar-promo-icon">
-            <Zap size={20} fill="currentColor" />
-          </span>
-          <strong>
-            Automatize
-            <br />
-            Seu Catálogo
-          </strong>
-          <small>Mais agilidade, menos trabalho manual.</small>
-          <span className="sidebar-promo-action">
-            Ver integrações <ArrowRight size={14} />
-          </span>
-        </Link>
         <div className="sidebar-user">
           <Link
             className="sidebar-user-profile"

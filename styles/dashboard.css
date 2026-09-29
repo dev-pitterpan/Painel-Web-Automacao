@@ -5768,6 +5768,23 @@ tbody tr:hover {
   border-radius: 9px;
 }
 
+/* Dashboard */
+.dashboard-hero {
+  height: clamp(145px, 13vw, 190px);
+  margin: -6px 0 18px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #f7faff;
+  box-shadow: var(--shadow-soft);
+}
+.dashboard-hero img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center 46%;
+}
+
 /* Relatórios */
 .reports-available,
 .reports-preview,
@@ -5920,6 +5937,14 @@ tbody tr:hover {
   }
   .page-sub {
     font-size: 12px;
+  }
+  .dashboard-hero {
+    height: 128px;
+    margin: -4px 0 16px;
+    border-radius: 15px;
+  }
+  .dashboard-hero img {
+    object-position: 58% 46%;
   }
   .panel,
   .profile-form,
