@@ -10,7 +10,6 @@ import {
   ChevronRight,
   Clock3,
   Download,
-  Eye,
   FileBarChart,
   FileSpreadsheet,
   FileText,
@@ -1165,35 +1164,29 @@ export function ReportsClient() {
               <article
                 className={`available-report ${selectedReports.includes(card.kind) ? "is-selected" : ""}`}
                 key={card.kind}
+                role="checkbox"
+                aria-checked={selectedReports.includes(card.kind)}
+                tabIndex={0}
+                onClick={() => toggleReport(card.kind)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    toggleReport(card.kind);
+                  }
+                }}
               >
-                <label
-                  className="report-check"
-                  aria-label={`Incluir ${REPORT_LABELS[card.kind]}`}
+                <span
+                  className={`report-check ${selectedReports.includes(card.kind) ? "is-checked" : ""}`}
+                  aria-hidden="true"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedReports.includes(card.kind)}
-                    onChange={() => toggleReport(card.kind)}
-                  />
-                  <span aria-hidden="true">
-                    <Check size={13} />
-                  </span>
-                </label>
+                  <Check size={13} />
+                </span>
                 <span className={`available-icon ${card.tone}`}>
                   <Icon />
                 </span>
                 <div className="available-copy">
                   <h3>{REPORT_LABELS[card.kind]}</h3>
                   <p>{card.text}</p>
-                </div>
-                <div className="available-actions">
-                  <button onClick={() => selectReport(card.kind)}>
-                    <Eye size={15} />
-                    {reportKind === card.kind &&
-                    selectedReports.includes(card.kind)
-                      ? "Visualizando"
-                      : "Ver prévia"}
-                  </button>
                 </div>
               </article>
             );

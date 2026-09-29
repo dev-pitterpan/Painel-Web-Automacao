@@ -1460,10 +1460,15 @@ tbody tr:hover {
   border: 1px solid var(--line);
   border-radius: 9px;
   background: #fff;
+  cursor: pointer;
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease,
     transform 0.15s ease;
+}
+.available-report:focus-visible {
+  outline: 3px solid rgba(47, 111, 228, 0.22);
+  outline-offset: 3px;
 }
 .available-report:hover {
   transform: translateY(-1px);
@@ -1481,14 +1486,6 @@ tbody tr:hover {
   position: absolute;
   top: 12px;
   right: 12px;
-  cursor: pointer;
-}
-.report-check input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-.report-check span {
   width: 24px;
   height: 24px;
   display: grid;
@@ -1499,15 +1496,11 @@ tbody tr:hover {
   color: transparent;
   transition: all 0.18s ease;
 }
-.report-check:hover span {
+.available-report:hover .report-check {
   border-color: #7fa2e5;
   box-shadow: 0 0 0 3px #edf3ff;
 }
-.report-check input:focus-visible + span {
-  outline: 2px solid #2f6fe4;
-  outline-offset: 2px;
-}
-.report-check input:checked + span {
+.report-check.is-checked {
   border-color: #2f6fe4;
   background: linear-gradient(135deg, #3978eb, #245ac5);
   color: #fff;
