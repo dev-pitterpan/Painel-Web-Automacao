@@ -75,8 +75,8 @@ button:hover {
   top: 0;
   right: 0;
   z-index: -2;
-  width: calc(100% - 240px);
-  height: 310px;
+  width: calc(70% - 220px);
+  height: 230px;
   pointer-events: none;
   background-image: url("/fundo.png");
   background-repeat: no-repeat;
@@ -92,7 +92,7 @@ button:hover {
 }
 .app-shell:has(.content--dashboard)::before {
   background-image: url("/dashboard-hero.png");
-  background-position: center 38%;
+  background-position: center 35%;
 }
 .app-shell:has(.content--errors)::before {
   background-image: url("/fundo-erros.png");
@@ -113,9 +113,7 @@ button:hover {
   );
   mask-image: linear-gradient(to bottom, #000 0%, #000 34%, transparent 64%);
 }
-.app-shell:has(.sidebar.is-collapsed)::before {
-  width: calc(100% - 78px);
-}
+
 .content {
   position: relative;
   min-width: 0;
@@ -144,6 +142,7 @@ button:hover {
   .app-shell:has(.sidebar.is-collapsed)::before {
     top: 68px;
     width: 100%;
+    opacity: 50%;
     height: 190px;
     background-position: 72% top;
     background-size: auto 190px;

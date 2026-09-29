@@ -4021,21 +4021,6 @@ tbody tr:hover {
   padding: 0;
   font-size: 0;
 }
-.dashboard-title-row {
-  position: relative;
-  margin-bottom: 15px;
-  padding-right: 45px;
-}
-.dashboard-title-row:after {
-  content: "";
-  position: absolute;
-  top: 8px;
-  right: 4px;
-  width: 42px;
-  height: 3px;
-  border-radius: 99px;
-  background: #ffd722;
-}
 .donut-total {
   fill: var(--ink);
   font-size: 16px;

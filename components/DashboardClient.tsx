@@ -1373,12 +1373,12 @@ export function DashboardClient({
                         y2="1"
                       >
                         <stop
-                          offset="0%"
+                          offset="100%"
                           stopColor="#2f70ed"
                           stopOpacity={0.14}
                         />
                         <stop
-                          offset="72%"
+                          offset="90%"
                           stopColor="#2f70ed"
                           stopOpacity={0.035}
                         />
