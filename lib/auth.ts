@@ -144,7 +144,24 @@ async function ensureDatabase() {
           updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`,
+        `CREATE TABLE IF NOT EXISTS image_sync_jobs (
+          id BIGSERIAL PRIMARY KEY,
+          batch_id TEXT NOT NULL,
+          sku TEXT NOT NULL,
+          image_position INTEGER NOT NULL,
+          file_name TEXT NOT NULL,
+          mime_type TEXT NOT NULL DEFAULT 'image/jpeg',
+          image_base64 TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          attempts INTEGER NOT NULL DEFAULT 0,
+          lease_until TIMESTAMPTZ,
+          last_error TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          completed_at TIMESTAMPTZ,
+          UNIQUE(batch_id, image_position)
+        )`,
         "CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_image_sync_jobs_pending ON image_sync_jobs(status, lease_until, id)",
       ];
       for (const statement of schema) await query(statement);
 
@@ -623,6 +640,117 @@ export async function getProductOverrides() {
         updatedAt: iso(row.updated_at),
       },
     ]),
+  );
+}
+
+export type ImageSyncInput = {
+  source: string;
+  position: number;
+};
+
+export async function enqueueProductImages(
+  actor: AuthUser,
+  batchId: string,
+  sku: string,
+  images: ImageSyncInput[],
+) {
+  await ensureDatabase();
+  const safeSku = sku
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 100);
+  if (!safeSku) throw new Error("SKU inválido para sincronização de imagens.");
+
+  for (const image of images) {
+    const match = String(image.source || "").match(
+      /^data:(image\/(?:jpeg|png|webp));base64,([a-z0-9+/=]+)$/i,
+    );
+    if (!match) throw new Error("Imagem inválida para sincronização local.");
+    const position = Math.min(99, Math.max(0, Math.trunc(image.position)));
+    const fileName = `${safeSku}${position ? `-${position}` : ""}.jpg`;
+    await query(
+      `INSERT INTO image_sync_jobs
+       (batch_id, sku, image_position, file_name, mime_type, image_base64, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+       ON CONFLICT (batch_id, image_position) DO UPDATE SET
+         file_name = EXCLUDED.file_name,
+         mime_type = EXCLUDED.mime_type,
+         image_base64 = EXCLUDED.image_base64,
+         status = 'pending', attempts = 0, lease_until = NULL,
+         last_error = NULL, completed_at = NULL`,
+      [batchId, sku.trim(), position, fileName, match[1], match[2]],
+    );
+  }
+
+  await recordAudit({
+    userId: actor.id,
+    action: "image_sync_queued",
+    entity: "product",
+    details: { batchId, sku: sku.trim(), images: images.length },
+  });
+}
+
+export async function claimImageSyncJobs(limit = 5) {
+  await ensureDatabase();
+  const rows = await query<{
+    id: number;
+    batch_id: string;
+    sku: string;
+    image_position: number;
+    file_name: string;
+    mime_type: string;
+    image_base64: string;
+    attempts: number;
+  }>(
+    `WITH selected AS (
+       SELECT id FROM image_sync_jobs
+       WHERE image_base64 IS NOT NULL
+         AND attempts < 10
+         AND (status IN ('pending', 'retry')
+           OR (status = 'processing' AND lease_until < NOW()))
+       ORDER BY id ASC
+       LIMIT $1
+       FOR UPDATE SKIP LOCKED
+     )
+     UPDATE image_sync_jobs AS jobs
+     SET status = 'processing', attempts = jobs.attempts + 1,
+       lease_until = NOW() + INTERVAL '5 minutes', last_error = NULL
+     FROM selected
+     WHERE jobs.id = selected.id
+     RETURNING jobs.id, jobs.batch_id, jobs.sku, jobs.image_position,
+       jobs.file_name, jobs.mime_type, jobs.image_base64, jobs.attempts`,
+    [Math.min(20, Math.max(1, Math.trunc(limit)))],
+  );
+  return rows.map((row) => ({
+    id: Number(row.id),
+    batchId: row.batch_id,
+    sku: row.sku,
+    position: Number(row.image_position),
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    base64: row.image_base64,
+    attempts: Number(row.attempts),
+  }));
+}
+
+export async function completeImageSyncJob(
+  id: number,
+  success: boolean,
+  error = "",
+) {
+  await ensureDatabase();
+  if (success) {
+    await query(
+      `UPDATE image_sync_jobs SET status = 'completed', image_base64 = NULL,
+       lease_until = NULL, last_error = NULL, completed_at = NOW() WHERE id = $1`,
+      [id],
+    );
+    return;
+  }
+  await query(
+    `UPDATE image_sync_jobs SET status = 'retry', lease_until = NULL,
+     last_error = $2 WHERE id = $1`,
+    [id, error.slice(0, 1000) || "Falha informada pelo sincronizador."],
   );
 }
 

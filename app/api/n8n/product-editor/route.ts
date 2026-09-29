@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getCurrentUser, recordAudit, upsertProductOverride } from "@/lib/auth";
+import {
+  enqueueProductImages,
+  getCurrentUser,
+  recordAudit,
+  upsertProductOverride,
+} from "@/lib/auth";
 
 const TIMEOUT_MS = 25000;
 const DEFAULT_WEBHOOK =
@@ -24,9 +29,12 @@ function cleanImages(value: unknown) {
   return value.slice(0, 5).map((item) => {
     const source = cleanText(item?.source, 1_500_000);
     const alt = cleanText(item?.alt, 500);
+    const position = Number(item?.position);
     if (!/^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(source))
       throw new Error("Uma das imagens enviadas é inválida.");
-    return { source, alt };
+    if (!Number.isInteger(position) || position < 0 || position > 99)
+      throw new Error("A posição de uma das imagens é inválida.");
+    return { source, alt, position };
   });
 }
 
@@ -149,7 +157,7 @@ export async function POST(req: NextRequest) {
   const weight = Number(body?.weight);
   const weightUnit = body?.weightUnit === "kg" ? "kg" : "g";
   const deleteMediaIds = cleanMediaIds(body?.deleteMediaIds);
-  let images: Array<{ source: string; alt: string }> = [];
+  let images: Array<{ source: string; alt: string; position: number }> = [];
   try {
     images = cleanImages(body?.images);
   } catch (error) {
@@ -200,6 +208,28 @@ export async function POST(req: NextRequest) {
       weight,
       weightUnit,
     });
+    let imageSync: "queued" | "failed" | "not_required" = "not_required";
+    if (images.length) {
+      try {
+        await enqueueProductImages(user, requestId, sku, images);
+        imageSync = "queued";
+      } catch (syncError) {
+        imageSync = "failed";
+        await recordAudit({
+          userId: user.id,
+          action: "image_sync_queue_failed",
+          entity: "product",
+          details: {
+            requestId,
+            sku,
+            error:
+              syncError instanceof Error
+                ? syncError.message
+                : "Falha desconhecida",
+          },
+        });
+      }
+    }
     await recordAudit({
       userId: user.id,
       action: "product_updated",
@@ -221,8 +251,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       requestId,
+      imageSync,
       message: cleanText(
-        result?.message || "Produto atualizado no Shopify.",
+        imageSync === "failed"
+          ? `${result?.message || "Produto atualizado no Shopify."} A cópia para a pasta local ficou pendente.`
+          : result?.message || "Produto atualizado no Shopify.",
         500,
       ),
       product: {

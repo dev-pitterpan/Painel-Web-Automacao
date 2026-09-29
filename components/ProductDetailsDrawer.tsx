@@ -525,8 +525,14 @@ export function ProductDetailsDrawer({
           weight: Number(form!.weight || 0),
           weightUnit: form!.weightUnit,
           images: media
-            .filter((item) => item.isNew)
-            .map((item) => ({ source: item.url, alt: item.alt })),
+            .filter((item) => !item.isDeleted)
+            .map((item, position) => ({ item, position }))
+            .filter(({ item }) => item.isNew)
+            .map(({ item, position }) => ({
+              source: item.url,
+              alt: item.alt,
+              position,
+            })),
           deleteMediaIds: media
             .filter((item) => item.isDeleted && item.id)
             .map((item) => item.id),
