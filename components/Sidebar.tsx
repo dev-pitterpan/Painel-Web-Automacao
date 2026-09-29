@@ -121,19 +121,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
             <div className="brand-sub">Automação de e-commerce</div>
           </div>
         </div>
-        <nav className="nav" ref={navRef}>
-          <div className="mobile-drawer-brand">
-            <img
-              src="/logo-pitter-com-fundo.png"
-              alt=""
-              width={42}
-              height={42}
-            />
-            <span>
-              <strong>Catálogo Pro</strong>
-              <small>Automação de e-commerce</small>
-            </span>
-          </div>
+        <nav className="nav">
           {navigationItems.map(([label, href, Icon]) => (
             <Link
               key={href}
@@ -174,12 +162,43 @@ export function Sidebar({ user }: { user: AuthUser }) {
         </div>
       </aside>
       {mobileOpen && (
-        <button
-          className="mobile-menu-backdrop"
-          type="button"
-          onClick={() => setMobileOpen(false)}
-          aria-label="Fechar menu"
-        />
+        <>
+          <nav
+            className="mobile-drawer"
+            ref={navRef}
+            aria-label="Menu principal"
+          >
+            <div className="mobile-drawer-brand">
+              <img
+                src="/logo-pitter-com-fundo.png"
+                alt=""
+                width={42}
+                height={42}
+              />
+              <span>
+                <strong>Catálogo Pro</strong>
+                <small>Automação de e-commerce</small>
+              </span>
+            </div>
+            {navigationItems.map(([label, href, Icon]) => (
+              <Link
+                key={href}
+                href={href}
+                className={pathname === href ? "is-active" : undefined}
+                onClick={() => setMobileOpen(false)}
+              >
+                <Icon size={18} strokeWidth={2} />
+                <span>{label}</span>
+              </Link>
+            ))}
+          </nav>
+          <button
+            className="mobile-menu-backdrop"
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Fechar menu"
+          />
+        </>
       )}
     </>
   );
