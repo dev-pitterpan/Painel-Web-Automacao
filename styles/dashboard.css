@@ -3240,6 +3240,101 @@ tbody tr:hover {
   font-size: 8px;
   line-height: 1.4;
 }
+.product-media-editor {
+  display: grid;
+  gap: 13px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.product-media-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.product-media-head strong,
+.product-media-head small {
+  display: block;
+}
+.product-media-head strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+.product-media-head small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.product-media-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.product-media-item,
+.product-media-empty {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid #d8e0ec;
+  border-radius: 10px;
+  background: #f7f9fc;
+}
+.product-media-item img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+.product-media-item > span {
+  position: absolute;
+  left: 7px;
+  bottom: 7px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(7, 19, 45, 0.8);
+  color: #fff;
+  font-size: 7px;
+  font-weight: 800;
+}
+.product-media-item > button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(7, 19, 45, 0.78);
+  color: #fff;
+  cursor: pointer;
+}
+.product-media-empty {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  border-style: dashed;
+  color: #6880a9;
+  cursor: pointer;
+}
+.product-media-empty span {
+  font-size: 8px;
+  font-weight: 700;
+}
+@media (max-width: 650px) {
+  .product-media-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .product-media-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .weight-field {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) 76px;

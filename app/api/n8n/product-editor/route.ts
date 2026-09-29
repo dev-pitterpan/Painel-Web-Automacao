@@ -19,6 +19,17 @@ function cleanList(value: unknown) {
   ].slice(0, 250);
 }
 
+function cleanImages(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 5).map((item) => {
+    const source = cleanText(item?.source, 1_500_000);
+    const alt = cleanText(item?.alt, 500);
+    if (!/^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(source))
+      throw new Error("Uma das imagens enviadas é inválida.");
+    return { source, alt };
+  });
+}
+
 async function callN8n(payload: Record<string, unknown>) {
   const url = cleanText(
     process.env.N8N_PRODUCT_EDITOR_WEBHOOK_URL || DEFAULT_WEBHOOK,
@@ -121,10 +132,20 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const sku = cleanText(body?.sku, 120);
   const title = cleanText(body?.title, 255);
+  const description = cleanText(body?.description, 100000);
   const tags = cleanList(body?.tags);
   const collections = cleanList(body?.collections);
   const weight = Number(body?.weight);
   const weightUnit = body?.weightUnit === "kg" ? "kg" : "g";
+  let images: Array<{ source: string; alt: string }> = [];
+  try {
+    images = cleanImages(body?.images);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Imagem inválida." },
+      { status: 400 },
+    );
+  }
   if (!sku || !title)
     return NextResponse.json(
       { error: "SKU e título são obrigatórios." },
@@ -137,7 +158,15 @@ export async function POST(req: NextRequest) {
     action: "update",
     request_id: requestId,
     sku,
-    product: { title, tags, collections, weight, weightUnit },
+    product: {
+      title,
+      description,
+      tags,
+      collections,
+      weight,
+      weightUnit,
+      images,
+    },
     origem: "dashboard-pitter-pan",
     solicitado_em: new Date().toISOString(),
     solicitado_por: {
@@ -152,7 +181,7 @@ export async function POST(req: NextRequest) {
     await upsertProductOverride(user, {
       sku,
       title,
-      description: "",
+      description,
       tags,
       collections,
       weight,
@@ -165,7 +194,14 @@ export async function POST(req: NextRequest) {
       details: {
         requestId,
         sku,
-        fields: ["title", "tags", "collections", "weight"],
+        fields: [
+          "title",
+          "description",
+          "tags",
+          "collections",
+          "weight",
+          ...(images.length ? ["images"] : []),
+        ],
       },
     });
     return NextResponse.json({
@@ -175,7 +211,15 @@ export async function POST(req: NextRequest) {
         result?.message || "Produto atualizado no Shopify.",
         500,
       ),
-      product: { title, tags, collections, weight, weightUnit },
+      product: {
+        title,
+        description,
+        tags,
+        collections,
+        weight,
+        weightUnit,
+        images: result?.images || result?.product?.images || [],
+      },
     });
   } catch (error) {
     await recordAudit({

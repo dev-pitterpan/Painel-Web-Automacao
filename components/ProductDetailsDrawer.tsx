@@ -6,6 +6,8 @@ import {
   ArrowRight,
   CheckCircle2,
   CircleAlert,
+  ImageIcon,
+  ImagePlus,
   Info,
   LoaderCircle,
   Package,
@@ -18,6 +20,7 @@ import type { HistoryRow } from "@/lib/types";
 type DrawerStep = "details" | "edit" | "review";
 type EditForm = {
   title: string;
+  description: string;
   tags: string;
   collections: string;
   weight: string;
@@ -25,10 +28,17 @@ type EditForm = {
 };
 export type UpdatedProduct = {
   title: string;
+  description?: string;
   tags: string[];
   collections: string[];
   weight: number;
   weightUnit: "g" | "kg";
+};
+type ProductMedia = {
+  id?: string;
+  url: string;
+  alt: string;
+  isNew?: boolean;
 };
 
 const currentTitle = (row: HistoryRow) =>
@@ -38,6 +48,7 @@ const currentCollections = (row: HistoryRow) =>
   row.colecoesDepois || row.colecoesAntes || "";
 const fallbackForm = (row: HistoryRow): EditForm => ({
   title: currentTitle(row),
+  description: "",
   tags: currentTags(row),
   collections: currentCollections(row),
   weight: "",
@@ -135,6 +146,9 @@ export function ProductDetailsDrawer({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [media, setMedia] = useState<ProductMedia[]>([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!row) return;
@@ -192,9 +206,18 @@ export function ProductDetailsDrawer({
   const changedFields = useMemo(() => {
     if (!form || !original) return 0;
     return (
-      ["title", "tags", "collections", "weight", "weightUnit"] as const
+      [
+        "title",
+        "description",
+        "tags",
+        "collections",
+        "weight",
+        "weightUnit",
+      ] as const
     ).filter((field) => form[field].trim() !== original[field].trim()).length;
   }, [form, original]);
+  const totalChanges =
+    changedFields + media.filter((item) => item.isNew).length;
 
   if (!row || !activeRow || !form || !original) return null;
   const failed = String(activeRow.status || "")
@@ -245,8 +268,16 @@ export function ProductDetailsDrawer({
       if (!response.ok)
         throw new Error(body.error || "Não foi possível carregar o produto.");
       const product = body.product || {};
+      const productMedia = Array.isArray(product.images)
+        ? product.images
+        : Array.isArray(product.media)
+          ? product.media
+          : [];
       const next: EditForm = {
         title: String(product.title ?? currentTitle(activeRow!)),
+        description: String(
+          product.description ?? product.descriptionHtml ?? "",
+        ),
         tags: listText(product.tags ?? currentTags(activeRow!)),
         collections: listText(
           product.collections ?? currentCollections(activeRow!),
@@ -256,6 +287,15 @@ export function ProductDetailsDrawer({
       };
       setForm(next);
       setOriginal(next);
+      setMedia(
+        productMedia
+          .map((item: any) => ({
+            id: String(item?.id || ""),
+            url: String(item?.url || item?.src || item?.image?.url || ""),
+            alt: String(item?.alt || item?.altText || ""),
+          }))
+          .filter((item: ProductMedia) => item.url),
+      );
       setStep("edit");
     } catch (cause) {
       const initial = fallbackForm(activeRow!);
@@ -270,6 +310,67 @@ export function ProductDetailsDrawer({
     }
   }
 
+  async function addMedia(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!files.length) return;
+    const available = Math.max(
+      0,
+      5 - media.filter((item) => item.isNew).length,
+    );
+    if (!available) {
+      setError("Salve as imagens atuais antes de adicionar outras.");
+      return;
+    }
+    setMediaLoading(true);
+    setError("");
+    try {
+      const additions = await Promise.all(
+        files.slice(0, available).map(async (file) => {
+          if (
+            !/^image\/(png|jpeg|webp)$/.test(file.type) ||
+            file.size > 10 * 1024 * 1024
+          )
+            throw new Error("Use imagens PNG, JPG ou WebP de até 10 MB.");
+          const source = URL.createObjectURL(file);
+          try {
+            const image = new Image();
+            await new Promise<void>((resolve, reject) => {
+              image.onload = () => resolve();
+              image.onerror = () => reject(new Error("Imagem inválida."));
+              image.src = source;
+            });
+            const scale = Math.min(
+              1,
+              1600 / Math.max(image.naturalWidth, image.naturalHeight),
+            );
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(image.naturalWidth * scale);
+            canvas.height = Math.round(image.naturalHeight * scale);
+            const context = canvas.getContext("2d");
+            if (!context)
+              throw new Error("Não foi possível processar a imagem.");
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            return {
+              url: canvas.toDataURL("image/jpeg", 0.84),
+              alt: form!.title,
+              isNew: true,
+            } satisfies ProductMedia;
+          } finally {
+            URL.revokeObjectURL(source);
+          }
+        }),
+      );
+      setMedia((current) => [...current, ...additions]);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Falha ao adicionar imagem.",
+      );
+    } finally {
+      setMediaLoading(false);
+    }
+  }
+
   async function saveProduct() {
     setSaving(true);
     setError("");
@@ -281,6 +382,7 @@ export function ProductDetailsDrawer({
         body: JSON.stringify({
           sku: activeRow!.sku,
           title: form!.title,
+          description: form!.description,
           tags: form!.tags
             .split(",")
             .map((item) => item.trim())
@@ -291,6 +393,9 @@ export function ProductDetailsDrawer({
             .filter(Boolean),
           weight: Number(form!.weight || 0),
           weightUnit: form!.weightUnit,
+          images: media
+            .filter((item) => item.isNew)
+            .map((item) => ({ source: item.url, alt: item.alt })),
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -500,6 +605,80 @@ export function ProductDetailsDrawer({
             <small>{form.title.length}/255 caracteres</small>
           </label>
           <label className="product-edit-field">
+            <span>Descrição</span>
+            <textarea
+              value={form.description}
+              onChange={(event) => update("description", event.target.value)}
+              rows={7}
+              placeholder="Descrição do produto"
+            />
+          </label>
+          <section className="product-media-editor">
+            <div className="product-media-head">
+              <div>
+                <strong>Mídias</strong>
+                <small>Imagens atuais e novas imagens do produto.</small>
+              </div>
+              <button
+                className="btn"
+                type="button"
+                disabled={mediaLoading}
+                onClick={() => mediaInputRef.current?.click()}
+              >
+                {mediaLoading ? (
+                  <LoaderCircle className="spin" size={15} />
+                ) : (
+                  <ImagePlus size={15} />
+                )}
+                Adicionar imagem
+              </button>
+              <input
+                ref={mediaInputRef}
+                type="file"
+                hidden
+                multiple
+                accept="image/png,image/jpeg,image/webp"
+                onChange={addMedia}
+              />
+            </div>
+            <div className="product-media-grid">
+              {media.map((item, index) => (
+                <article
+                  className="product-media-item"
+                  key={`${item.id || "new"}-${index}`}
+                >
+                  <img src={item.url} alt={item.alt || form.title} />
+                  {index === 0 && <span>Principal</span>}
+                  {item.isNew && (
+                    <button
+                      type="button"
+                      aria-label="Remover nova imagem"
+                      onClick={() =>
+                        setMedia((current) =>
+                          current.filter(
+                            (_, mediaIndex) => mediaIndex !== index,
+                          ),
+                        )
+                      }
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </article>
+              ))}
+              {!media.length && (
+                <button
+                  className="product-media-empty"
+                  type="button"
+                  onClick={() => mediaInputRef.current?.click()}
+                >
+                  <ImageIcon size={25} />
+                  <span>Adicionar a primeira imagem</span>
+                </button>
+              )}
+            </div>
+          </section>
+          <label className="product-edit-field">
             <span>Tags</span>
             <textarea
               value={form.tags}
@@ -555,7 +734,7 @@ export function ProductDetailsDrawer({
             <button
               className="btn btn-primary"
               type="submit"
-              disabled={!changedFields}
+              disabled={!totalChanges}
             >
               Revisar alterações <ArrowRight size={15} />
             </button>
@@ -567,8 +746,7 @@ export function ProductDetailsDrawer({
         <div className="product-review">
           <div className="review-summary">
             <strong>
-              {changedFields}{" "}
-              {changedFields === 1 ? "campo alterado" : "campos alterados"}
+              {totalChanges} {totalChanges === 1 ? "alteração" : "alterações"}
             </strong>
             <span>Confira os valores antes de enviar.</span>
           </div>
@@ -576,6 +754,11 @@ export function ProductDetailsDrawer({
             label="Título"
             before={original.title}
             after={form.title}
+          />
+          <ReviewRow
+            label="Descrição"
+            before={original.description}
+            after={form.description}
           />
           <ReviewRow label="Tags" before={original.tags} after={form.tags} />
           <ReviewRow
@@ -612,7 +795,7 @@ export function ProductDetailsDrawer({
             <button
               className="btn btn-primary"
               type="button"
-              disabled={saving || !changedFields}
+              disabled={saving || !totalChanges}
               onClick={saveProduct}
             >
               {saving && <LoaderCircle className="spin" size={14} />}
