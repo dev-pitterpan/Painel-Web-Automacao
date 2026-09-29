@@ -2195,6 +2195,42 @@ tbody tr:hover {
   box-shadow: 0 10px 24px rgba(48, 113, 238, 0.18);
   font-size: 22px;
   font-weight: 900;
+  overflow: hidden;
+}
+.profile-avatar-wrap {
+  position: relative;
+}
+.profile-avatar.has-image {
+  background: #eef4ff;
+}
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.profile-avatar-edit {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #176cf2;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 5px 14px rgba(23, 108, 242, 0.3);
+}
+.profile-avatar-edit:hover {
+  background: #075be8;
+  transform: translateY(-1px);
+}
+.profile-avatar-input {
+  display: none;
 }
 .profile-summary h2 {
   margin: 14px 0 4px;
@@ -2225,6 +2261,30 @@ tbody tr:hover {
 .profile-security-note strong,
 .profile-security-note small {
   display: block;
+}
+.profile-account-meta {
+  width: 100%;
+  margin-top: 17px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.profile-account-meta > div {
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  align-items: center;
+  gap: 7px;
+  color: #7180a3;
+  font-size: 9px;
+  text-align: left;
+}
+.profile-account-meta svg {
+  color: #244875;
+}
+.profile-account-meta strong {
+  color: #5370aa;
+  font-size: 9px;
+  font-weight: 700;
 }
 .profile-security-note strong {
   font-size: 10px;

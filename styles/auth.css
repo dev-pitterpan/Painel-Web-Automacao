@@ -8,6 +8,45 @@
   overflow: hidden;
   background: #f5f9ff url("/login-background.png") center / cover no-repeat;
 }
+.login-welcome-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 0 20px 10.5vh;
+  background: #f4f9ff url("/login-loading.png") center / cover no-repeat;
+}
+.login-welcome-progress {
+  width: min(520px, 72vw);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.login-welcome-progress-track {
+  height: 9px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(82, 124, 193, 0.18);
+  box-shadow: inset 0 1px 3px rgba(12, 55, 126, 0.12);
+}
+.login-welcome-progress-track span {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1687ff, #075bea);
+  box-shadow: 0 0 15px rgba(17, 111, 243, 0.42);
+  transition: width 0.15s ease;
+}
+.login-welcome-progress strong {
+  min-width: 38px;
+  color: #2469d6;
+  font-size: 12px;
+  font-weight: 800;
+}
 .login-card {
   position: relative;
   width: min(100%, 430px);
@@ -140,6 +179,13 @@
   line-height: 1.4;
 }
 @media (max-width: 480px) {
+  .login-welcome-loading {
+    padding-bottom: 12vh;
+    background-size: auto 100%;
+  }
+  .login-welcome-progress {
+    width: min(82vw, 420px);
+  }
   .login-screen {
     place-items: center;
     padding: 22px 14px;

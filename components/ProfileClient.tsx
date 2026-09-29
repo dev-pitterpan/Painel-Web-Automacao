@@ -1,9 +1,11 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
+  CalendarDays,
+  Camera,
   Eye,
   EyeOff,
   KeyRound,
@@ -23,9 +25,58 @@ export function ProfileClient({ user }: { user: AuthUser }) {
     confirmPassword: "",
   });
   const [showPasswords, setShowPasswords] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user.avatarUrl);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  async function chooseAvatar(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Selecione uma imagem válida.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setError("A imagem deve ter no máximo 8 MB.");
+      return;
+    }
+
+    const source = URL.createObjectURL(file);
+    try {
+      const image = new Image();
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error("Imagem inválida."));
+        image.src = source;
+      });
+      const size = Math.min(image.naturalWidth, image.naturalHeight);
+      const canvas = document.createElement("canvas");
+      canvas.width = 512;
+      canvas.height = 512;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Não foi possível processar a imagem.");
+      context.drawImage(
+        image,
+        (image.naturalWidth - size) / 2,
+        (image.naturalHeight - size) / 2,
+        size,
+        size,
+        0,
+        0,
+        512,
+        512,
+      );
+      setAvatarUrl(canvas.toDataURL("image/jpeg", 0.82));
+      setError("");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Imagem inválida.");
+    } finally {
+      URL.revokeObjectURL(source);
+    }
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,6 +96,7 @@ export function ProfileClient({ user }: { user: AuthUser }) {
           email: form.email,
           currentPassword: form.currentPassword,
           newPassword: form.newPassword,
+          avatarUrl,
         }),
       });
       const body = await response.json();
@@ -88,9 +140,31 @@ export function ProfileClient({ user }: { user: AuthUser }) {
 
       <div className="profile-layout">
         <section className="panel profile-summary">
-          <span className="profile-avatar">
-            {form.name.slice(0, 2).toUpperCase()}
-          </span>
+          <div className="profile-avatar-wrap">
+            <span className={`profile-avatar ${avatarUrl ? "has-image" : ""}`}>
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={`Foto de ${form.name}`} />
+              ) : (
+                form.name.slice(0, 2).toUpperCase()
+              )}
+            </span>
+            <button
+              className="profile-avatar-edit"
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              aria-label="Alterar foto de perfil"
+              title="Alterar foto de perfil"
+            >
+              <Camera size={15} />
+            </button>
+            <input
+              ref={avatarInputRef}
+              className="profile-avatar-input"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={chooseAvatar}
+            />
+          </div>
           <h2>{form.name}</h2>
           <p>{form.email}</p>
           <div className="profile-security-note">
@@ -101,6 +175,24 @@ export function ProfileClient({ user }: { user: AuthUser }) {
                 Confirme sua senha atual antes de salvar qualquer alteração.
               </small>
             </span>
+          </div>
+          <div className="profile-account-meta">
+            <div>
+              <UserRound size={15} />
+              <span>Perfil</span>
+              <strong>
+                {user.role === "admin" ? "Administrador" : "Usuário"}
+              </strong>
+            </div>
+            <div>
+              <CalendarDays size={15} />
+              <span>Membro desde</span>
+              <strong>
+                {new Intl.DateTimeFormat("pt-BR").format(
+                  new Date(user.createdAt),
+                )}
+              </strong>
+            </div>
           </div>
         </section>
 

@@ -11,8 +11,10 @@ export type AuthUser = {
   name: string;
   email: string;
   role: string;
+  createdAt: string;
+  avatarUrl: string | null;
 };
-export type ManagedUser = AuthUser & { createdAt: string };
+export type ManagedUser = AuthUser;
 export type ReprocessRecord = {
   result: Record<string, unknown> | null;
   id: number;
@@ -51,7 +53,11 @@ export type ProductOverride = {
   updatedAt: string;
 };
 
-type UserRecord = AuthUser & { password_hash: string };
+type UserRecord = Omit<AuthUser, "createdAt" | "avatarUrl"> & {
+  password_hash: string;
+  created_at: unknown;
+  avatar_url: string | null;
+};
 const DEFAULT_SETTINGS: AppSettings = {
   manualSecondsPerProduct: 60,
   batchSize: 5,
@@ -91,6 +97,7 @@ async function ensureDatabase() {
           role TEXT NOT NULL DEFAULT 'user',
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`,
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT",
         `CREATE TABLE IF NOT EXISTS sessions (
           token_hash TEXT PRIMARY KEY,
           user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -199,6 +206,8 @@ function toUser(record: UserRecord | undefined): AuthUser | null {
         name: record.name,
         email: record.email,
         role: record.role,
+        createdAt: iso(record.created_at),
+        avatarUrl: record.avatar_url || null,
       }
     : null;
 }
@@ -329,13 +338,17 @@ export async function listUsers(): Promise<ManagedUser[]> {
     email: string;
     role: string;
     created_at: unknown;
-  }>("SELECT id, name, email, role, created_at FROM users ORDER BY id");
+    avatar_url: string | null;
+  }>(
+    "SELECT id, name, email, role, created_at, avatar_url FROM users ORDER BY id",
+  );
   return rows.map((row) => ({
     id: Number(row.id),
     name: row.name,
     email: row.email,
     role: row.role,
     createdAt: iso(row.created_at),
+    avatarUrl: row.avatar_url || null,
   }));
 }
 
@@ -422,11 +435,12 @@ export async function updateOwnProfile(
     email: string;
     currentPassword: string;
     newPassword?: string;
+    avatarUrl?: string | null;
   },
 ) {
   await ensureDatabase();
   const [target] = await query<UserRecord>(
-    "SELECT id, name, email, role, password_hash FROM users WHERE id = $1",
+    "SELECT id, name, email, role, password_hash, created_at, avatar_url FROM users WHERE id = $1",
     [actor.id],
   );
   if (!target) throw new Error("Usuário não encontrado.");
@@ -435,6 +449,10 @@ export async function updateOwnProfile(
   const email = normalizeEmail(String(input.email || ""));
   const currentPassword = String(input.currentPassword || "");
   const newPassword = String(input.newPassword || "");
+  const avatarUrl =
+    input.avatarUrl === null
+      ? null
+      : String(input.avatarUrl || target.avatar_url || "");
 
   if (name.length < 2 || name.length > 100)
     throw new Error("O nome precisa ter entre 2 e 100 caracteres.");
@@ -446,6 +464,12 @@ export async function updateOwnProfile(
     throw new Error("A senha atual está incorreta.");
   if (newPassword && (newPassword.length < 12 || newPassword.length > 256))
     throw new Error("A nova senha precisa ter entre 12 e 256 caracteres.");
+  if (
+    avatarUrl &&
+    (!/^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(avatarUrl) ||
+      avatarUrl.length > 700_000)
+  )
+    throw new Error("A foto de perfil é inválida ou muito grande.");
 
   const [duplicate] = await query<{ id: number }>(
     "SELECT id FROM users WHERE email = $1 AND id <> $2",
@@ -455,15 +479,14 @@ export async function updateOwnProfile(
 
   if (newPassword) {
     await query(
-      "UPDATE users SET name = $1, email = $2, password_hash = $3 WHERE id = $4",
-      [name, email, hashPassword(newPassword), actor.id],
+      "UPDATE users SET name = $1, email = $2, password_hash = $3, avatar_url = $4 WHERE id = $5",
+      [name, email, hashPassword(newPassword), avatarUrl || null, actor.id],
     );
   } else {
-    await query("UPDATE users SET name = $1, email = $2 WHERE id = $3", [
-      name,
-      email,
-      actor.id,
-    ]);
+    await query(
+      "UPDATE users SET name = $1, email = $2, avatar_url = $3 WHERE id = $4",
+      [name, email, avatarUrl || null, actor.id],
+    );
   }
 
   await recordAudit({
@@ -479,7 +502,14 @@ export async function updateOwnProfile(
     },
   });
 
-  return { id: actor.id, name, email, role: target.role } satisfies AuthUser;
+  return {
+    id: actor.id,
+    name,
+    email,
+    role: target.role,
+    createdAt: iso(target.created_at),
+    avatarUrl: avatarUrl || null,
+  } satisfies AuthUser;
 }
 
 export async function deleteManagedUser(actor: AuthUser, userId: number) {
@@ -659,7 +689,7 @@ export async function getN8nHealthSummary() {
 export async function authenticate(email: string, password: string) {
   await ensureDatabase();
   const [record] = await query<UserRecord>(
-    "SELECT id, name, email, role, password_hash FROM users WHERE email = $1",
+    "SELECT id, name, email, role, password_hash, created_at, avatar_url FROM users WHERE email = $1",
     [normalizeEmail(email)],
   );
   if (!record || !verifyPassword(password, record.password_hash)) return null;
@@ -715,7 +745,7 @@ export async function getUserBySession(token: string | undefined) {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
   await ensureDatabase();
   const [record] = await query<UserRecord>(
-    `SELECT users.id, users.name, users.email, users.role, users.password_hash FROM users
+    `SELECT users.id, users.name, users.email, users.role, users.password_hash, users.created_at, users.avatar_url FROM users
     INNER JOIN sessions ON sessions.user_id = users.id
     WHERE sessions.token_hash = $1 AND sessions.expires_at > $2`,
     [hashSessionToken(token), Date.now()],

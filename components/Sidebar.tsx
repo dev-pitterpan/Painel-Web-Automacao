@@ -113,7 +113,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
         >
           <img
             className="brand-logo"
-            src="/logo-pitter-com-fundo.png"
+            src="/favicon.svg"
             alt="Pitter Pan Festas"
             width={60}
             height={60}
@@ -145,7 +145,11 @@ export function Sidebar({ user }: { user: AuthUser }) {
             aria-label="Personalizar perfil"
           >
             <span className="avatar">
-              {user.name.slice(0, 2).toUpperCase()}
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" />
+              ) : (
+                user.name.slice(0, 2).toUpperCase()
+              )}
             </span>
             <span className="sidebar-user-details">
               <strong>{user.name}</strong>

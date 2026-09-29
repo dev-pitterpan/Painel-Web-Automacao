@@ -23,6 +23,8 @@ export async function PATCH(request: NextRequest) {
       email: String(body?.email || ""),
       currentPassword: String(body?.currentPassword || ""),
       newPassword: body?.newPassword ? String(body.newPassword) : "",
+      avatarUrl:
+        body?.avatarUrl === null ? null : String(body?.avatarUrl || ""),
     });
     return NextResponse.json({ ok: true, user });
   } catch (error) {

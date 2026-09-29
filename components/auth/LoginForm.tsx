@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Eye, EyeOff, LockKeyhole, Mail, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -11,6 +11,27 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loginComplete, setLoginComplete] = useState(false);
+  const [loginProgress, setLoginProgress] = useState(8);
+
+  useEffect(() => {
+    if (!loginComplete) return;
+    const interval = window.setInterval(
+      () => setLoginProgress((value) => Math.min(94, value + 7)),
+      90,
+    );
+    const complete = window.setTimeout(() => {
+      setLoginProgress(100);
+      window.setTimeout(() => {
+        router.replace("/");
+        router.refresh();
+      }, 180);
+    }, 1250);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(complete);
+    };
+  }, [loginComplete, router]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,8 +46,7 @@ export function LoginForm() {
       const body = await response.json();
       if (!response.ok)
         throw new Error(body.error || "Não foi possível entrar.");
-      router.replace("/");
-      router.refresh();
+      setLoginComplete(true);
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Não foi possível entrar.",
@@ -34,6 +54,19 @@ export function LoginForm() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (loginComplete) {
+    return (
+      <main className="login-welcome-loading" aria-live="polite">
+        <div className="login-welcome-progress">
+          <div className="login-welcome-progress-track" aria-hidden="true">
+            <span style={{ width: `${loginProgress}%` }} />
+          </div>
+          <strong>{loginProgress}%</strong>
+        </div>
+      </main>
+    );
   }
 
   return (
