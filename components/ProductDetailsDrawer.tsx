@@ -4,15 +4,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  Bold,
   CheckCircle2,
   CircleAlert,
   ImageIcon,
   ImagePlus,
+  Italic,
+  List,
+  ListOrdered,
   Info,
   LoaderCircle,
   Package,
   Pencil,
   Scale,
+  Code2,
+  Underline,
   X,
 } from "lucide-react";
 import type { HistoryRow } from "@/lib/types";
@@ -56,6 +62,101 @@ const fallbackForm = (row: HistoryRow): EditForm => ({
 });
 const listText = (value: unknown) =>
   Array.isArray(value) ? value.map(String).join(", ") : String(value ?? "");
+
+function safeDescriptionHtml(value: string) {
+  return String(value || "")
+    .replace(/<(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\/\1>/gi, "")
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/javascript:/gi, "");
+}
+
+function HtmlDescriptionEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (html: string) => void;
+}) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [sourceMode, setSourceMode] = useState(false);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || sourceMode || document.activeElement === editor) return;
+    const safeHtml = safeDescriptionHtml(value);
+    if (editor.innerHTML !== safeHtml) editor.innerHTML = safeHtml;
+  }, [value, sourceMode]);
+
+  const format = (command: string) => {
+    editorRef.current?.focus();
+    document.execCommand(command);
+    onChange(editorRef.current?.innerHTML || "");
+  };
+
+  return (
+    <div className="html-description-editor">
+      <div className="html-editor-toolbar" aria-label="Formatação da descrição">
+        <button type="button" onClick={() => format("bold")} title="Negrito">
+          <Bold size={15} />
+        </button>
+        <button type="button" onClick={() => format("italic")} title="Itálico">
+          <Italic size={15} />
+        </button>
+        <button
+          type="button"
+          onClick={() => format("underline")}
+          title="Sublinhado"
+        >
+          <Underline size={15} />
+        </button>
+        <span />
+        <button
+          type="button"
+          onClick={() => format("insertUnorderedList")}
+          title="Lista"
+        >
+          <List size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={() => format("insertOrderedList")}
+          title="Lista numerada"
+        >
+          <ListOrdered size={16} />
+        </button>
+        <button
+          className={sourceMode ? "is-active" : ""}
+          type="button"
+          onClick={() => setSourceMode((current) => !current)}
+          title={sourceMode ? "Visualizar formatado" : "Visualizar HTML"}
+        >
+          <Code2 size={16} />
+        </button>
+      </div>
+      {sourceMode ? (
+        <textarea
+          className="html-editor-source"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          rows={10}
+          spellCheck={false}
+        />
+      ) : (
+        <div
+          ref={editorRef}
+          className="html-editor-content"
+          contentEditable
+          suppressContentEditableWarning
+          onInput={(event) => onChange(event.currentTarget.innerHTML)}
+          dangerouslySetInnerHTML={{ __html: safeDescriptionHtml(value) }}
+        />
+      )}
+      <small>
+        A visualização é formatada; o conteúdo continua sendo salvo em HTML.
+      </small>
+    </div>
+  );
+}
 
 function ValueCard({
   label,
@@ -179,6 +280,12 @@ export function ProductDetailsDrawer({
   }, [activeRow]);
 
   useEffect(() => {
+    if (!activeRow || !canEdit) return;
+    void openEditor(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRow?.sku, canEdit]);
+
+  useEffect(() => {
     if (!row) {
       wasOpen.current = false;
       setHistory([]);
@@ -255,7 +362,7 @@ export function ProductDetailsDrawer({
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
-  async function openEditor() {
+  async function openEditor(showEditor = true) {
     setLoadingProduct(true);
     setError("");
     setMessage("");
@@ -296,15 +403,17 @@ export function ProductDetailsDrawer({
           }))
           .filter((item: ProductMedia) => item.url),
       );
-      setStep("edit");
+      if (showEditor) setStep("edit");
     } catch (cause) {
-      const initial = fallbackForm(activeRow!);
-      setForm(initial);
-      setOriginal(initial);
-      setStep("edit");
-      setError(
-        `${cause instanceof Error ? cause.message : "Falha ao consultar o Shopify."} Você ainda pode visualizar o editor; o envio ficará disponível após configurar o workflow.`,
-      );
+      if (showEditor) {
+        const initial = fallbackForm(activeRow!);
+        setForm(initial);
+        setOriginal(initial);
+        setStep("edit");
+        setError(
+          `${cause instanceof Error ? cause.message : "Falha ao consultar o Shopify."} Você ainda pode visualizar o editor; o envio ficará disponível após configurar o workflow.`,
+        );
+      }
     } finally {
       setLoadingProduct(false);
     }
@@ -528,7 +637,7 @@ export function ProductDetailsDrawer({
             <button
               className={`btn btn-primary ${loadingProduct ? "is-loading" : ""}`}
               type="button"
-              onClick={openEditor}
+              onClick={() => openEditor(true)}
               disabled={loadingProduct || !canEdit}
               title={
                 canEdit
@@ -545,6 +654,31 @@ export function ProductDetailsDrawer({
             </button>
           </div>
           <div className="product-drawer-body">
+            <section className="product-current-overview">
+              <div className="product-current-image">
+                {media[0]?.url ? (
+                  <img src={media[0].url} alt={media[0].alt || title} />
+                ) : (
+                  <span>
+                    <ImageIcon size={28} />
+                    {loadingProduct ? "Carregando imagem..." : "Sem imagem"}
+                  </span>
+                )}
+              </div>
+              <div className="product-current-description">
+                <strong>Descrição atual</strong>
+                {form.description ? (
+                  <div
+                    className="shopify-description-preview"
+                    dangerouslySetInnerHTML={{
+                      __html: safeDescriptionHtml(form.description),
+                    }}
+                  />
+                ) : (
+                  <p>Descrição não informada no Shopify.</p>
+                )}
+              </div>
+            </section>
             <ValueCard
               label="Título"
               before={activeRow.tituloAntes}
@@ -606,11 +740,9 @@ export function ProductDetailsDrawer({
           </label>
           <label className="product-edit-field">
             <span>Descrição</span>
-            <textarea
+            <HtmlDescriptionEditor
               value={form.description}
-              onChange={(event) => update("description", event.target.value)}
-              rows={7}
-              placeholder="Descrição do produto"
+              onChange={(html) => update("description", html)}
             />
           </label>
           <section className="product-media-editor">
