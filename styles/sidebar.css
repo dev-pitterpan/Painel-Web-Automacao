@@ -26,18 +26,25 @@
     gap 0.2s ease,
     align-items 0.2s ease;
 }
-.sidebar::before,
-.sidebar::after {
+.sidebar-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sidebar-art::before,
+.sidebar-art::after {
   content: "";
   position: absolute;
   z-index: 0;
   pointer-events: none;
   border-radius: 50%;
 }
-.sidebar::before {
-  right: 0;
+.sidebar-art::before {
+  right: -92px;
   bottom: 128px;
-  width: 168px;
+  width: 260px;
   height: 360px;
   background: linear-gradient(
     150deg,
@@ -47,10 +54,10 @@
   );
   transform: rotate(23deg);
 }
-.sidebar::after {
-  left: 0;
+.sidebar-art::after {
+  left: -92px;
   bottom: -64px;
-  width: 158px;
+  width: 250px;
   height: 250px;
   background: radial-gradient(
     circle at 38% 28%,
@@ -59,7 +66,7 @@
     transparent 69%
   );
 }
-.sidebar > * {
+.sidebar > :not(.sidebar-art) {
   position: relative;
   z-index: 1;
 }

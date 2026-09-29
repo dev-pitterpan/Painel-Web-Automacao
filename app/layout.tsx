@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import "./globals.css";
+import { PageContent } from "@/components/PageContent";
 import { Sidebar } from "@/components/Sidebar";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -32,7 +33,7 @@ export default async function RootLayout({
         {user ? (
           <div className="app-shell">
             <Sidebar user={user} />
-            <main className="content">{children}</main>
+            <PageContent>{children}</PageContent>
           </div>
         ) : (
           children

@@ -84,6 +84,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
       <aside
         className={`sidebar ${collapsed ? "is-collapsed" : ""} ${mobileOpen ? "is-mobile-open" : ""}`}
       >
+        <div className="sidebar-art" aria-hidden="true" />
         <button
           className="mobile-menu-toggle"
           type="button"

@@ -1062,11 +1062,6 @@ export function DashboardClient({
           <div className="page-sub">{subtitle}</div>
         </div>
       </div>
-      {mode === "dashboard" && (
-        <div className="dashboard-hero" aria-hidden="true">
-          <img src="/dashboard-hero.png" alt="" />
-        </div>
-      )}
       {appliedFilters.qualityFilter && (
         <div className="active-quality-filter">
           <ListChecks size={15} />

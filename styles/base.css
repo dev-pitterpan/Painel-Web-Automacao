@@ -76,15 +76,31 @@ button:hover {
   padding: 30px 44px 52px;
   margin: 0 auto;
 }
-.content::before,
-.content::after {
+.content::before {
   content: "";
-  position: fixed;
+  position: absolute;
+  inset: 0 0 auto;
   z-index: -1;
   pointer-events: none;
-  border-radius: 48% 52% 62% 38%;
-  filter: blur(0.2px);
-  opacity: 0.55;
+  width: 100%;
+  height: min(470px, 36vw);
+  min-height: 330px;
+  background-image: var(--page-background-image);
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 100% auto;
+}
+.content--dashboard {
+  --page-background-image: url("/dashboard-hero.png");
+}
+.content--errors {
+  --page-background-image: url("/fundo-erros.png");
+}
+.content--reprocessed {
+  --page-background-image: url("/fundo-reprocessados.png");
+}
+.content--default {
+  --page-background-image: url("/fundo.png");
 }
 
 @media (min-width: 641px) and (max-width: 1023px) {
@@ -95,31 +111,6 @@ button:hover {
     padding-inline: 22px;
   }
 }
-.content::before {
-  top: 22px;
-  right: -6vw;
-  width: min(52vw, 820px);
-  height: 220px;
-  background: linear-gradient(
-    145deg,
-    rgba(180, 211, 255, 0.35),
-    rgba(83, 139, 249, 0.08)
-  );
-  transform: rotate(-7deg);
-}
-.content::after {
-  top: 94px;
-  right: 12vw;
-  width: min(38vw, 590px);
-  height: 150px;
-  background: linear-gradient(
-    145deg,
-    rgba(208, 226, 255, 0.42),
-    rgba(75, 128, 239, 0.06)
-  );
-  transform: rotate(9deg);
-}
-
 @media (max-width: 640px) {
   .app-shell {
     display: block;
@@ -129,8 +120,10 @@ button:hover {
     min-width: 0;
     padding: 20px 14px 32px;
   }
-  .content::before,
-  .content::after {
-    display: none;
+  .content::before {
+    height: 250px;
+    min-height: 0;
+    background-size: auto 250px;
+    background-position: 62% top;
   }
 }
