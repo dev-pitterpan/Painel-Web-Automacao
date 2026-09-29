@@ -135,6 +135,9 @@
   display: grid;
   gap: 4px;
 }
+.mobile-drawer-brand {
+  display: none;
+}
 .nav a {
   display: flex;
   align-items: center;
@@ -426,12 +429,13 @@
     position: fixed;
     z-index: 103;
     inset: 0 0 0 auto;
-    width: min(86vw, 320px);
+    width: min(86vw, 320px) !important;
+    max-width: 86vw;
     height: 100dvh;
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 72px 14px 20px;
+    padding: 12px 14px 20px;
     background:
       radial-gradient(
         circle at 80% 4%,
@@ -445,6 +449,8 @@
     overflow-y: auto;
   }
   .sidebar.is-mobile-open .nav {
+    right: 0;
+    left: auto;
     transform: translateX(0);
   }
   .sidebar.is-mobile-open .brand {
@@ -457,6 +463,39 @@
     padding: 12px 13px;
     font-size: 12px;
     gap: 9px;
+  }
+  .mobile-drawer-brand {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 52px 10px 0;
+    padding: 2px 0 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .mobile-drawer-brand img {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 11px;
+    object-fit: contain;
+    background: #fff;
+  }
+  .mobile-drawer-brand span,
+  .mobile-drawer-brand strong,
+  .mobile-drawer-brand small {
+    display: block;
+    min-width: 0;
+  }
+  .mobile-drawer-brand strong {
+    color: #fff;
+    font-size: 14px;
+  }
+  .mobile-drawer-brand small {
+    margin-top: 4px;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 8px;
+    white-space: nowrap;
   }
   .sidebar-user {
     display: none;

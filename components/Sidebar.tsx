@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -37,6 +37,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const navRef = useRef<HTMLElement>(null);
   const navigationItems =
     user.role === "admin"
       ? [
@@ -70,6 +71,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
   }, [pathname]);
   useEffect(() => {
     document.body.classList.toggle("mobile-menu-open", mobileOpen);
+    if (mobileOpen) navRef.current?.scrollTo({ top: 0 });
     return () => document.body.classList.remove("mobile-menu-open");
   }, [mobileOpen]);
 
@@ -103,7 +105,10 @@ export function Sidebar({ user }: { user: AuthUser }) {
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
-        <div className="brand">
+        <div
+          className="brand"
+          style={mobileOpen ? { display: "none" } : undefined}
+        >
           <img
             className="brand-logo"
             src="/logo-pitter-com-fundo.png"
@@ -116,7 +121,19 @@ export function Sidebar({ user }: { user: AuthUser }) {
             <div className="brand-sub">Automação de e-commerce</div>
           </div>
         </div>
-        <nav className="nav">
+        <nav className="nav" ref={navRef}>
+          <div className="mobile-drawer-brand">
+            <img
+              src="/logo-pitter-com-fundo.png"
+              alt=""
+              width={42}
+              height={42}
+            />
+            <span>
+              <strong>Catálogo Pro</strong>
+              <small>Automação de e-commerce</small>
+            </span>
+          </div>
           {navigationItems.map(([label, href, Icon]) => (
             <Link
               key={href}
