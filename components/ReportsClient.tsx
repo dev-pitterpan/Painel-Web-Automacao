@@ -149,6 +149,9 @@ export function ReportsClient() {
   const [change, setChange] = useState("");
   const [applied, setApplied] = useState<AppliedFilters | null>(null);
   const [reportKind, setReportKind] = useState<ReportKind>("executivo");
+  const [selectedReports, setSelectedReports] = useState<ReportKind[]>([
+    "executivo",
+  ]);
   const [page, setPage] = useState(1);
   const [showAll, setShowAll] = useState(false);
   const [visibleCompleteCount, setVisibleCompleteCount] = useState(
@@ -474,6 +477,9 @@ export function ReportsClient() {
     setToast("Relatório atualizado com os filtros selecionados.");
   }
   function selectReport(kind: ReportKind) {
+    if (!selectedReports.includes(kind)) {
+      setSelectedReports((current) => [...current, kind]);
+    }
     setReportKind(kind);
     setPage(1);
     setShowAll(false);
@@ -485,6 +491,19 @@ export function ReportsClient() {
         }),
       0,
     );
+  }
+  function toggleReport(kind: ReportKind) {
+    setSelectedReports((current) => {
+      if (current.includes(kind)) {
+        const next = current.filter((item) => item !== kind);
+        if (reportKind === kind && next.length) setReportKind(next[0]);
+        return next;
+      }
+      setReportKind(kind);
+      return [...current, kind];
+    });
+    setPage(1);
+    setShowAll(false);
   }
   function selectedRowsFor(kind: ReportKind) {
     return kind === "marca"
@@ -528,6 +547,11 @@ export function ReportsClient() {
 
   async function exportXlsx(kind?: ReportKind) {
     if (exporting) return;
+    const selectedKinds = kind ? [kind] : selectedReports;
+    if (!selectedKinds.length) {
+      setToast("Selecione pelo menos um relatório para exportar.");
+      return;
+    }
     setExporting(true);
     try {
       const ExcelJSModule = await import("exceljs");
@@ -623,9 +647,7 @@ export function ReportsClient() {
         },
       };
 
-      const kinds: ReportKind[] = kind
-        ? [kind]
-        : ["executivo", "marca", "erros", "alteracoes", "produtividade"];
+      const kinds: ReportKind[] = selectedKinds;
       kinds.forEach((itemKind) => {
         const definition = definitions[itemKind];
         const worksheet = workbook.addWorksheet(definition.name, {
@@ -685,12 +707,17 @@ export function ReportsClient() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `${kind ? REPORT_LABELS[kind].toLowerCase().replaceAll(" ", "-") : "relatorios-completos"}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      anchor.download = `${kind ? REPORT_LABELS[kind].toLowerCase().replaceAll(" ", "-") : "relatorios-selecionados"}-${new Date().toISOString().slice(0, 10)}.xlsx`;
       anchor.click();
       URL.revokeObjectURL(url);
       registerExport(
-        kind ? REPORT_LABELS[kind] : "Relatórios completos",
-        kind ? selectedRowsFor(kind).length : filteredRows.length,
+        kind
+          ? REPORT_LABELS[kind]
+          : selectedKinds.map((item) => REPORT_LABELS[item]).join(", "),
+        selectedKinds.reduce(
+          (total, item) => total + selectedRowsFor(item).length,
+          0,
+        ),
         "XLSX",
       );
       setToast("Arquivo Excel exportado com sucesso.");
@@ -894,22 +921,16 @@ export function ReportsClient() {
           <button
             className="btn btn-primary"
             onClick={() => exportXlsx()}
-            disabled={exporting}
+            disabled={exporting || selectedReports.length === 0}
           >
             {exporting ? (
               <RefreshCw className="spin" size={16} />
             ) : (
               <FileSpreadsheet size={16} />
             )}
-            {exporting ? "Gerando Excel" : "Exportar Excel"}
-          </button>
-          <button
-            className="btn reports-csv-secondary"
-            onClick={() => exportCsv()}
-            title="Exportar o relatório selecionado em CSV"
-          >
-            <Download size={15} />
-            CSV
+            {exporting
+              ? "Gerando Excel"
+              : `Exportar Excel (${selectedReports.length})`}
           </button>
         </div>
       </div>
@@ -1122,14 +1143,33 @@ export function ReportsClient() {
         <div className="reports-section-head">
           <div>
             <h2>Relatórios disponíveis</h2>
-            <p>Escolha um modelo para visualizar ou exportar.</p>
+            <p>Marque as seções que deseja incluir no relatório final.</p>
           </div>
+          <span className="reports-selection-count">
+            {selectedReports.length} de {reportCards.length} selecionados
+          </span>
         </div>
         <div className="report-card-grid">
           {reportCards.map((card) => {
             const Icon = card.icon;
             return (
-              <article className="available-report" key={card.kind}>
+              <article
+                className={`available-report ${selectedReports.includes(card.kind) ? "is-selected" : ""}`}
+                key={card.kind}
+              >
+                <label
+                  className="report-check"
+                  aria-label={`Incluir ${REPORT_LABELS[card.kind]}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedReports.includes(card.kind)}
+                    onChange={() => toggleReport(card.kind)}
+                  />
+                  <span aria-hidden="true">
+                    <Check size={13} />
+                  </span>
+                </label>
                 <span className={`available-icon ${card.tone}`}>
                   <Icon />
                 </span>
@@ -1140,15 +1180,10 @@ export function ReportsClient() {
                 <div className="available-actions">
                   <button onClick={() => selectReport(card.kind)}>
                     <Eye size={15} />
-                    Visualizar
-                  </button>
-                  <button
-                    onClick={() => exportXlsx(card.kind)}
-                    disabled={exporting}
-                    aria-label={`Exportar ${REPORT_LABELS[card.kind]}`}
-                  >
-                    <FileSpreadsheet size={15} />
-                    Excel
+                    {reportKind === card.kind &&
+                    selectedReports.includes(card.kind)
+                      ? "Visualizando"
+                      : "Ver prévia"}
                   </button>
                 </div>
               </article>
@@ -1163,7 +1198,7 @@ export function ReportsClient() {
             <div>
               <h2>Prévia do relatório</h2>
               <p>
-                {REPORT_LABELS[reportKind]} · {formatDateInput(filters.start)} a{" "}
+                {formatDateInput(filters.start)} a{" "}
                 {formatDateInput(filters.end)}
               </p>
             </div>
@@ -1171,9 +1206,37 @@ export function ReportsClient() {
               {previewCount.toLocaleString("pt-BR")} registros
             </span>
           </div>
+          {selectedReports.length ? (
+            <div
+              className="preview-report-tabs"
+              role="tablist"
+              aria-label="Seções selecionadas"
+            >
+              {selectedReports.map((kind) => (
+                <button
+                  key={kind}
+                  role="tab"
+                  aria-selected={reportKind === kind}
+                  className={reportKind === kind ? "is-active" : ""}
+                  onClick={() => selectReport(kind)}
+                >
+                  <Check size={13} />
+                  {REPORT_LABELS[kind]}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="reports-empty-selection">
+              <FileBarChart size={24} />
+              <strong>Selecione ao menos uma seção</strong>
+              <span>
+                Use as opções acima para montar a prévia e o arquivo Excel.
+              </span>
+            </div>
+          )}
           <div
             ref={completeTableRef}
-            className={`table-wrap reports-preview-table ${showAll ? "is-complete" : ""}`}
+            className={`table-wrap reports-preview-table ${showAll ? "is-complete" : ""} ${selectedReports.length ? "" : "is-hidden"}`}
           >
             {reportKind === "marca" ? (
               <table>
@@ -1341,7 +1404,7 @@ export function ReportsClient() {
               </table>
             )}
           </div>
-          {showAll && rangeEnd < previewCount && (
+          {selectedReports.length > 0 && showAll && rangeEnd < previewCount && (
             <div className="progressive-hint">
               <span className="spin-dot" />
               Role para carregar mais registros ·{" "}
@@ -1349,39 +1412,41 @@ export function ReportsClient() {
               {previewCount.toLocaleString("pt-BR")}
             </div>
           )}
-          <div className="preview-footer">
-            <span>
-              Exibindo {rangeStart}–{rangeEnd} de{" "}
-              {previewCount.toLocaleString("pt-BR")}
-            </span>
-            <div className="pagination">
+          {selectedReports.length > 0 && (
+            <div className="preview-footer">
+              <span>
+                Exibindo {rangeStart}–{rangeEnd} de{" "}
+                {previewCount.toLocaleString("pt-BR")}
+              </span>
+              <div className="pagination">
+                <button
+                  disabled={showAll || page === 1}
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <span>{showAll ? "Contínuo" : `${page} / ${totalPages}`}</span>
+                <button
+                  disabled={showAll || page === totalPages}
+                  onClick={() =>
+                    setPage((value) => Math.min(totalPages, value + 1))
+                  }
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
               <button
-                disabled={showAll || page === 1}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
+                className="btn preview-full"
+                onClick={() => {
+                  setShowAll((value) => !value);
+                  setVisibleCompleteCount(PROGRESSIVE_BATCH_SIZE);
+                  setPage(1);
+                }}
               >
-                <ChevronLeft size={15} />
-              </button>
-              <span>{showAll ? "Contínuo" : `${page} / ${totalPages}`}</span>
-              <button
-                disabled={showAll || page === totalPages}
-                onClick={() =>
-                  setPage((value) => Math.min(totalPages, value + 1))
-                }
-              >
-                <ChevronRight size={15} />
+                {showAll ? "Ver prévia paginada" : "Ver relatório completo"}
               </button>
             </div>
-            <button
-              className="btn preview-full"
-              onClick={() => {
-                setShowAll((value) => !value);
-                setVisibleCompleteCount(PROGRESSIVE_BATCH_SIZE);
-                setPage(1);
-              }}
-            >
-              {showAll ? "Ver prévia paginada" : "Ver relatório completo"}
-            </button>
-          </div>
+          )}
         </section>
       </div>
 

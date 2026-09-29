@@ -1471,8 +1471,56 @@ tbody tr:hover {
   box-shadow: 0 8px 20px rgba(35, 59, 143, 0.07);
 }
 .available-report.is-selected {
-  border-color: #91afe9;
-  box-shadow: 0 0 0 2px #e8f0ff;
+  border-color: #6f98ea;
+  background: linear-gradient(145deg, #ffffff 45%, #f3f7ff 100%);
+  box-shadow:
+    0 0 0 3px #e8f0ff,
+    0 12px 28px rgba(35, 59, 143, 0.1);
+}
+.report-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  cursor: pointer;
+}
+.report-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.report-check span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cbd7e9;
+  border-radius: 7px;
+  background: #fff;
+  color: transparent;
+  transition: all 0.18s ease;
+}
+.report-check:hover span {
+  border-color: #7fa2e5;
+  box-shadow: 0 0 0 3px #edf3ff;
+}
+.report-check input:focus-visible + span {
+  outline: 2px solid #2f6fe4;
+  outline-offset: 2px;
+}
+.report-check input:checked + span {
+  border-color: #2f6fe4;
+  background: linear-gradient(135deg, #3978eb, #245ac5);
+  color: #fff;
+  box-shadow: 0 5px 12px rgba(47, 111, 228, 0.25);
+}
+.reports-selection-count {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #edf3ff;
+  color: var(--blue);
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 .available-icon {
   width: 39px;
@@ -1564,6 +1612,58 @@ tbody tr:hover {
   font-size: 9px;
   font-weight: 900;
   white-space: nowrap;
+}
+.preview-report-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: -2px 0 12px;
+}
+.preview-report-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 850;
+}
+.preview-report-tabs button.is-active {
+  border-color: #9ab7ec;
+  background: #edf3ff;
+  color: var(--blue);
+  box-shadow: inset 0 0 0 1px #dbe7ff;
+}
+.reports-preview-table.is-hidden {
+  display: none;
+}
+.reports-empty-selection {
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px dashed #cbd7e9;
+  border-radius: 10px;
+  background: #f8faff;
+  color: var(--muted);
+  text-align: center;
+}
+.reports-empty-selection svg {
+  color: #6f8fcf;
+}
+.reports-empty-selection strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+.reports-empty-selection span {
+  font-size: 9px;
 }
 .reports-preview-table table {
   min-width: 760px;
