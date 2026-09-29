@@ -64,6 +64,11 @@ export type DashboardData = {
     canReprocess: boolean;
     canEditProducts: boolean;
   };
+  timeSettings?: {
+    manualSecondsPerProduct: number;
+    batchSize: number;
+    batchSeconds: number;
+  };
   source?: {
     status: "connected";
     lastSyncedAt: string;

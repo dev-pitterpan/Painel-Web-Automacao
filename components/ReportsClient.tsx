@@ -161,6 +161,11 @@ export function ReportsClient() {
     null,
   );
   const [canEditProducts, setCanEditProducts] = useState(false);
+  const [timeSettings, setTimeSettings] = useState({
+    manualSecondsPerProduct: 60,
+    batchSize: 5,
+    batchSeconds: 40,
+  });
   const [exports, setExports] = useState<ExportItem[]>([]);
   const [generations, setGenerations] = useState<string[]>([]);
   const [toast, setToast] = useState("");
@@ -191,6 +196,7 @@ export function ReportsClient() {
         throw new Error(data.error || `HTTP ${response.status}`);
       setAllRows(Array.isArray(data.rows) ? data.rows : []);
       setCanEditProducts(Boolean(data.permissions?.canEditProducts));
+      if (data.timeSettings) setTimeSettings(data.timeSettings);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Erro ao carregar relatórios.",
@@ -348,9 +354,9 @@ export function ReportsClient() {
       .sort((a, b) => b.sort - a.sort)
       .map((item) => ({
         ...item,
-        minutes: calculateTimeSavedMinutes(item.total),
+        minutes: calculateTimeSavedMinutes(item.total, timeSettings),
       }));
-  }, [filteredRows]);
+  }, [filteredRows, timeSettings]);
   const summaries = useMemo(
     () => ({
       generated: generations.filter((createdAt) => {
@@ -366,9 +372,9 @@ export function ReportsClient() {
           .map((row) => row.sku || row.tituloDepois || row.tituloAntes),
       ).size,
       errors: filteredRows.filter(isError).length,
-      time: calculateTimeSavedMinutes(filteredRows.length),
+      time: calculateTimeSavedMinutes(filteredRows.length, timeSettings),
     }),
-    [filteredRows, generations, applied, start, end],
+    [filteredRows, generations, applied, start, end, timeSettings],
   );
 
   const previewCount =
@@ -1112,9 +1118,9 @@ export function ReportsClient() {
             <PackageCheck />
           </span>
           <div>
-            <span>Produtos com alteração</span>
-            <strong>{summaries.changed.toLocaleString("pt-BR")}</strong>
-            <small>Produtos únicos</small>
+            <span>Produtos processados</span>
+            <strong>{filteredRows.length.toLocaleString("pt-BR")}</strong>
+            <small>No período selecionado</small>
           </div>
         </article>
         <article className="report-stat">
@@ -1134,7 +1140,10 @@ export function ReportsClient() {
           <div>
             <span>Tempo economizado no período</span>
             <strong>{fmtMinutes(summaries.time)}</strong>
-            <small>1 min manual por produto − lotes de 5 em 40s</small>
+            <small>
+              {timeSettings.manualSecondsPerProduct}s manual por produto − lotes
+              de {timeSettings.batchSize} em {timeSettings.batchSeconds}s
+            </small>
           </div>
         </article>
       </section>

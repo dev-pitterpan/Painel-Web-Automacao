@@ -49,6 +49,11 @@ export async function GET(req: NextRequest) {
         canReprocess: user.role === "admin",
         canEditProducts: user.role === "admin",
       },
+      timeSettings: {
+        manualSecondsPerProduct: settings.manualSecondsPerProduct,
+        batchSize: settings.batchSize,
+        batchSeconds: settings.batchSeconds,
+      },
       source: {
         status: "connected",
         lastSyncedAt: sheet.lastSyncedAt,

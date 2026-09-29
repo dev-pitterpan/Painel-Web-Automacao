@@ -1522,6 +1522,14 @@ tbody tr:hover {
   font-weight: 900;
   white-space: nowrap;
 }
+.reports-head-actions .btn-primary:disabled {
+  border-color: #cbd2dd;
+  background: #b8c0cc;
+  color: #f7f8fa;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.78;
+}
 .available-icon {
   width: 39px;
   height: 39px;
