@@ -23,6 +23,7 @@ import {
 import type { DashboardData, HistoryRow } from "@/lib/types";
 import { calculateTimeSavedMinutes, parseHistoryDate } from "@/lib/metrics";
 import { ProductDetailsDrawer } from "@/components/ProductDetailsDrawer";
+import { ProductThumbnail } from "@/components/ProductThumbnail";
 
 type ReportKind =
   "executivo" | "marca" | "erros" | "alteracoes" | "produtividade";
@@ -1340,6 +1341,7 @@ export function ReportsClient() {
               <table>
                 <thead>
                   <tr>
+                    <th className="product-image-column">Imagem</th>
                     <th>Data e hora</th>
                     <th>Produto</th>
                     <th>Marca</th>
@@ -1363,6 +1365,15 @@ export function ReportsClient() {
                           }
                         }}
                       >
+                        <td
+                          className="product-image-cell"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <ProductThumbnail
+                            sku={row.sku}
+                            title={row.tituloDepois || row.tituloAntes}
+                          />
+                        </td>
                         <td>{row.dataHora}</td>
                         <td>
                           <strong>
@@ -1397,7 +1408,7 @@ export function ReportsClient() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="empty">
+                      <td colSpan={6} className="empty">
                         Nenhum registro encontrado nesse período.
                       </td>
                     </tr>

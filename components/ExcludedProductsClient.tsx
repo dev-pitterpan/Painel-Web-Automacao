@@ -12,6 +12,7 @@ import {
   Sheet,
 } from "lucide-react";
 import type { ExcludedProductRow } from "@/lib/types";
+import { ProductThumbnail } from "@/components/ProductThumbnail";
 
 const PAGE_SIZE = 100;
 type ApiResponse = {
@@ -288,6 +289,7 @@ export function ExcludedProductsClient() {
             <table>
               <thead>
                 <tr>
+                  <th className="product-image-column">Imagem</th>
                   <th>Cód. produto</th>
                   <th>Cód. fabricante</th>
                   <th>EAN / Cód. barras</th>
@@ -302,6 +304,12 @@ export function ExcludedProductsClient() {
               <tbody>
                 {visibleRows.map((row, index) => (
                   <tr key={`${row.productCode}-${row.barcode}-${index}`}>
+                    <td className="product-image-cell" data-label="Imagem">
+                      <ProductThumbnail
+                        sku={row.productCode}
+                        title={row.description}
+                      />
+                    </td>
                     <td data-label="Cód. produto">
                       <strong>{row.productCode || "—"}</strong>
                     </td>

@@ -2,6 +2,7 @@ import { CheckCircle2, RotateCcw } from "lucide-react";
 import { getCurrentUser, listReprocesses } from "@/lib/auth";
 import ReprocessadosLiveRefresh from "@/components/ReprocessadosLiveRefresh";
 import { redirect } from "next/navigation";
+import { ProductThumbnail } from "@/components/ProductThumbnail";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,7 @@ export default async function ReprocessedPage() {
             <table>
               <thead>
                 <tr>
+                  <th className="product-image-column">Imagem</th>
                   <th>Solicitado em</th>
                   <th>SKU</th>
                   <th>Produto</th>
@@ -92,6 +94,12 @@ export default async function ReprocessedPage() {
                     ].filter((change): change is string => Boolean(change));
                     return (
                       <tr key={record.id}>
+                        <td className="product-image-cell">
+                          <ProductThumbnail
+                            sku={record.sku}
+                            title={record.title || ""}
+                          />
+                        </td>
                         <td>{formatDate(record.createdAt)}</td>
                         <td>
                           <strong>{record.sku}</strong>

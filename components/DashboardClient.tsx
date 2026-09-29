@@ -39,6 +39,7 @@ import {
 import type { DashboardData, HistoryRow } from "@/lib/types";
 import { calculateTimeSavedMinutes, parseHistoryDate } from "@/lib/metrics";
 import { ProductDetailsDrawer } from "@/components/ProductDetailsDrawer";
+import { ProductThumbnail } from "@/components/ProductThumbnail";
 
 const colors = [
   "#233b8f",
@@ -1921,6 +1922,7 @@ export function DashboardClient({
                         />
                       </th>
                     )}
+                    <th className="product-image-column">Imagem</th>
                     <th>
                       {mode === "products" ? "Última atualização" : "Data/Hora"}
                     </th>
@@ -1968,6 +1970,15 @@ export function DashboardClient({
                           />
                         </td>
                       )}
+                      <td
+                        className="product-image-cell"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <ProductThumbnail
+                          sku={row.sku}
+                          title={row.tituloDepois || row.tituloAntes}
+                        />
+                      </td>
                       <td>{row.dataHora}</td>
 
                       <td>
