@@ -3,10 +3,26 @@
 import { ImageIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-type ImageState = { url: string; alt: string } | null;
+export type CachedProductImage = { url: string; alt: string };
+type ImageState = CachedProductImage | null;
 
 const imageCache = new Map<string, ImageState>();
 const pendingRequests = new Map<string, Promise<ImageState>>();
+
+export function getCachedProductImage(sku: string): ImageState | undefined {
+  return imageCache.get(String(sku || "").trim());
+}
+
+export function setCachedProductImage(sku: string, image: ImageState) {
+  const normalizedSku = String(sku || "").trim();
+  if (!normalizedSku) return;
+  imageCache.set(normalizedSku, image);
+  window.dispatchEvent(
+    new CustomEvent("product-image-cache-updated", {
+      detail: { sku: normalizedSku, image },
+    }),
+  );
+}
 
 async function loadImage(sku: string): Promise<ImageState> {
   if (imageCache.has(sku)) return imageCache.get(sku) ?? null;
@@ -28,7 +44,7 @@ async function loadImage(sku: string): Promise<ImageState> {
     })
     .catch(() => null)
     .then((image) => {
-      imageCache.set(sku, image);
+      setCachedProductImage(sku, image);
       pendingRequests.delete(sku);
       return image;
     });
@@ -92,6 +108,22 @@ export function ProductThumbnail({
       cancelled = true;
       observer.disconnect();
     };
+  }, [sku]);
+
+  useEffect(() => {
+    const normalizedSku = String(sku || "").trim();
+    const updateFromCache = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.sku !== normalizedSku) return;
+      setImage(detail.image ?? null);
+      setLoaded(true);
+    };
+    window.addEventListener("product-image-cache-updated", updateFromCache);
+    return () =>
+      window.removeEventListener(
+        "product-image-cache-updated",
+        updateFromCache,
+      );
   }, [sku]);
 
   return (

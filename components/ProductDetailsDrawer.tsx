@@ -23,6 +23,10 @@ import {
   X,
 } from "lucide-react";
 import type { HistoryRow } from "@/lib/types";
+import {
+  getCachedProductImage,
+  setCachedProductImage,
+} from "@/components/ProductThumbnail";
 
 type DrawerStep = "details" | "edit" | "review";
 type EditForm = {
@@ -275,9 +279,15 @@ export function ProductDetailsDrawer({
   useEffect(() => {
     if (!activeRow) return;
     const initial = fallbackForm(activeRow);
+    const cachedImage = getCachedProductImage(activeRow.sku);
+    const cachedMedia = cachedImage
+      ? [{ url: cachedImage.url, alt: cachedImage.alt }]
+      : [];
     setStep("details");
     setForm(initial);
     setOriginal(initial);
+    setMedia(cachedMedia);
+    setOriginalMedia(cachedMedia);
     setMessage("");
     setError("");
   }, [activeRow]);
@@ -409,6 +419,12 @@ export function ProductDetailsDrawer({
         .filter((item: ProductMedia) => item.url);
       setMedia(loadedMedia);
       setOriginalMedia(loadedMedia);
+      setCachedProductImage(
+        activeRow!.sku,
+        loadedMedia[0]
+          ? { url: loadedMedia[0].url, alt: loadedMedia[0].alt }
+          : null,
+      );
       if (showEditor) setStep("edit");
     } catch (cause) {
       if (showEditor) {
@@ -532,12 +548,22 @@ export function ProductDetailsDrawer({
           .filter((item: ProductMedia) => item.url);
         setMedia(savedMedia);
         setOriginalMedia(savedMedia);
+        setCachedProductImage(activeRow!.sku, {
+          url: savedMedia[0].url,
+          alt: savedMedia[0].alt,
+        });
       } else {
         const remaining = media.filter(
           (item) => !item.isDeleted && !item.isNew,
         );
         setMedia(remaining);
         setOriginalMedia(remaining);
+        setCachedProductImage(
+          activeRow!.sku,
+          remaining[0]
+            ? { url: remaining[0].url, alt: remaining[0].alt }
+            : null,
+        );
       }
       setMessage(body.message || "Produto atualizado no Shopify com sucesso.");
       setStep("details");
