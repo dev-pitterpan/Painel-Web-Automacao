@@ -6,6 +6,7 @@ export function middleware(request: NextRequest) {
   const isAuthRoute =
     pathname === "/login" ||
     pathname.startsWith("/api/auth") ||
+    pathname === "/api/image-sync" ||
     pathname === "/api/n8n/reprocess/callback";
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pitter-pathname", pathname);
