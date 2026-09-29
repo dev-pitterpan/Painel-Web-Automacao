@@ -13,14 +13,12 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
-  Menu,
   Package,
   RotateCcw,
   ScrollText,
   Settings,
   UserCog,
   UserRound,
-  X,
 } from "lucide-react";
 import type { AuthUser } from "@/lib/auth";
 
@@ -88,13 +86,17 @@ export function Sidebar({ user }: { user: AuthUser }) {
       >
         <div className="sidebar-art" aria-hidden="true" />
         <button
-          className="mobile-menu-toggle"
+          className={`mobile-menu-toggle ${mobileOpen ? "is-open" : ""}`}
           type="button"
           onClick={() => setMobileOpen((value) => !value)}
           aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
           aria-expanded={mobileOpen}
         >
-          {mobileOpen ? <X size={21} /> : <Menu size={21} />}
+          <span className="mobile-menu-icon" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
         </button>
         <button
           className="sidebar-toggle"
