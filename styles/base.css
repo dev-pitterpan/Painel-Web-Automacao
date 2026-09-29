@@ -1,15 +1,21 @@
 :root {
-  --blue: #2f70ed;
-  --blue-dark: #071a36;
-  --blue-soft: #eaf2ff;
-  --red: #e95b62;
-  --green: #22ad80;
-  --violet: #8066e8;
-  --ink: #172238;
-  --muted: #758198;
-  --line: #e6ebf3;
-  --bg: #f4f7fb;
+  --blue: #1268f4;
+  --blue-dark: #061a36;
+  --blue-soft: #edf4ff;
+  --red: #ff2947;
+  --green: #0caf72;
+  --violet: #7448ed;
+  --gold: #f4a400;
+  --ink: #08142e;
+  --muted: #6f82ad;
+  --line: #dbe5f4;
+  --bg: #f3f7fc;
   --card: #fff;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --shadow-soft: 0 12px 34px rgba(42, 76, 126, 0.08);
+  --shadow-float: 0 20px 48px rgba(42, 76, 126, 0.12);
 }
 
 * {
@@ -25,14 +31,19 @@ body {
   overflow-x: clip;
 }
 body {
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
   background-image:
+    radial-gradient(
+      ellipse at 88% 7%,
+      rgba(72, 139, 255, 0.13),
+      transparent 28%
+    ),
     radial-gradient(
       circle at 76% -10%,
       rgba(47, 112, 237, 0.08),
       transparent 34%
     ),
-    linear-gradient(180deg, #f8faff 0, var(--bg) 260px);
+    linear-gradient(135deg, #f9fbff 0%, #f1f6fc 54%, #f7faff 100%);
   background-attachment: fixed;
 }
 button,
@@ -53,15 +64,60 @@ button:hover {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 242px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   transition: grid-template-columns 0.28s ease;
 }
 .content {
+  position: relative;
+  isolation: isolate;
   min-width: 0;
-  max-width: 1480px;
+  max-width: 1540px;
   width: 100%;
-  padding: 31px 36px 48px;
+  padding: 30px 44px 52px;
   margin: 0 auto;
+}
+.content::before,
+.content::after {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 48% 52% 62% 38%;
+  filter: blur(0.2px);
+  opacity: 0.55;
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .app-shell {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+  .content {
+    padding-inline: 22px;
+  }
+}
+.content::before {
+  top: 22px;
+  right: -6vw;
+  width: min(52vw, 820px);
+  height: 220px;
+  background: linear-gradient(
+    145deg,
+    rgba(180, 211, 255, 0.35),
+    rgba(83, 139, 249, 0.08)
+  );
+  transform: rotate(-7deg);
+}
+.content::after {
+  top: 94px;
+  right: 12vw;
+  width: min(38vw, 590px);
+  height: 150px;
+  background: linear-gradient(
+    145deg,
+    rgba(208, 226, 255, 0.42),
+    rgba(75, 128, 239, 0.06)
+  );
+  transform: rotate(9deg);
 }
 
 @media (max-width: 640px) {
@@ -72,5 +128,9 @@ button:hover {
     width: 100%;
     min-width: 0;
     padding: 20px 14px 32px;
+  }
+  .content::before,
+  .content::after {
+    display: none;
   }
 }

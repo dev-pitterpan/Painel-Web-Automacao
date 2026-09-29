@@ -1,4 +1,7 @@
 import { DashboardClient } from "@/components/DashboardClient";
-export default function Page() {
-  return <DashboardClient mode="dashboard" />;
+import { getCurrentUser } from "@/lib/auth";
+
+export default async function Page() {
+  const user = await getCurrentUser();
+  return <DashboardClient mode="dashboard" greetingName={user?.name} />;
 }

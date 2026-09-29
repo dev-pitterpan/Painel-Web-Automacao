@@ -289,8 +289,10 @@ const DEFAULT_FILTERS: AppliedFilters = {
 
 export function DashboardClient({
   mode = "dashboard",
+  greetingName,
 }: {
   mode?: "dashboard" | "products" | "errors";
+  greetingName?: string;
 }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
@@ -984,10 +986,16 @@ export function DashboardClient({
 
   const title =
     mode === "dashboard"
-      ? "Dashboard"
+      ? `Olá, ${greetingName || "Administrador"}! 👋`
       : mode === "products"
         ? "Produtos"
         : "Erros";
+  const subtitle =
+    mode === "dashboard"
+      ? "Aqui está o resumo da automação do seu catálogo."
+      : mode === "products"
+        ? "Gerencie e visualize todos os produtos do seu catálogo."
+        : "Produtos que apresentaram falhas no processamento.";
   const canReprocess = Boolean(data.permissions?.canReprocess);
   const showActions = canReprocess;
   const selectableVisibleRows = visibleRows.filter((row) => {
@@ -1051,7 +1059,7 @@ export function DashboardClient({
       <div className="page-head dashboard-title-row">
         <div>
           <h1 className="page-title">{title}</h1>
-          <div className="page-sub">Automação de catálogo</div>
+          <div className="page-sub">{subtitle}</div>
         </div>
       </div>
       {appliedFilters.qualityFilter && (
@@ -1435,7 +1443,12 @@ export function DashboardClient({
                       strokeWidth={3}
                       fill="url(#successArea)"
                       dot={false}
-                      activeDot={{ r: 4, fill: "#2f70ed", stroke: "#fff", strokeWidth: 2 }}
+                      activeDot={{
+                        r: 4,
+                        fill: "#2f70ed",
+                        stroke: "#fff",
+                        strokeWidth: 2,
+                      }}
                     />
                     <Line
                       type="monotone"
@@ -1443,7 +1456,12 @@ export function DashboardClient({
                       stroke="#ef5b62"
                       strokeWidth={2}
                       dot={false}
-                      activeDot={{ r: 4, fill: "#ef5b62", stroke: "#fff", strokeWidth: 2 }}
+                      activeDot={{
+                        r: 4,
+                        fill: "#ef5b62",
+                        stroke: "#fff",
+                        strokeWidth: 2,
+                      }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>

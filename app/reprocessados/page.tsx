@@ -37,9 +37,9 @@ export default async function ReprocessedPage() {
       <ReprocessadosLiveRefresh />
       <div className="page-head">
         <div>
-          <h1 className="page-title">Produtos reprocessados</h1>
+          <h1 className="page-title">Reprocessados</h1>
           <div className="page-sub">
-            Histórico de produtos enviados com sucesso para o n8n.
+            Acompanhe os produtos reprocessados e o resultado do processamento.
           </div>
         </div>
         <div className="metric-note">{records.length} registros</div>

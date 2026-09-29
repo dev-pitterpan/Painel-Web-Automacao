@@ -6,14 +6,15 @@
   height: 100dvh;
   min-height: 100vh;
   min-height: 100dvh;
-  padding: 20px 12px 14px;
+  overflow: hidden;
+  padding: 20px 13px 14px;
   background:
     radial-gradient(
       circle at 20% 4%,
       rgba(62, 124, 240, 0.27),
       transparent 27%
     ),
-    linear-gradient(165deg, #0a2346 0%, #06152b 75%);
+    linear-gradient(165deg, #0a2855 0%, #06182f 50%, #031225 100%);
   color: #fff;
   display: flex;
   flex-direction: column;
@@ -23,6 +24,43 @@
     padding 0.2s ease,
     gap 0.2s ease,
     align-items 0.2s ease;
+}
+.sidebar::before,
+.sidebar::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 50%;
+}
+.sidebar::before {
+  right: -92px;
+  bottom: 128px;
+  width: 260px;
+  height: 360px;
+  background: linear-gradient(
+    150deg,
+    transparent 24%,
+    rgba(16, 91, 230, 0.45) 56%,
+    rgba(17, 51, 132, 0.08) 76%
+  );
+  transform: rotate(23deg);
+}
+.sidebar::after {
+  left: -92px;
+  bottom: -64px;
+  width: 250px;
+  height: 250px;
+  background: radial-gradient(
+    circle at 38% 28%,
+    rgba(113, 36, 255, 0.8),
+    rgba(9, 83, 224, 0.65) 38%,
+    transparent 69%
+  );
+}
+.sidebar > * {
+  position: relative;
+  z-index: 1;
 }
 .app-shell:has(.sidebar.is-collapsed) {
   grid-template-columns: 78px minmax(0, 1fr);
@@ -65,8 +103,8 @@
   padding: 3px 9px 13px;
 }
 .brand-logo {
-  width: 60px;
-  height: 60px;
+  width: 56px;
+  height: 56px;
   flex: 0 0 auto;
   border-radius: 15px;
   object-fit: contain;
@@ -87,18 +125,19 @@
 }
 .nav {
   display: grid;
-  gap: 5px;
+  gap: 4px;
 }
 .nav a {
   display: flex;
   align-items: center;
   gap: 9px;
   color: rgba(255, 255, 255, 0.64);
-  padding: 11px 13px;
-  border-radius: 9px;
+  min-height: 42px;
+  padding: 10px 13px;
+  border-radius: 10px;
   text-decoration: none;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 .nav a:hover,
 .nav a:focus-visible {
@@ -107,11 +146,65 @@
   outline: none;
 }
 .nav a.is-active {
-  background: linear-gradient(135deg, #3c7cf2, #2963d4);
+  background: linear-gradient(135deg, #2879ff, #0759e9);
   color: #fff;
   box-shadow:
     0 8px 18px rgba(22, 75, 180, 0.28),
     inset 0 1px rgba(255, 255, 255, 0.18);
+}
+.sidebar-promo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  margin: auto 9px 0;
+  padding: 15px;
+  border: 1px solid rgba(125, 168, 255, 0.24);
+  border-radius: 14px;
+  background: linear-gradient(
+    145deg,
+    rgba(25, 72, 150, 0.67),
+    rgba(13, 44, 100, 0.76)
+  );
+  color: #fff;
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.1),
+    0 14px 35px rgba(0, 11, 34, 0.2);
+  text-decoration: none;
+}
+.sidebar-promo-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #2c80ff, #0757e7);
+  box-shadow: 0 8px 18px rgba(0, 78, 228, 0.35);
+}
+.sidebar-promo strong {
+  font-size: 17px;
+  line-height: 1.15;
+}
+.sidebar-promo small {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.sidebar-promo-action {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #2679ff, #075be9);
+  font-size: 10px;
+  font-weight: 800;
+}
+.sidebar-promo:hover {
+  transform: translateY(-2px);
+  border-color: rgba(143, 180, 255, 0.42);
 }
 .sidebar.is-collapsed {
   align-items: center;
@@ -228,10 +321,50 @@
   align-items: center;
   gap: 9px;
   min-width: 0;
-  margin-top: auto;
+  margin-top: 0;
   padding: 13px 8px 5px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 11px;
+}
+.sidebar.is-collapsed .sidebar-promo {
+  display: none;
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .sidebar {
+    align-items: center;
+    padding-inline: 10px;
+  }
+  .sidebar .brand {
+    padding-inline: 0;
+  }
+  .sidebar .brand > div,
+  .sidebar .nav a span,
+  .sidebar .sidebar-user-details,
+  .sidebar .sidebar-promo,
+  .sidebar .user-logout {
+    display: none;
+  }
+  .sidebar .brand-logo {
+    width: 50px;
+    height: 50px;
+  }
+  .sidebar .nav {
+    width: 100%;
+  }
+  .sidebar .nav a {
+    justify-content: center;
+    gap: 0;
+    padding-inline: 0;
+  }
+  .sidebar .sidebar-user {
+    width: 100%;
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .sidebar .sidebar-user-profile {
+    flex: 0 0 29px;
+  }
 }
 .sidebar-user-profile {
   min-width: 0;
@@ -379,6 +512,9 @@
     gap: 9px;
   }
   .sidebar-user {
+    display: none;
+  }
+  .sidebar-promo {
     display: none;
   }
   .sidebar-toggle {

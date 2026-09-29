@@ -4591,6 +4591,22 @@ tbody tr:hover {
       auto;
   }
 }
+
+@media (max-width: 1550px) and (min-width: 1024px) {
+  .dashboard-topbar-dashboard {
+    grid-template-columns:
+      minmax(260px, 1.35fr) minmax(150px, 0.65fr) minmax(150px, 0.6fr)
+      auto auto;
+  }
+  .dashboard-topbar-dashboard .topbar-sheet,
+  .dashboard-topbar-dashboard .topbar-sync {
+    grid-row: 2;
+  }
+  .dashboard-topbar-dashboard .topbar-actions {
+    grid-row: 2;
+    justify-self: end;
+  }
+}
 @media (max-width: 900px) {
   .settings-grid {
     grid-template-columns: 1fr;
@@ -5355,18 +5371,19 @@ tbody tr:hover {
   }
 }
 
-
 /* ===== Soft UI refresh — visual only (2026) =====
    Shared surface tokens keep cards consistent across dashboard and secondary screens. */
 :root {
-  --surface-shadow: 0 10px 30px rgba(25, 46, 82, 0.065), 0 2px 8px rgba(25, 46, 82, 0.035);
-  --surface-shadow-hover: 0 14px 34px rgba(25, 46, 82, 0.09), 0 3px 10px rgba(25, 46, 82, 0.045);
-  --success-strong: #159A6B;
-  --success-soft: #ECF9F3;
-  --success-line: #BFEAD8;
-  --error-strong: #DC3F4A;
-  --error-soft: #FFF1F2;
-  --error-line: #FFD5D9;
+  --surface-shadow:
+    0 10px 30px rgba(25, 46, 82, 0.065), 0 2px 8px rgba(25, 46, 82, 0.035);
+  --surface-shadow-hover:
+    0 14px 34px rgba(25, 46, 82, 0.09), 0 3px 10px rgba(25, 46, 82, 0.045);
+  --success-strong: #159a6b;
+  --success-soft: #ecf9f3;
+  --success-line: #bfead8;
+  --error-strong: #dc3f4a;
+  --error-soft: #fff1f2;
+  --error-line: #ffd5d9;
 }
 
 /* Main information surfaces: no hard grey outline, only a very light lift. */
@@ -5384,7 +5401,10 @@ tbody tr:hover {
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
 }
 .metric-card::after {
   content: "";
@@ -5392,51 +5412,59 @@ tbody tr:hover {
   inset: 0 auto 0 0;
   width: 3px;
   border-radius: 11px 0 0 11px;
-  background: #8FB4F8;
-  opacity: .82;
+  background: #8fb4f8;
+  opacity: 0.82;
   pointer-events: none;
 }
-.metric-card.metric-green::after { background: var(--success-strong); }
-.metric-card.metric-red::after { background: var(--error-strong); }
-.metric-card.metric-gold::after { background: #E8A61A; }
-.metric-card.metric-violet::after { background: #7A63E8; }
+.metric-card.metric-green::after {
+  background: var(--success-strong);
+}
+.metric-card.metric-red::after {
+  background: var(--error-strong);
+}
+.metric-card.metric-gold::after {
+  background: #e8a61a;
+}
+.metric-card.metric-violet::after {
+  background: #7a63e8;
+}
 
 .metric-card.metric-green .metric-icon {
   color: var(--success-strong);
   background: var(--success-soft);
-  box-shadow: inset 0 0 0 1px rgba(21,154,107,.08);
+  box-shadow: inset 0 0 0 1px rgba(21, 154, 107, 0.08);
 }
 .metric-card.metric-red .metric-icon {
   color: var(--error-strong);
   background: var(--error-soft);
-  box-shadow: inset 0 0 0 1px rgba(220,63,74,.08);
+  box-shadow: inset 0 0 0 1px rgba(220, 63, 74, 0.08);
 }
 .metric-card.is-clickable:hover {
   transform: translateY(-2px);
   box-shadow: var(--surface-shadow-hover);
 }
 .metric-card.is-clickable:focus-visible {
-  outline: 3px solid rgba(47,112,237,.22);
+  outline: 3px solid rgba(47, 112, 237, 0.22);
   outline-offset: 3px;
 }
 
 /* Keep semantic pills readable without making the whole card saturated. */
 .metric-comparison.is-positive,
 .badge-success {
-  color: #087A54;
+  color: #087a54;
   background: var(--success-soft);
 }
 .badge-error {
-  color: #B82F39;
+  color: #b82f39;
   background: var(--error-soft);
 }
 
 /* Softer chart chrome: the data should be the strongest visual element. */
 .chart-panel .recharts-cartesian-grid-horizontal line {
-  stroke: #EDF1F7;
+  stroke: #edf1f7;
 }
 .chart-panel .recharts-cartesian-axis-tick-value {
-  fill: #8490A4;
+  fill: #8490a4;
   font-size: 10px;
 }
 .chart-panel .recharts-surface {
@@ -5445,8 +5473,12 @@ tbody tr:hover {
 
 /* Mobile/tablet polish: preserve breathing room and prevent metric values from crowding. */
 @media (max-width: 1150px) {
-  .metric-card { min-width: 0; }
-  .metric-value { font-size: clamp(20px, 2.3vw, 23px); }
+  .metric-card {
+    min-width: 0;
+  }
+  .metric-value {
+    font-size: clamp(20px, 2.3vw, 23px);
+  }
 }
 @media (max-width: 650px) {
   .metric-card {
@@ -5461,8 +5493,12 @@ tbody tr:hover {
     min-width: auto;
     align-items: flex-start;
   }
-  .panel { padding: 14px; }
-  .chart-panel .recharts-cartesian-axis-tick-value { font-size: 9px; }
+  .panel {
+    padding: 14px;
+  }
+  .chart-panel .recharts-cartesian-axis-tick-value {
+    font-size: 9px;
+  }
 }
 @media (max-width: 420px) {
   .metrics,
@@ -5481,5 +5517,446 @@ tbody tr:hover {
   .metric-card.is-clickable:hover,
   button:hover {
     transform: none;
+  }
+}
+
+/* ===== Catálogo Pro — design system unificado ===== */
+.page-head {
+  position: relative;
+  z-index: 1;
+  align-items: center;
+  min-height: 74px;
+  margin-bottom: 20px;
+}
+.page-title {
+  margin: 0;
+  color: #07132d;
+  font-size: clamp(31px, 3vw, 43px);
+  font-weight: 820;
+  line-height: 1.05;
+  letter-spacing: -1.6px;
+}
+.page-sub {
+  margin-top: 7px;
+  color: #7083b1;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.panel,
+.metric-card,
+.report-stat,
+.excluded-metric,
+.reports-filterbar,
+.health-overview {
+  border: 1px solid rgba(218, 228, 242, 0.72);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-soft);
+}
+.panel {
+  padding: 18px;
+}
+.panel-head {
+  margin-bottom: 14px;
+}
+.panel-title {
+  color: #07132d;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.35px;
+}
+.eyebrow {
+  color: #7083b1;
+  letter-spacing: 0.95px;
+}
+.btn {
+  min-height: 40px;
+  border-color: #d7e2f1;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #0d244a;
+  font-weight: 750;
+}
+.btn-primary {
+  border-color: transparent;
+  background: linear-gradient(145deg, #2477ff, #075be8);
+  color: #fff;
+  box-shadow: 0 9px 20px rgba(15, 98, 235, 0.22);
+}
+.btn-primary:hover {
+  box-shadow: 0 13px 25px rgba(15, 98, 235, 0.28);
+}
+.control,
+.mini-select,
+.topbar-search,
+.topbar-period,
+.topbar-compare,
+.topbar-brand,
+.reports-filterbar input,
+.reports-filterbar select,
+.excluded-filters input,
+.excluded-filters select,
+.profile-fields input,
+.settings-fields input,
+.user-create input,
+.user-create select,
+.user-edit-fields input,
+.user-edit-fields select {
+  border-color: #d7e2f1;
+  border-radius: 10px;
+  background-color: rgba(255, 255, 255, 0.94);
+  color: #0b1b3b;
+  box-shadow: inset 0 1px 2px rgba(24, 54, 97, 0.025);
+}
+.control:focus,
+.mini-select:focus,
+.topbar-search:focus-within,
+.reports-filterbar input:focus,
+.reports-filterbar select:focus,
+.excluded-filters input:focus,
+.excluded-filters select:focus,
+.profile-fields input:focus,
+.settings-fields input:focus,
+.user-create input:focus,
+.user-edit-fields input:focus,
+.user-edit-fields select:focus {
+  border-color: #72a3ff;
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(35, 116, 255, 0.11);
+}
+.admin-only-badge,
+.profile-role,
+.preview-count,
+.reports-selection-count {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 1px solid #9fc0ff;
+  border-radius: 10px;
+  background: rgba(246, 250, 255, 0.9);
+  color: #1268f4;
+  font-weight: 800;
+}
+
+/* Cartões de métricas */
+.metrics,
+.excluded-metrics,
+.report-metrics {
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.metrics .metric-card,
+.excluded-metric,
+.report-stat {
+  position: relative;
+  overflow: hidden;
+  min-height: 126px;
+  padding: 17px;
+}
+.metrics .metric-card::before,
+.excluded-metric::before,
+.report-stat::before {
+  content: "";
+  position: absolute;
+  right: -20px;
+  bottom: -46px;
+  width: 126px;
+  height: 104px;
+  border-radius: 55% 45% 0 0;
+  background: linear-gradient(
+    150deg,
+    rgba(74, 137, 255, 0.1),
+    rgba(74, 137, 255, 0)
+  );
+  pointer-events: none;
+}
+.metrics .metric-card,
+.excluded-metric,
+.report-stat,
+.available-report {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+.metrics .metric-card:hover,
+.excluded-metric:hover,
+.report-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-float);
+}
+.metric-icon,
+.excluded-metric > span,
+.report-stat-icon,
+.available-icon,
+.user-create-icon,
+.settings-card-head > svg {
+  border-radius: 12px;
+}
+
+/* Barras de filtro */
+.dashboard-topbar,
+.reports-filterbar,
+.excluded-filters {
+  border: 1px solid rgba(218, 228, 242, 0.76);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-soft);
+}
+.dashboard-topbar {
+  padding: 13px;
+}
+.reports-filterbar {
+  padding: 14px;
+}
+.excluded-filters {
+  margin-bottom: 16px;
+  padding: 12px;
+}
+.topbar-submit,
+.reports-generate {
+  min-height: 42px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #2477ff, #075be8);
+  box-shadow: 0 9px 19px rgba(15, 98, 235, 0.2);
+}
+
+/* Tabelas */
+.table-wrap {
+  border-color: #dce6f3;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.9);
+}
+.table-wrap thead th {
+  height: 45px;
+  padding-inline: 13px;
+  background: #f7f9fd;
+  color: #6f82ad;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.35px;
+}
+.table-wrap td {
+  padding: 12px 13px;
+  border-color: #e3eaf4;
+  color: #0c1e40;
+  font-size: 11px;
+}
+.table-wrap tbody tr {
+  transition: background 0.15s ease;
+}
+.table-wrap tbody tr:hover {
+  background: #f8faff;
+}
+.badge,
+.audit-action,
+.user-role-badge,
+.excluded-status,
+.format-pill,
+.reprocessed-status {
+  border-radius: 999px;
+}
+.products-pagination {
+  margin-top: 14px;
+  color: #7083b1;
+}
+.products-pagination .pagination button,
+.pagination button {
+  border-color: #d7e2f1;
+  border-radius: 9px;
+}
+
+/* Relatórios */
+.reports-available,
+.reports-preview,
+.exports-history {
+  border-radius: 18px;
+}
+.available-report {
+  min-height: 154px;
+  border-color: #dce6f3;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.92);
+}
+.available-report:hover {
+  border-color: #9fc0ff;
+  box-shadow: 0 11px 28px rgba(32, 78, 151, 0.09);
+}
+.available-report.is-selected {
+  border-color: #2878ff;
+  box-shadow:
+    0 0 0 2px rgba(40, 120, 255, 0.09),
+    0 13px 28px rgba(32, 78, 151, 0.1);
+}
+
+/* Usuários, perfil e configurações */
+.users-layout {
+  gap: 16px;
+}
+.users-list,
+.user-create,
+.profile-summary,
+.profile-form,
+.settings-card,
+.settings-summary {
+  border-radius: 18px;
+}
+.user-create {
+  padding: 20px;
+}
+.user-create label,
+.profile-fields label {
+  color: #0b1b3b;
+  font-weight: 700;
+}
+.profile-layout {
+  gap: 16px;
+}
+.profile-summary {
+  padding: 26px 20px;
+}
+.profile-avatar {
+  box-shadow: 0 15px 34px rgba(55, 103, 205, 0.2);
+}
+.profile-security-note {
+  border-radius: 12px;
+  background: linear-gradient(145deg, #effaf5, #e6f7ef);
+}
+.profile-form {
+  padding: 24px;
+}
+.settings-grid {
+  gap: 16px;
+}
+.settings-card {
+  min-height: 320px;
+  padding: 22px;
+}
+.settings-fields label {
+  min-height: 64px;
+  border-color: #dce6f3;
+  border-radius: 12px;
+}
+.settings-summary {
+  min-height: 76px;
+}
+
+/* Excluídos e integrações */
+.excluded-panel,
+.audit-panel,
+.reprocessed-panel,
+.health-note {
+  border-radius: 18px;
+}
+.excluded-source {
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-soft);
+}
+.health-page-head {
+  margin-bottom: 18px;
+}
+.health-overview {
+  margin-bottom: 16px;
+}
+.health-grid {
+  gap: 16px;
+}
+.integration-card {
+  border-radius: 18px;
+}
+.integration-card dl {
+  border-color: #dce6f3;
+  border-radius: 12px;
+}
+
+@media (max-width: 1200px) {
+  .content {
+    padding-inline: 28px;
+  }
+  .page-title {
+    font-size: 36px;
+  }
+  .report-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .content {
+    padding-inline: 22px;
+  }
+  .page-head {
+    min-height: auto;
+  }
+  .excluded-metrics,
+  .report-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .users-layout,
+  .profile-layout,
+  .settings-grid,
+  .health-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-summary {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 700px) {
+  .content {
+    padding: 20px 14px 34px;
+  }
+  .page-head {
+    gap: 14px;
+    margin-bottom: 17px;
+  }
+  .page-title {
+    font-size: 29px;
+    letter-spacing: -1px;
+  }
+  .page-sub {
+    font-size: 12px;
+  }
+  .panel,
+  .profile-form,
+  .settings-card {
+    padding: 14px;
+    border-radius: 15px;
+  }
+  .excluded-metrics,
+  .report-metrics,
+  .report-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .excluded-metric,
+  .report-stat {
+    min-height: 104px;
+  }
+  .excluded-filters,
+  .reports-filterbar {
+    grid-template-columns: minmax(0, 1fr);
+    border-radius: 14px;
+  }
+  .excluded-filters > *,
+  .reports-filterbar > * {
+    width: 100%;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .profile-password-fields,
+  .profile-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-card {
+    min-height: auto;
+  }
+  .settings-fields label {
+    min-height: auto;
   }
 }

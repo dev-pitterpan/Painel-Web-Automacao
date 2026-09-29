@@ -61,10 +61,10 @@ export function IntegrationHealthClient() {
     <>
       <div className="page-head health-page-head">
         <div>
-          <h1 className="page-title">Saúde das integrações</h1>
+          <h1 className="page-title">Integrações</h1>
           <div className="page-sub">
-            Acompanhamento técnico das conexões que mantêm a automação em
-            funcionamento.
+            Acompanhe a saúde e o histórico das integrações com os serviços
+            externos.
           </div>
         </div>
         <button className="btn" onClick={() => check(true)} disabled={loading}>
