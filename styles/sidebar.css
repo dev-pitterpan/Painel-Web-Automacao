@@ -520,13 +520,14 @@
     display: none;
   }
   .mobile-menu-toggle {
-    position: relative;
+    position: fixed;
+    top: 13px;
+    right: 14px;
     z-index: 105;
-    order: 2;
     flex: 0 0 42px;
     width: 42px;
     height: 42px;
-    margin-left: auto;
+    margin: 0;
     display: grid;
     place-items: center;
     padding: 0;
@@ -546,10 +547,7 @@
     transform: none;
     background: rgba(255, 255, 255, 0.14);
   }
-  .sidebar.is-mobile-open .mobile-menu-toggle {
-    position: fixed;
-    top: 13px;
-    right: 14px;
+  .mobile-menu-toggle.is-open {
     border-color: rgba(255, 255, 255, 0.28);
     background: rgba(255, 255, 255, 0.14);
     box-shadow:

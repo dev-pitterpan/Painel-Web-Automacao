@@ -81,23 +81,23 @@ export function Sidebar({ user }: { user: AuthUser }) {
 
   return (
     <>
+      <button
+        className={`mobile-menu-toggle ${mobileOpen ? "is-open" : ""}`}
+        type="button"
+        onClick={() => setMobileOpen((value) => !value)}
+        aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
+        aria-expanded={mobileOpen}
+      >
+        <span className="mobile-menu-icon" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+      </button>
       <aside
         className={`sidebar ${collapsed ? "is-collapsed" : ""} ${mobileOpen ? "is-mobile-open" : ""}`}
       >
         <div className="sidebar-art" aria-hidden="true" />
-        <button
-          className={`mobile-menu-toggle ${mobileOpen ? "is-open" : ""}`}
-          type="button"
-          onClick={() => setMobileOpen((value) => !value)}
-          aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
-          aria-expanded={mobileOpen}
-        >
-          <span className="mobile-menu-icon" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
-        </button>
         <button
           className="sidebar-toggle"
           type="button"
