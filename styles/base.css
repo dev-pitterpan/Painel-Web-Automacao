@@ -90,43 +90,28 @@ button:hover {
   );
   mask-image: linear-gradient(to bottom, #000 0%, #000 68%, transparent 100%);
 }
-.app-shell::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: -1;
-  display: none;
-  width: min(760px, 58vw);
-  height: 112px;
-  pointer-events: none;
-  background-repeat: no-repeat;
-  background-position: right 34%;
-  background-size: auto 185px;
-  -webkit-mask-image: radial-gradient(
-    ellipse at 76% 34%,
-    #000 0%,
-    #000 48%,
-    transparent 82%
-  );
-  mask-image: radial-gradient(
-    ellipse at 76% 34%,
-    #000 0%,
-    #000 48%,
-    transparent 82%
-  );
-}
-.app-shell:has(.content--dashboard)::after {
-  display: block;
+.app-shell:has(.content--dashboard)::before {
   background-image: url("/dashboard-hero.png");
+  background-position: center 38%;
 }
-.app-shell:has(.content--errors)::after {
-  display: block;
+.app-shell:has(.content--errors)::before {
   background-image: url("/fundo-erros.png");
+  background-position: center 38%;
 }
-.app-shell:has(.content--reprocessed)::after {
-  display: block;
+.app-shell:has(.content--reprocessed)::before {
   background-image: url("/fundo-reprocessados.png");
+  background-position: center 38%;
+}
+.app-shell:has(.content--dashboard)::before,
+.app-shell:has(.content--errors)::before,
+.app-shell:has(.content--reprocessed)::before {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 34%,
+    transparent 64%
+  );
+  mask-image: linear-gradient(to bottom, #000 0%, #000 34%, transparent 64%);
 }
 .app-shell:has(.sidebar.is-collapsed)::before {
   width: calc(100% - 78px);
@@ -147,9 +132,6 @@ button:hover {
   .app-shell::before {
     width: calc(100% - 78px);
   }
-  .app-shell::after {
-    width: min(680px, 76vw);
-  }
   .content {
     padding-inline: 22px;
   }
@@ -165,13 +147,6 @@ button:hover {
     height: 190px;
     background-position: 72% top;
     background-size: auto 190px;
-  }
-  .app-shell::after {
-    top: 68px;
-    width: 78%;
-    height: 92px;
-    background-position: right 34%;
-    background-size: auto 145px;
   }
   .content {
     width: 100%;
