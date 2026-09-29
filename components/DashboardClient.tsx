@@ -295,6 +295,7 @@ export function DashboardClient({
   greetingName?: string;
 }) {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [errorOverviewRows, setErrorOverviewRows] = useState<HistoryRow[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -431,6 +432,70 @@ export function DashboardClient({
         : 100,
     };
   }, [data]);
+  const errorAnalytics = useMemo(() => {
+    const rows = [...errorOverviewRows].sort((left, right) => {
+      const leftDate = parseHistoryDate(left.dataHora)?.getTime() || 0;
+      const rightDate = parseHistoryDate(right.dataHora)?.getTime() || 0;
+      return leftDate - rightDate;
+    });
+    const pendingBySku = new Map<string, Date>();
+    const correctedSkus = new Set<string>();
+    const correctionMinutes: number[] = [];
+
+    rows.forEach((row) => {
+      const sku = String(row.sku || "").trim();
+      const date = parseHistoryDate(row.dataHora);
+      if (!sku || !date) return;
+      const failed = String(row.status || "")
+        .toLocaleLowerCase("pt-BR")
+        .startsWith("erro");
+
+      if (failed) {
+        pendingBySku.set(sku, date);
+        return;
+      }
+
+      const failedAt = pendingBySku.get(sku);
+      if (!failedAt) return;
+      correctedSkus.add(sku);
+      correctionMinutes.push(
+        Math.max(0, Math.round((date.getTime() - failedAt.getTime()) / 60000)),
+      );
+      pendingBySku.delete(sku);
+    });
+
+    const totalErrors = data?.rows.length || 0;
+    const totalProcessed = errorOverviewRows.length;
+    const errorRate = totalProcessed ? (totalErrors / totalProcessed) * 100 : 0;
+    const averageCorrectionMinutes = correctionMinutes.length
+      ? correctionMinutes.reduce((sum, value) => sum + value, 0) /
+        correctionMinutes.length
+      : 0;
+
+    const errorComparison = data?.metrics.comparisons.erros ?? null;
+    const totalComparison = data?.metrics.comparisons.total ?? null;
+    const previousErrors =
+      errorComparison === null || errorComparison <= -100
+        ? null
+        : totalErrors / (1 + errorComparison / 100);
+    const previousTotal =
+      totalComparison === null || totalComparison <= -100
+        ? null
+        : totalProcessed / (1 + totalComparison / 100);
+    const previousRate =
+      previousErrors !== null && previousTotal
+        ? (previousErrors / previousTotal) * 100
+        : null;
+
+    return {
+      totalErrors,
+      corrected: correctedSkus.size,
+      averageCorrectionMinutes,
+      errorRate,
+      errorRateComparison:
+        previousRate === null ? null : errorRate - previousRate,
+    };
+  }, [data, errorOverviewRows]);
   const displayedRows = useMemo(() => {
     const rows = data?.rows || [];
     if (mode !== "products" || productsSort === "recent") return rows;
@@ -555,6 +620,27 @@ export function DashboardClient({
       };
 
       setData(safeData);
+      if (mode === "errors") {
+        const overviewParams = new URLSearchParams(p);
+        overviewParams.delete("status");
+        overviewParams.delete("refresh");
+        if (refresh) overviewParams.set("refresh", "1");
+        try {
+          const overviewResponse = await fetch(
+            `/api/dashboard?${overviewParams.toString()}`,
+            { cache: "no-store" },
+          );
+          const overview = (await overviewResponse.json()) as DashboardData &
+            ApiError;
+          setErrorOverviewRows(
+            overviewResponse.ok && Array.isArray(overview.rows)
+              ? overview.rows
+              : safeData.rows,
+          );
+        } catch {
+          setErrorOverviewRows(safeData.rows);
+        }
+      }
       if (!appliedFilters.marca) {
         setBrandOverview({
           byBrand: safeData.byBrand,
@@ -1086,6 +1172,50 @@ export function DashboardClient({
             Limpar
           </button>
         </div>
+      )}
+
+      {mode === "errors" && (
+        <section className="metrics error-metrics" aria-label="Resumo de erros">
+          <Metric
+            label="Total de erros"
+            value={errorAnalytics.totalErrors}
+            comparison={data.metrics.comparisons.erros}
+            comparisonLabel={data.comparison.label}
+            inverse
+            icon={AlertCircle}
+            tone="red"
+          />
+          <Metric
+            label="Corrigidos"
+            value={errorAnalytics.corrected}
+            comparison={null}
+            comparisonLabel={data.comparison.label}
+            icon={CheckCircle2}
+            tone="green"
+          />
+          <Metric
+            label="Tempo médio de correção"
+            value={
+              errorAnalytics.averageCorrectionMinutes >= 60
+                ? fmt(errorAnalytics.averageCorrectionMinutes)
+                : `${Math.round(errorAnalytics.averageCorrectionMinutes)}min`
+            }
+            comparison={null}
+            comparisonLabel={data.comparison.label}
+            inverse
+            icon={Clock3}
+            tone="gold"
+          />
+          <Metric
+            label="Taxa de erros"
+            value={`${errorAnalytics.errorRate.toFixed(2)}%`}
+            comparison={errorAnalytics.errorRateComparison}
+            comparisonLabel={data.comparison.label}
+            inverse
+            icon={Box}
+            tone="violet"
+          />
+        </section>
       )}
 
       <form
