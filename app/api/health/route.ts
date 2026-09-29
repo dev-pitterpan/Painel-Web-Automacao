@@ -70,9 +70,17 @@ export async function GET(request: NextRequest) {
   const configured = Boolean(
     String(process.env.N8N_REPROCESS_WEBHOOK_URL || "").trim(),
   );
+  const lastResponseAt = n8nSummary.lastResponse
+    ? new Date(n8nSummary.lastResponse).getTime()
+    : 0;
+  const lastFailureAt = n8nSummary.lastFailureAt
+    ? new Date(n8nSummary.lastFailureAt).getTime()
+    : 0;
+  const hasUnresolvedFailure =
+    lastFailureAt > 0 && (!lastResponseAt || lastFailureAt > lastResponseAt);
   const n8nStatus = !configured
     ? "error"
-    : n8nSummary.expired > 0
+    : hasUnresolvedFailure
       ? "error"
       : n8nSummary.pending > 0
         ? "warning"
@@ -83,11 +91,11 @@ export async function GET(request: NextRequest) {
     status: n8nStatus,
     message: !configured
       ? "Webhook de reprocessamento não configurado."
-      : n8nSummary.expired
-        ? `${n8nSummary.expired} processamento(s) sem resposta há mais de 30 minutos.`
+      : hasUnresolvedFailure
+        ? "A última tentativa de reprocessamento falhou e ainda não houve uma resposta posterior."
         : n8nSummary.pending
           ? `${n8nSummary.pending} processamento(s) aguardando conclusão.`
-          : "Automação configurada e sem pendências.",
+          : "Automação configurada e respondendo normalmente.",
     lastResponse: n8nSummary.lastResponse,
     details: [
       {
@@ -100,7 +108,7 @@ export async function GET(request: NextRequest) {
       },
       { label: "Pendentes", value: n8nSummary.pending.toLocaleString("pt-BR") },
       {
-        label: "Registros expirados",
+        label: "Históricos sem callback",
         value: n8nSummary.expired.toLocaleString("pt-BR"),
       },
       {

@@ -170,8 +170,9 @@ export function IntegrationHealthClient() {
         <strong>Como essa verificação funciona</strong>
         <p>
           O Google Sheets é consultado diretamente. Para o n8n, o painel usa a
-          configuração e o histórico real de reprocessamentos, sem acionar o
-          webhook e sem alterar produtos.
+          configuração, a última resposta e as falhas registradas, sem acionar o
+          webhook e sem alterar produtos. Registros antigos sem callback são
+          informativos e não significam que a automação esteja parada.
         </p>
       </section>
     </>
