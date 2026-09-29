@@ -88,6 +88,21 @@ const fmt = (minutes: number) => {
   return `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, "0")}m`;
 };
 
+const formatCorrectionTime = (minutes: number) => {
+  const totalMinutes = Math.max(0, Math.round(minutes));
+  if (totalMinutes < 60) return `${totalMinutes}min`;
+
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const remainingMinutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return `${days}d ${String(hours).padStart(2, "0")}h ${String(remainingMinutes).padStart(2, "0")}m`;
+  }
+
+  return `${hours}h ${String(remainingMinutes).padStart(2, "0")}m`;
+};
+
 const Badge = ({ status }: { status: string }) => (
   <span
     className={`badge status-indicator ${
@@ -1195,11 +1210,9 @@ export function DashboardClient({
           />
           <Metric
             label="Tempo médio de correção"
-            value={
-              errorAnalytics.averageCorrectionMinutes >= 60
-                ? fmt(errorAnalytics.averageCorrectionMinutes)
-                : `${Math.round(errorAnalytics.averageCorrectionMinutes)}min`
-            }
+            value={formatCorrectionTime(
+              errorAnalytics.averageCorrectionMinutes,
+            )}
             comparison={null}
             comparisonLabel={data.comparison.label}
             inverse
