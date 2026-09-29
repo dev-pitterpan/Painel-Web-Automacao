@@ -3454,6 +3454,46 @@ tbody tr:hover {
   color: #fff;
   cursor: pointer;
 }
+.product-media-item > button:hover {
+  background: #e11d48;
+}
+.product-media-item > button.is-undo {
+  width: auto;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #1769e0;
+  font-size: 8px;
+  font-weight: 800;
+}
+.product-media-item.is-deleted img {
+  opacity: 0.24;
+  filter: grayscale(1);
+}
+.product-media-item > em {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  color: #a1122f;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+  text-align: center;
+  pointer-events: none;
+}
+.media-review-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid #f4c5ce;
+  border-radius: 10px;
+  background: #fff4f6;
+  color: #8f1730;
+  font-size: 9px;
+  font-weight: 700;
+}
 .product-media-empty {
   display: grid;
   place-items: center;

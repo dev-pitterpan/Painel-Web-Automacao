@@ -30,6 +30,17 @@ function cleanImages(value: unknown) {
   });
 }
 
+function cleanMediaIds(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .map((item) => cleanText(item, 200))
+        .filter((item) => /^gid:\/\/shopify\/MediaImage\/\d+$/.test(item)),
+    ),
+  ].slice(0, 50);
+}
+
 async function callN8n(payload: Record<string, unknown>) {
   const url = cleanText(
     process.env.N8N_PRODUCT_EDITOR_WEBHOOK_URL || DEFAULT_WEBHOOK,
@@ -137,6 +148,7 @@ export async function POST(req: NextRequest) {
   const collections = cleanList(body?.collections);
   const weight = Number(body?.weight);
   const weightUnit = body?.weightUnit === "kg" ? "kg" : "g";
+  const deleteMediaIds = cleanMediaIds(body?.deleteMediaIds);
   let images: Array<{ source: string; alt: string }> = [];
   try {
     images = cleanImages(body?.images);
@@ -166,6 +178,7 @@ export async function POST(req: NextRequest) {
       weight,
       weightUnit,
       images,
+      deleteMediaIds,
     },
     origem: "dashboard-pitter-pan",
     solicitado_em: new Date().toISOString(),
@@ -201,6 +214,7 @@ export async function POST(req: NextRequest) {
           "collections",
           "weight",
           ...(images.length ? ["images"] : []),
+          ...(deleteMediaIds.length ? ["deleted_images"] : []),
         ],
       },
     });

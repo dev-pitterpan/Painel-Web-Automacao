@@ -19,6 +19,7 @@ import {
   Scale,
   Code2,
   Underline,
+  Trash2,
   X,
 } from "lucide-react";
 import type { HistoryRow } from "@/lib/types";
@@ -45,6 +46,7 @@ type ProductMedia = {
   url: string;
   alt: string;
   isNew?: boolean;
+  isDeleted?: boolean;
 };
 
 const currentTitle = (row: HistoryRow) =>
@@ -248,6 +250,7 @@ export function ProductDetailsDrawer({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [media, setMedia] = useState<ProductMedia[]>([]);
+  const [originalMedia, setOriginalMedia] = useState<ProductMedia[]>([]);
   const [mediaLoading, setMediaLoading] = useState(false);
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
@@ -323,8 +326,11 @@ export function ProductDetailsDrawer({
       ] as const
     ).filter((field) => form[field].trim() !== original[field].trim()).length;
   }, [form, original]);
-  const totalChanges =
-    changedFields + media.filter((item) => item.isNew).length;
+  const newMediaCount = media.filter((item) => item.isNew).length;
+  const deletedMediaCount = media.filter(
+    (item) => item.isDeleted && item.id,
+  ).length;
+  const totalChanges = changedFields + newMediaCount + deletedMediaCount;
 
   if (!row || !activeRow || !form || !original) return null;
   const failed = String(activeRow.status || "")
@@ -394,15 +400,15 @@ export function ProductDetailsDrawer({
       };
       setForm(next);
       setOriginal(next);
-      setMedia(
-        productMedia
-          .map((item: any) => ({
-            id: String(item?.id || ""),
-            url: String(item?.url || item?.src || item?.image?.url || ""),
-            alt: String(item?.alt || item?.altText || ""),
-          }))
-          .filter((item: ProductMedia) => item.url),
-      );
+      const loadedMedia = productMedia
+        .map((item: any) => ({
+          id: String(item?.id || ""),
+          url: String(item?.url || item?.src || item?.image?.url || ""),
+          alt: String(item?.alt || item?.altText || ""),
+        }))
+        .filter((item: ProductMedia) => item.url);
+      setMedia(loadedMedia);
+      setOriginalMedia(loadedMedia);
       if (showEditor) setStep("edit");
     } catch (cause) {
       if (showEditor) {
@@ -505,6 +511,9 @@ export function ProductDetailsDrawer({
           images: media
             .filter((item) => item.isNew)
             .map((item) => ({ source: item.url, alt: item.alt })),
+          deleteMediaIds: media
+            .filter((item) => item.isDeleted && item.id)
+            .map((item) => item.id),
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -512,6 +521,24 @@ export function ProductDetailsDrawer({
         throw new Error(body.error || "Não foi possível atualizar o produto.");
       onProductUpdated?.(activeRow!.sku, body.product);
       setOriginal(form!);
+      const returnedMedia = body.product?.images;
+      if (Array.isArray(returnedMedia) && returnedMedia.length) {
+        const savedMedia = returnedMedia
+          .map((item: any) => ({
+            id: String(item?.id || ""),
+            url: String(item?.url || item?.src || item?.image?.url || ""),
+            alt: String(item?.alt || item?.altText || ""),
+          }))
+          .filter((item: ProductMedia) => item.url);
+        setMedia(savedMedia);
+        setOriginalMedia(savedMedia);
+      } else {
+        const remaining = media.filter(
+          (item) => !item.isDeleted && !item.isNew,
+        );
+        setMedia(remaining);
+        setOriginalMedia(remaining);
+      }
       setMessage(body.message || "Produto atualizado no Shopify com sucesso.");
       setStep("details");
     } catch (cause) {
@@ -656,8 +683,11 @@ export function ProductDetailsDrawer({
           <div className="product-drawer-body">
             <section className="product-current-overview">
               <div className="product-current-image">
-                {media[0]?.url ? (
-                  <img src={media[0].url} alt={media[0].alt || title} />
+                {media.find((item) => !item.isDeleted)?.url ? (
+                  <img
+                    src={media.find((item) => !item.isDeleted)!.url}
+                    alt={media.find((item) => !item.isDeleted)!.alt || title}
+                  />
                 ) : (
                   <span>
                     <ImageIcon size={28} />
@@ -776,29 +806,54 @@ export function ProductDetailsDrawer({
             <div className="product-media-grid">
               {media.map((item, index) => (
                 <article
-                  className="product-media-item"
+                  className={`product-media-item ${item.isDeleted ? "is-deleted" : ""}`}
                   key={`${item.id || "new"}-${index}`}
                 >
                   <img src={item.url} alt={item.alt || form.title} />
-                  {index === 0 && <span>Principal</span>}
-                  {item.isNew && (
-                    <button
-                      type="button"
-                      aria-label="Remover nova imagem"
-                      onClick={() =>
-                        setMedia((current) =>
-                          current.filter(
-                            (_, mediaIndex) => mediaIndex !== index,
-                          ),
-                        )
-                      }
-                    >
+                  {media.findIndex((mediaItem) => !mediaItem.isDeleted) ===
+                    index && <span>Principal</span>}
+                  {item.isDeleted && <em>{"Ser\u00e1 exclu\u00edda"}</em>}
+                  <button
+                    className={item.isDeleted ? "is-undo" : ""}
+                    type="button"
+                    aria-label={
+                      item.isDeleted ? "Desfazer exclusao" : "Excluir imagem"
+                    }
+                    title={
+                      item.isDeleted
+                        ? "Desfazer exclusao"
+                        : "Excluir imagem do Shopify"
+                    }
+                    onClick={() =>
+                      item.isNew
+                        ? setMedia((current) =>
+                            current.filter(
+                              (_, mediaIndex) => mediaIndex !== index,
+                            ),
+                          )
+                        : setMedia((current) =>
+                            current.map((mediaItem, mediaIndex) =>
+                              mediaIndex === index
+                                ? {
+                                    ...mediaItem,
+                                    isDeleted: !mediaItem.isDeleted,
+                                  }
+                                : mediaItem,
+                            ),
+                          )
+                    }
+                  >
+                    {item.isDeleted ? (
+                      <span>Desfazer</span>
+                    ) : item.isNew ? (
                       <X size={14} />
-                    </button>
-                  )}
+                    ) : (
+                      <Trash2 size={14} />
+                    )}
+                  </button>
                 </article>
               ))}
-              {!media.length && (
+              {!media.some((item) => !item.isDeleted) && (
                 <button
                   className="product-media-empty"
                   type="button"
@@ -858,6 +913,7 @@ export function ProductDetailsDrawer({
               type="button"
               onClick={() => {
                 setForm(original);
+                setMedia(originalMedia);
                 setStep("details");
               }}
             >
@@ -887,6 +943,17 @@ export function ProductDetailsDrawer({
             before={original.title}
             after={form.title}
           />
+          {(newMediaCount > 0 || deletedMediaCount > 0) && (
+            <div className="media-review-summary">
+              <ImageIcon size={17} />
+              <span>
+                {newMediaCount > 0 &&
+                  `${newMediaCount} imagem(ns) ser\u00e3o adicionada(s). `}
+                {deletedMediaCount > 0 &&
+                  `${deletedMediaCount} imagem(ns) ser\u00e3o exclu\u00edda(s) permanentemente do Shopify.`}
+              </span>
+            </div>
+          )}
           <ReviewRow
             label="Descrição"
             before={original.description}
