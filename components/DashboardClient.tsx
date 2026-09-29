@@ -1367,12 +1367,17 @@ export function DashboardClient({
                         <stop
                           offset="0%"
                           stopColor="#2f70ed"
-                          stopOpacity={0.24}
+                          stopOpacity={0.14}
+                        />
+                        <stop
+                          offset="72%"
+                          stopColor="#2f70ed"
+                          stopOpacity={0.035}
                         />
                         <stop
                           offset="100%"
                           stopColor="#2f70ed"
-                          stopOpacity={0.02}
+                          stopOpacity={0}
                         />
                       </linearGradient>
                     </defs>
@@ -1385,6 +1390,9 @@ export function DashboardClient({
                       dataKey="data"
                       axisLine={false}
                       tickLine={false}
+                      interval="preserveStartEnd"
+                      minTickGap={28}
+                      tickMargin={10}
                       tick={{ fill: "#758198", fontSize: 10 }}
                     />
                     <YAxis
@@ -1426,14 +1434,16 @@ export function DashboardClient({
                       stroke="#2f70ed"
                       strokeWidth={3}
                       fill="url(#successArea)"
-                      dot={{ r: 3, fill: "#2f70ed", strokeWidth: 0 }}
+                      dot={false}
+                      activeDot={{ r: 4, fill: "#2f70ed", stroke: "#fff", strokeWidth: 2 }}
                     />
                     <Line
                       type="monotone"
                       dataKey="erros"
                       stroke="#ef5b62"
                       strokeWidth={2}
-                      dot={{ r: 3, fill: "#ef5b62", strokeWidth: 0 }}
+                      dot={false}
+                      activeDot={{ r: 4, fill: "#ef5b62", stroke: "#fff", strokeWidth: 2 }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
