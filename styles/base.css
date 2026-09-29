@@ -62,50 +62,60 @@ button:hover {
 }
 
 .app-shell {
+  position: relative;
+  isolation: isolate;
   min-height: 100vh;
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   transition: grid-template-columns 0.28s ease;
 }
+.app-shell::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: -1;
+  width: calc(100% - 240px);
+  height: 270px;
+  pointer-events: none;
+  background-image: url("/fundo.png");
+  background-repeat: no-repeat;
+  background-position: right top;
+  background-size: cover;
+}
+.app-shell:has(.content--dashboard)::before {
+  background-image: url("/dashboard-hero.png"), url("/fundo.png");
+  background-position:
+    right top,
+    right top;
+  background-size:
+    auto 290px,
+    cover;
+}
+.app-shell:has(.content--errors)::before {
+  background-image: url("/fundo-erros.png");
+}
+.app-shell:has(.content--reprocessed)::before {
+  background-image: url("/fundo-reprocessados.png");
+}
+.app-shell:has(.sidebar.is-collapsed)::before {
+  width: calc(100% - 78px);
+}
 .content {
   position: relative;
-  isolation: isolate;
   min-width: 0;
   max-width: 1540px;
   width: 100%;
   padding: 30px 44px 52px;
   margin: 0 auto;
 }
-.content::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: -1;
-  pointer-events: none;
-  width: 100%;
-  height: min(470px, 36vw);
-  min-height: 330px;
-  background-image: var(--page-background-image);
-  background-repeat: no-repeat;
-  background-position: center top;
-  background-size: 100% auto;
-}
-.content--dashboard {
-  --page-background-image: url("/dashboard-hero.png");
-}
-.content--errors {
-  --page-background-image: url("/fundo-erros.png");
-}
-.content--reprocessed {
-  --page-background-image: url("/fundo-reprocessados.png");
-}
-.content--default {
-  --page-background-image: url("/fundo.png");
-}
 
 @media (min-width: 641px) and (max-width: 1023px) {
   .app-shell {
     grid-template-columns: 78px minmax(0, 1fr);
+  }
+  .app-shell::before {
+    width: calc(100% - 78px);
   }
   .content {
     padding-inline: 22px;
@@ -115,15 +125,25 @@ button:hover {
   .app-shell {
     display: block;
   }
+  .app-shell::before,
+  .app-shell:has(.sidebar.is-collapsed)::before {
+    top: 68px;
+    width: 100%;
+    height: 190px;
+    background-position: 72% top;
+    background-size: auto 190px;
+  }
+  .app-shell:has(.content--dashboard)::before {
+    background-position:
+      72% top,
+      72% top;
+    background-size:
+      auto 195px,
+      auto 190px;
+  }
   .content {
     width: 100%;
     min-width: 0;
     padding: 20px 14px 32px;
-  }
-  .content::before {
-    height: 250px;
-    min-height: 0;
-    background-size: auto 250px;
-    background-position: 62% top;
   }
 }
