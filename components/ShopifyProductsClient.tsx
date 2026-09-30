@@ -20,6 +20,7 @@ import {
   Search,
   Tag,
   Trash2,
+  Workflow,
   X,
 } from "lucide-react";
 import {
@@ -211,6 +212,11 @@ export function ShopifyProductsClient() {
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [automationRunning, setAutomationRunning] = useState(false);
+  const [automationMessage, setAutomationMessage] = useState<{
+    tone: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -245,6 +251,7 @@ export function ShopifyProductsClient() {
     }
   }, [filters, page, query, sort]);
   useEffect(() => void load(), [load]);
+  useEffect(() => setSelectedIds([]), [filters, page, query, sort]);
   const selected = useMemo(
     () =>
       data?.products.find((product) => product.shopifyId === selectedId) ||
@@ -303,6 +310,62 @@ export function ShopifyProductsClient() {
         ? current.filter((item) => item !== id)
         : [...current, id],
     );
+  const runSelectedAutomation = async () => {
+    if (automationRunning || !selectedIds.length || !data) return;
+    const selectedProducts = data.products.filter((product) =>
+      selectedIds.includes(product.shopifyId),
+    );
+    setAutomationRunning(true);
+    setAutomationMessage(null);
+    let nextIndex = 0;
+    let successes = 0;
+    let failures = 0;
+    const worker = async () => {
+      while (nextIndex < selectedProducts.length) {
+        const product = selectedProducts[nextIndex];
+        nextIndex += 1;
+        if (!product.sku) {
+          failures += 1;
+          continue;
+        }
+        try {
+          const response = await fetch("/api/n8n/reprocess", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sku: product.sku,
+              titulo: product.title,
+              dataHora: product.shopifyUpdatedAt,
+            }),
+          });
+          const result = await response.json().catch(() => null);
+          if (!response.ok || !result?.ok)
+            throw new Error(result?.error || "Falha ao iniciar automação.");
+          successes += 1;
+        } catch {
+          failures += 1;
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(3, selectedProducts.length) }, () =>
+        worker(),
+      ),
+    );
+    setAutomationRunning(false);
+    if (!failures) {
+      setSelectedIds([]);
+      setAutomationMessage({
+        tone: "success",
+        text: `${successes} ${successes === 1 ? "produto enviado" : "produtos enviados"} para a automação.`,
+      });
+    } else {
+      setAutomationMessage({
+        tone: "error",
+        text: `Automação iniciada para ${successes}; ${failures} ${failures === 1 ? "produto falhou" : "produtos falharam"}.`,
+      });
+    }
+  };
 
   return (
     <>
@@ -400,18 +463,33 @@ export function ShopifyProductsClient() {
           className={`shopify-products-selectionbar ${selectedIds.length ? "has-selection" : ""}`}
         >
           {selectedIds.length > 0 ? (
-            <details className="selected-products-menu">
-              <summary>
-                {selectedIds.length}{" "}
-                {selectedIds.length === 1 ? "produto" : "produtos"}
-                <ChevronDown size={14} />
-              </summary>
-              <div>
-                <button type="button" onClick={() => setSelectedIds([])}>
-                  Desmarcar todos
-                </button>
-              </div>
-            </details>
+            <div className="selected-products-actions">
+              <details className="selected-products-menu">
+                <summary>
+                  {selectedIds.length}{" "}
+                  {selectedIds.length === 1 ? "produto" : "produtos"}
+                  <ChevronDown size={14} />
+                </summary>
+                <div>
+                  <button type="button" onClick={() => setSelectedIds([])}>
+                    Desmarcar todos
+                  </button>
+                </div>
+              </details>
+              <button
+                className="run-flow-automation"
+                type="button"
+                onClick={runSelectedAutomation}
+                disabled={automationRunning}
+              >
+                {automationRunning ? (
+                  <LoaderCircle className="spin" size={17} />
+                ) : (
+                  <Workflow size={17} />
+                )}
+                {automationRunning ? "Iniciando automação..." : "Run Flow automation"}
+              </button>
+            </div>
           ) : (
             <span>{(data?.total || 0).toLocaleString("pt-BR")} produtos</span>
           )}
@@ -452,26 +530,25 @@ export function ShopifyProductsClient() {
                   Excluir produtos
                 </button>
                 <hr />
-                <button type="button" disabled={!selectedIds.length}>
-                  <Tag size={15} />
-                  Adicionar tags
-                </button>
-                <button type="button" disabled={!selectedIds.length}>
-                  <Tag size={15} />
-                  Remover tags
-                </button>
-                <button type="button" disabled={!selectedIds.length}>
-                  <Layers3 size={15} />
-                  Adicionar a coleções
-                </button>
-                <button type="button" disabled={!selectedIds.length}>
-                  <Layers3 size={15} />
-                  Remover de coleções
-                </button>
               </div>
             </details>
           </div>
         </div>
+        {automationMessage && (
+          <div
+            className={`catalog-automation-message is-${automationMessage.tone}`}
+            role="status"
+          >
+            <span>{automationMessage.text}</span>
+            <button
+              type="button"
+              onClick={() => setAutomationMessage(null)}
+              aria-label="Fechar aviso"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="shopify-catalog-state">
             <LoaderCircle className="spin" size={28} />
