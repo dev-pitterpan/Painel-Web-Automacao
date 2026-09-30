@@ -937,31 +937,26 @@ export function ProductDetailsDrawer({
 
           {step === "details" && (
             <>
-              <div className="drawer-edit-banner">
-                <div>
-
-                </div>
-                <button
-                  className={`btn btn-primary ${loadingProduct ? "is-loading" : ""}`}
-                  type="button"
-                  onClick={() => openEditor(true)}
-                  disabled={loadingProduct || !canEdit}
-                  title={
-                    canEdit
-                      ? "Editar informações do produto"
-                      : "Apenas administradores podem editar produtos"
-                  }
-                >
-                  {loadingProduct ? (
-                    <LoaderCircle className="spin" size={14} />
-                  ) : (
-                    <Pencil size={14} />
-                  )}
-                  {loadingProduct ? "Carregando..." : ""}
-                </button>
-              </div>
               <div className="product-drawer-body">
                 <section className="product-current-overview">
+                  <button
+                    className={`product-overview-edit ${loadingProduct ? "is-loading" : ""}`}
+                    type="button"
+                    onClick={() => openEditor(true)}
+                    disabled={loadingProduct || !canEdit}
+                    title={
+                      canEdit
+                        ? "Editar informações do produto"
+                        : "Apenas administradores podem editar produtos"
+                    }
+                    aria-label="Editar informações do produto"
+                  >
+                    {loadingProduct ? (
+                      <LoaderCircle className="spin" size={17} />
+                    ) : (
+                      <Pencil size={17} />
+                    )}
+                  </button>
                   <div className="product-current-image">
                     {visibleMedia[mediaSlideIndex]?.url ? (
                       <>
