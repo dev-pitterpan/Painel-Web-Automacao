@@ -3623,8 +3623,7 @@ tbody tr:hover {
   color: var(--muted);
   font-size: 10px;
 }
-.choice-picker-create,
-.choice-picker-done {
+.choice-picker-create {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3639,13 +3638,8 @@ tbody tr:hover {
   text-align: left;
   cursor: pointer;
 }
-.choice-picker-create:hover,
-.choice-picker-done:hover {
+.choice-picker-create:hover {
   background: #f5f7fa;
-}
-.choice-picker-done {
-  justify-content: center;
-  color: var(--blue);
 }
 .html-description-editor {
   overflow: hidden;

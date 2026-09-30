@@ -79,6 +79,15 @@ function ChoicePicker({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const pickerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [open]);
   const selected = splitChoices(value);
   const normalize = (item: string) => item.toLocaleLowerCase("pt-BR");
   const selectedKeys = new Set(selected.map(normalize));
@@ -106,7 +115,7 @@ function ChoicePicker({
   };
 
   return (
-    <div className={`choice-picker ${open ? "is-open" : ""}`}>
+    <div ref={pickerRef} className={`choice-picker ${open ? "is-open" : ""}`}>
       <div className="choice-picker-label">
         <span>{label}</span>
         <button type="button" onClick={() => setOpen((current) => !current)}>
@@ -170,13 +179,6 @@ function ChoicePicker({
               Criar “{search.trim()}”
             </button>
           )}
-          <button
-            className="choice-picker-done"
-            type="button"
-            onClick={() => setOpen(false)}
-          >
-            Concluir
-          </button>
         </div>
       )}
     </div>
