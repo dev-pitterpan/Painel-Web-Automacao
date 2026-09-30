@@ -9,28 +9,43 @@ type ImageState = CachedProductImage | null;
 const imageCache = new Map<string, ImageState>();
 const pendingRequests = new Map<string, Promise<ImageState>>();
 
-export function getCachedProductImage(sku: string): ImageState | undefined {
-  return imageCache.get(String(sku || "").trim());
+function imageKey(sku: string, title = "") {
+  return `${String(sku || "").trim()}::${String(title || "")
+    .trim()
+    .toLocaleLowerCase("pt-BR")}`;
 }
 
-export function setCachedProductImage(sku: string, image: ImageState) {
+export function getCachedProductImage(
+  sku: string,
+  title = "",
+): ImageState | undefined {
+  return imageCache.get(imageKey(sku, title));
+}
+
+export function setCachedProductImage(
+  sku: string,
+  image: ImageState,
+  title = "",
+) {
   const normalizedSku = String(sku || "").trim();
   if (!normalizedSku) return;
-  imageCache.set(normalizedSku, image);
+  const key = imageKey(normalizedSku, title);
+  imageCache.set(key, image);
   window.dispatchEvent(
     new CustomEvent("product-image-cache-updated", {
-      detail: { sku: normalizedSku, image },
+      detail: { key, image },
     }),
   );
 }
 
-async function loadImage(sku: string): Promise<ImageState> {
-  if (imageCache.has(sku)) return imageCache.get(sku) ?? null;
-  const pending = pendingRequests.get(sku);
+async function loadImage(sku: string, title: string): Promise<ImageState> {
+  const key = imageKey(sku, title);
+  if (imageCache.has(key)) return imageCache.get(key) ?? null;
+  const pending = pendingRequests.get(key);
   if (pending) return pending;
 
   const request = fetch(
-    `/api/n8n/product-image?sku=${encodeURIComponent(sku)}`,
+    `/api/n8n/product-image?sku=${encodeURIComponent(sku)}&title=${encodeURIComponent(title)}`,
     {
       cache: "force-cache",
     },
@@ -44,12 +59,12 @@ async function loadImage(sku: string): Promise<ImageState> {
     })
     .catch(() => null)
     .then((image) => {
-      setCachedProductImage(sku, image);
-      pendingRequests.delete(sku);
+      setCachedProductImage(sku, image, title);
+      pendingRequests.delete(key);
       return image;
     });
 
-  pendingRequests.set(sku, request);
+  pendingRequests.set(key, request);
   return request;
 }
 
@@ -61,17 +76,17 @@ export function ProductThumbnail({
   title?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const key = imageKey(sku, title);
   const [image, setImage] = useState<ImageState>(
-    () => imageCache.get(String(sku || "").trim()) ?? null,
+    () => imageCache.get(key) ?? null,
   );
-  const [loaded, setLoaded] = useState(() =>
-    imageCache.has(String(sku || "").trim()),
-  );
+  const [loaded, setLoaded] = useState(() => imageCache.has(key));
 
   useEffect(() => {
     const normalizedSku = String(sku || "").trim();
-    setImage(imageCache.get(normalizedSku) ?? null);
-    setLoaded(imageCache.has(normalizedSku));
+    const normalizedKey = imageKey(normalizedSku, title);
+    setImage(imageCache.get(normalizedKey) ?? null);
+    setLoaded(imageCache.has(normalizedKey));
     if (!normalizedSku) {
       setLoaded(true);
       return;
@@ -81,7 +96,7 @@ export function ProductThumbnail({
     if (!element) return;
     let cancelled = false;
     const fetchVisibleImage = () => {
-      void loadImage(normalizedSku).then((nextImage) => {
+      void loadImage(normalizedSku, title).then((nextImage) => {
         if (cancelled) return;
         setImage(nextImage);
         setLoaded(true);
@@ -108,13 +123,13 @@ export function ProductThumbnail({
       cancelled = true;
       observer.disconnect();
     };
-  }, [sku]);
+  }, [sku, title]);
 
   useEffect(() => {
-    const normalizedSku = String(sku || "").trim();
+    const normalizedKey = imageKey(sku, title);
     const updateFromCache = (event: Event) => {
       const detail = (event as CustomEvent).detail;
-      if (detail?.sku !== normalizedSku) return;
+      if (detail?.key !== normalizedKey) return;
       setImage(detail.image ?? null);
       setLoaded(true);
     };
@@ -124,7 +139,7 @@ export function ProductThumbnail({
         "product-image-cache-updated",
         updateFromCache,
       );
-  }, [sku]);
+  }, [sku, title]);
 
   return (
     <div

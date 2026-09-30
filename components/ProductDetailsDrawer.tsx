@@ -280,7 +280,10 @@ export function ProductDetailsDrawer({
   useEffect(() => {
     if (!activeRow) return;
     const initial = fallbackForm(activeRow);
-    const cachedImage = getCachedProductImage(activeRow.sku);
+    const cachedImage = getCachedProductImage(
+      activeRow.sku,
+      currentTitle(activeRow),
+    );
     const cachedMedia = cachedImage
       ? [{ url: cachedImage.url, alt: cachedImage.alt }]
       : [];
@@ -395,7 +398,7 @@ export function ProductDetailsDrawer({
     setMessage("");
     try {
       const response = await fetch(
-        `/api/n8n/product-editor?sku=${encodeURIComponent(activeRow!.sku)}`,
+        `/api/n8n/product-editor?sku=${encodeURIComponent(activeRow!.sku)}&title=${encodeURIComponent(currentTitle(activeRow!))}`,
         { cache: "no-store" },
       );
       const body = await response.json().catch(() => ({}));
@@ -435,6 +438,7 @@ export function ProductDetailsDrawer({
         loadedMedia[0]
           ? { url: loadedMedia[0].url, alt: loadedMedia[0].alt }
           : null,
+        currentTitle(activeRow!),
       );
       if (showEditor) setStep("edit");
     } catch (cause) {
@@ -523,6 +527,7 @@ export function ProductDetailsDrawer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sku: activeRow!.sku,
+          titleHint: currentTitle(activeRow!),
           title: form!.title,
           description: form!.description,
           tags: form!.tags
@@ -569,10 +574,11 @@ export function ProductDetailsDrawer({
           .filter((item: ProductMedia) => item.url);
         setMedia(savedMedia);
         setOriginalMedia(savedMedia);
-        setCachedProductImage(activeRow!.sku, {
-          url: savedMedia[0].url,
-          alt: savedMedia[0].alt,
-        });
+        setCachedProductImage(
+          activeRow!.sku,
+          { url: savedMedia[0].url, alt: savedMedia[0].alt },
+          form!.title,
+        );
       } else {
         const remaining = media.filter(
           (item) => !item.isDeleted && !item.isNew,
@@ -584,6 +590,7 @@ export function ProductDetailsDrawer({
           remaining[0]
             ? { url: remaining[0].url, alt: remaining[0].alt }
             : null,
+          form!.title,
         );
       }
       setMessage(body.message || "Produto atualizado no Shopify com sucesso.");

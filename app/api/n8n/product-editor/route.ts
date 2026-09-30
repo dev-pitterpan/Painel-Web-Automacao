@@ -117,6 +117,7 @@ export async function GET(req: NextRequest) {
       { status: 403 },
     );
   const sku = cleanText(req.nextUrl.searchParams.get("sku"), 120);
+  const titleHint = cleanText(req.nextUrl.searchParams.get("title"), 255);
   if (!sku)
     return NextResponse.json({ error: "SKU obrigatório." }, { status: 400 });
   const requestId = randomUUID();
@@ -125,6 +126,7 @@ export async function GET(req: NextRequest) {
       action: "lookup",
       request_id: requestId,
       sku,
+      title_hint: titleHint,
       origem: "dashboard-pitter-pan",
     });
     return NextResponse.json(
@@ -165,6 +167,7 @@ export async function POST(req: NextRequest) {
     );
   const body = await req.json().catch(() => null);
   const sku = cleanText(body?.sku, 120);
+  const titleHint = cleanText(body?.titleHint, 255);
   const title = cleanText(body?.title, 255);
   const description = cleanText(body?.description, 100000);
   const tags = cleanList(body?.tags);
@@ -194,6 +197,7 @@ export async function POST(req: NextRequest) {
     action: "update",
     request_id: requestId,
     sku,
+    title_hint: titleHint,
     product: {
       title,
       description,

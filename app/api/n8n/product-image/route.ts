@@ -21,9 +21,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
   const sku = clean(request.nextUrl.searchParams.get("sku"), 120);
+  const title = clean(request.nextUrl.searchParams.get("title"), 255);
   if (!sku) return NextResponse.json({ image: null });
+  const cacheKey = `${sku}::${title.toLocaleLowerCase("pt-BR")}`;
 
-  const cached = cache.get(sku);
+  const cached = cache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return NextResponse.json(
       { image: cached.image },
@@ -50,6 +52,7 @@ export async function GET(request: NextRequest) {
       body: JSON.stringify({
         action: "lookup",
         sku,
+        title_hint: title,
         origem: "dashboard-imagem",
       }),
       cache: "no-store",
@@ -72,13 +75,13 @@ export async function GET(request: NextRequest) {
           alt: clean(first.alt || first.altText, 500),
         }
       : null;
-    cache.set(sku, { image, expiresAt: Date.now() + CACHE_TTL_MS });
+    cache.set(cacheKey, { image, expiresAt: Date.now() + CACHE_TTL_MS });
     return NextResponse.json(
       { image },
       { headers: { "Cache-Control": "private, max-age=600" } },
     );
   } catch {
-    cache.set(sku, { image: null, expiresAt: Date.now() + 60_000 });
+    cache.set(cacheKey, { image: null, expiresAt: Date.now() + 60_000 });
     return NextResponse.json(
       { image: null },
       { headers: { "Cache-Control": "private, max-age=60" } },
