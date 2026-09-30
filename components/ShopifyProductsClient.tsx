@@ -27,6 +27,7 @@ import {
   ProductDetailsDrawer,
   type UpdatedProduct,
 } from "@/components/ProductDetailsDrawer";
+import { setCachedProductImage } from "@/components/ProductThumbnail";
 import type { ShopifyCatalogProduct } from "@/lib/auth";
 import type { HistoryRow } from "@/lib/types";
 
@@ -240,6 +241,14 @@ export function ShopifyProductsClient() {
         throw new Error(
           result.error || "Não foi possível carregar o catálogo.",
         );
+      result.products.forEach((product) => {
+        if (!product.sku || !product.imageUrl) return;
+        setCachedProductImage(
+          product.sku,
+          { url: product.imageUrl, alt: product.imageAlt || product.title },
+          product.title,
+        );
+      });
       setData(result);
       if (result.facets) setFacets(result.facets);
     } catch (cause) {
