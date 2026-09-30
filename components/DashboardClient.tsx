@@ -1109,13 +1109,13 @@ export function DashboardClient({
     mode === "dashboard"
       ? `Olá, ${greetingName || "Administrador"}! 👋`
       : mode === "products"
-        ? "Produtos"
+        ? "Produtos processados"
         : "Erros";
   const subtitle =
     mode === "dashboard"
       ? "Aqui está o resumo da automação do seu catálogo."
       : mode === "products"
-        ? "Gerencie e visualize todos os produtos do seu catálogo."
+        ? "Produtos recebidos e atualizados pela automação da planilha."
         : "Produtos que apresentaram falhas no processamento.";
   const canReprocess = Boolean(data.permissions?.canReprocess);
   const showActions = canReprocess;
@@ -1461,7 +1461,7 @@ export function DashboardClient({
               comparison={data.metrics.comparisons.total}
               comparisonLabel={data.comparison.label}
               imageSrc="/icons/entregavel.png"
-              href="/produtos"
+              href="/produtos/processados"
             />
             <Metric
               label="Sucesso"
@@ -1469,7 +1469,7 @@ export function DashboardClient({
               comparison={data.metrics.comparisons.sucesso}
               comparisonLabel={data.comparison.label}
               imageSrc="/icons/verificar.png"
-              href="/produtos?status=sucesso"
+              href="/produtos/processados?status=sucesso"
               tone="green"
             />
             <Metric
@@ -2113,7 +2113,7 @@ export function DashboardClient({
               <button
                 type="button"
                 className="btn"
-                onClick={() => window.location.assign("/produtos")}
+                onClick={() => window.location.assign("/produtos/processados")}
               >
                 Ver todos os produtos
               </button>

@@ -33,6 +33,7 @@ const items: Array<[string, string, LucideIcon]> = [
 export function Sidebar({ user }: { user: AuthUser }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [productsOpen, setProductsOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const navRef = useRef<HTMLElement>(null);
@@ -66,6 +67,9 @@ export function Sidebar({ user }: { user: AuthUser }) {
 
   useEffect(() => {
     setMobileOpen(false);
+  }, [pathname]);
+  useEffect(() => {
+    if (pathname.startsWith("/produtos")) setProductsOpen(true);
   }, [pathname]);
   useEffect(() => {
     document.body.classList.toggle("mobile-menu-open", mobileOpen);
@@ -124,7 +128,28 @@ export function Sidebar({ user }: { user: AuthUser }) {
           </div>
         </div>
         <nav className="nav">
-          {navigationItems.map(([label, href, Icon]) => (
+          {navigationItems.map(([label, href, Icon]) => label === "Produtos" ? (
+            <div className={`nav-products-group ${productsOpen ? "is-open" : ""}`} key={href}>
+              <button
+                type="button"
+                className={`nav-products-trigger ${pathname.startsWith("/produtos") ? "is-active" : ""}`}
+                data-tooltip={collapsed ? label : undefined}
+                onClick={() => setProductsOpen((value) => !value)}
+                aria-expanded={productsOpen}
+              >
+                <Icon size={17} strokeWidth={2} />
+                <span>{label}</span>
+                <ChevronRight className="nav-products-chevron" size={15} />
+              </button>
+              {productsOpen && (
+                <div className="nav-products-flyout">
+                  <strong>Produtos</strong>
+                  <Link href="/produtos" className={pathname === "/produtos" ? "is-active" : undefined}>Todos os produtos</Link>
+                  <Link href="/produtos/processados" className={pathname.startsWith("/produtos/processados") ? "is-active" : undefined}>Produtos processados</Link>
+                </div>
+              )}
+            </div>
+          ) : (
             <Link
               key={href}
               href={href}
@@ -186,7 +211,19 @@ export function Sidebar({ user }: { user: AuthUser }) {
                 <small>Automação de e-commerce</small>
               </span>
             </div>
-            {navigationItems.map(([label, href, Icon]) => (
+            {navigationItems.map(([label, href, Icon]) => label === "Produtos" ? (
+              <div className="mobile-products-group" key={href}>
+                <button type="button" onClick={() => setProductsOpen((value) => !value)} aria-expanded={productsOpen}>
+                  <Icon size={18} strokeWidth={2} />
+                  <span>{label}</span>
+                  <ChevronRight className={productsOpen ? "is-open" : ""} size={16} />
+                </button>
+                {productsOpen && <div className="mobile-products-links">
+                  <Link href="/produtos" className={pathname === "/produtos" ? "is-active" : undefined} onClick={() => setMobileOpen(false)}>Todos os produtos</Link>
+                  <Link href="/produtos/processados" className={pathname.startsWith("/produtos/processados") ? "is-active" : undefined} onClick={() => setMobileOpen(false)}>Produtos processados</Link>
+                </div>}
+              </div>
+            ) : (
               <Link
                 key={href}
                 href={href}

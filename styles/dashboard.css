@@ -5,6 +5,44 @@
   gap: 18px;
   margin-bottom: 20px;
 }
+.shopify-catalog-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 170px 170px auto auto;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(255,255,255,.95);
+}
+.shopify-catalog-toolbar select,
+.shopify-catalog-search {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.shopify-catalog-toolbar select { padding: 0 11px; color: var(--ink); }
+.shopify-catalog-search { display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--muted); }
+.shopify-catalog-search input { width: 100%; border: 0; outline: 0; color: var(--ink); font: inherit; }
+.shopify-catalog-panel .table-wrap { max-height: calc(100vh - 300px); }
+.shopify-product-image { width: 44px; height: 44px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #f6f8fc; color: #789; }
+.shopify-product-image img { width: 100%; height: 100%; object-fit: contain; }
+.shopify-variant-count { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; }
+.shopify-status { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: #edf1f7; font-size: 10px; font-weight: 800; }
+.shopify-status-active { background: #dcf6e9; color: #087d4d; }
+.shopify-status-draft { background: #fff2cf; color: #8a6200; }
+.shopify-catalog-state { min-height: 330px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--muted); text-align: center; }
+.shopify-catalog-state strong { color: var(--ink); font-size: 15px; }
+.shopify-catalog-state.is-error { color: #b42336; }
+@media (max-width: 900px) {
+  .shopify-catalog-toolbar { grid-template-columns: 1fr 1fr; }
+  .shopify-catalog-search { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .shopify-catalog-toolbar { grid-template-columns: 1fr; }
+  .shopify-catalog-search { grid-column: auto; }
+}
 
 .page-sub {
   margin-top: 6px;

@@ -1,4 +1,4 @@
-import { DashboardClient } from "@/components/DashboardClient";
+import { ShopifyProductsClient } from "@/components/ShopifyProductsClient";
 export default function Page() {
-  return <DashboardClient mode="products" />;
+  return <ShopifyProductsClient />;
 }

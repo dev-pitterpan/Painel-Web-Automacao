@@ -53,6 +53,31 @@ export type ProductOverride = {
   weightUnit: "g" | "kg";
   updatedAt: string;
 };
+export type ShopifyCatalogProduct = {
+  shopifyId: string;
+  title: string;
+  handle: string;
+  status: string;
+  vendor: string;
+  productType: string;
+  tags: string[];
+  collections: string[];
+  imageUrl: string;
+  imageAlt: string;
+  sku: string;
+  variants: Array<{
+    id: string;
+    title: string;
+    sku: string;
+    price: string;
+    inventoryQuantity: number;
+  }>;
+  totalInventory: number;
+  priceMin: number;
+  priceMax: number;
+  shopifyUpdatedAt: string;
+  syncedAt: string;
+};
 
 type UserRecord = Omit<AuthUser, "createdAt" | "avatarUrl"> & {
   password_hash: string;
@@ -158,6 +183,25 @@ async function ensureDatabase() {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           PRIMARY KEY (sku, source_title)
         )`,
+        `CREATE TABLE IF NOT EXISTS shopify_catalog_products (
+          shopify_id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          handle TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'DRAFT',
+          vendor TEXT NOT NULL DEFAULT '',
+          product_type TEXT NOT NULL DEFAULT '',
+          tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          collections_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          image_url TEXT NOT NULL DEFAULT '',
+          image_alt TEXT NOT NULL DEFAULT '',
+          primary_sku TEXT NOT NULL DEFAULT '',
+          variants_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          total_inventory INTEGER NOT NULL DEFAULT 0,
+          price_min DOUBLE PRECISION NOT NULL DEFAULT 0,
+          price_max DOUBLE PRECISION NOT NULL DEFAULT 0,
+          shopify_updated_at TIMESTAMPTZ,
+          synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`,
         `CREATE TABLE IF NOT EXISTS image_sync_jobs (
           id BIGSERIAL PRIMARY KEY,
           batch_id TEXT NOT NULL,
@@ -176,6 +220,9 @@ async function ensureDatabase() {
         )`,
         "CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_image_sync_jobs_pending ON image_sync_jobs(status, lease_until, id)",
+        "CREATE INDEX IF NOT EXISTS idx_shopify_catalog_title ON shopify_catalog_products(title)",
+        "CREATE INDEX IF NOT EXISTS idx_shopify_catalog_sku ON shopify_catalog_products(primary_sku)",
+        "CREATE INDEX IF NOT EXISTS idx_shopify_catalog_updated ON shopify_catalog_products(shopify_updated_at DESC)",
       ];
       for (const statement of schema) await query(statement);
 
@@ -675,6 +722,129 @@ export async function getProductOverrides() {
       },
     ]),
   );
+}
+
+function catalogProductFromRow(row: any): ShopifyCatalogProduct {
+  const variants = Array.isArray(row.variants_json) ? row.variants_json : [];
+  return {
+    shopifyId: String(row.shopify_id || ""),
+    title: String(row.title || ""),
+    handle: String(row.handle || ""),
+    status: String(row.status || "DRAFT"),
+    vendor: String(row.vendor || ""),
+    productType: String(row.product_type || ""),
+    tags: Array.isArray(row.tags_json) ? row.tags_json.map(String) : [],
+    collections: Array.isArray(row.collections_json)
+      ? row.collections_json.map(String)
+      : [],
+    imageUrl: String(row.image_url || ""),
+    imageAlt: String(row.image_alt || ""),
+    sku: String(row.primary_sku || variants[0]?.sku || ""),
+    variants,
+    totalInventory: Number(row.total_inventory || 0),
+    priceMin: Number(row.price_min || 0),
+    priceMax: Number(row.price_max || 0),
+    shopifyUpdatedAt: iso(row.shopify_updated_at),
+    syncedAt: iso(row.synced_at),
+  };
+}
+
+export async function listShopifyCatalogProducts(input: {
+  query?: string;
+  status?: string;
+  page?: number;
+  perPage?: number;
+  sort?: "updated" | "title" | "inventory";
+}) {
+  await ensureDatabase();
+  const page = Math.max(1, Math.trunc(input.page || 1));
+  const perPage = Math.min(100, Math.max(10, Math.trunc(input.perPage || 50)));
+  const search = String(input.query || "").trim();
+  const status = String(input.status || "").trim().toUpperCase();
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (search) {
+    params.push(`%${search}%`);
+    where.push(`(title ILIKE $${params.length} OR primary_sku ILIKE $${params.length} OR vendor ILIKE $${params.length} OR variants_json::text ILIKE $${params.length})`);
+  }
+  if (["ACTIVE", "DRAFT", "ARCHIVED"].includes(status)) {
+    params.push(status);
+    where.push(`status = $${params.length}`);
+  }
+  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const order =
+    input.sort === "title"
+      ? "title ASC"
+      : input.sort === "inventory"
+        ? "total_inventory DESC, title ASC"
+        : "shopify_updated_at DESC NULLS LAST, title ASC";
+  const countRows = await query<{ total: number }>(
+    `SELECT COUNT(*)::int AS total FROM shopify_catalog_products ${clause}`,
+    params,
+  );
+  const listParams = [...params, perPage, (page - 1) * perPage];
+  const rows = await query<any>(
+    `SELECT * FROM shopify_catalog_products ${clause}
+     ORDER BY ${order} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    listParams,
+  );
+  const total = Number(countRows[0]?.total || 0);
+  return {
+    products: rows.map(catalogProductFromRow),
+    page,
+    perPage,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / perPage)),
+  };
+}
+
+export async function upsertShopifyCatalogProducts(
+  products: Omit<ShopifyCatalogProduct, "syncedAt">[],
+) {
+  await ensureDatabase();
+  for (const product of products) {
+    await query(
+      `INSERT INTO shopify_catalog_products
+       (shopify_id, title, handle, status, vendor, product_type, tags_json,
+        collections_json, image_url, image_alt, primary_sku, variants_json,
+        total_inventory, price_min, price_max, shopify_updated_at, synced_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
+       ON CONFLICT (shopify_id) DO UPDATE SET
+        title=EXCLUDED.title, handle=EXCLUDED.handle, status=EXCLUDED.status,
+        vendor=EXCLUDED.vendor, product_type=EXCLUDED.product_type,
+        tags_json=EXCLUDED.tags_json, collections_json=EXCLUDED.collections_json,
+        image_url=EXCLUDED.image_url, image_alt=EXCLUDED.image_alt,
+        primary_sku=EXCLUDED.primary_sku, variants_json=EXCLUDED.variants_json,
+        total_inventory=EXCLUDED.total_inventory, price_min=EXCLUDED.price_min,
+        price_max=EXCLUDED.price_max, shopify_updated_at=EXCLUDED.shopify_updated_at,
+        synced_at=NOW()`,
+      [
+        product.shopifyId,
+        product.title,
+        product.handle,
+        product.status,
+        product.vendor,
+        product.productType,
+        JSON.stringify(product.tags),
+        JSON.stringify(product.collections),
+        product.imageUrl,
+        product.imageAlt,
+        product.sku,
+        JSON.stringify(product.variants),
+        product.totalInventory,
+        product.priceMin,
+        product.priceMax,
+        product.shopifyUpdatedAt || null,
+      ],
+    );
+  }
+}
+
+export async function deleteShopifyCatalogProduct(shopifyId: string) {
+  await ensureDatabase();
+  await query("DELETE FROM shopify_catalog_products WHERE shopify_id = $1", [
+    shopifyId,
+  ]);
 }
 
 export type ImageSyncInput = {
