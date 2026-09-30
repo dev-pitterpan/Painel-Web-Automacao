@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Bold,
+  Check,
   CheckCircle2,
   CircleAlert,
   ImageIcon,
@@ -17,6 +18,8 @@ import {
   LoaderCircle,
   Package,
   Pencil,
+  Plus,
+  Search,
   Scale,
   Code2,
   Underline,
@@ -55,6 +58,130 @@ type ProductMedia = {
   isDeleted?: boolean;
   originalPosition?: number;
 };
+
+function splitChoices(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function ChoicePicker({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const selected = splitChoices(value);
+  const normalize = (item: string) => item.toLocaleLowerCase("pt-BR");
+  const selectedKeys = new Set(selected.map(normalize));
+  const choices = [...new Set([...options, ...selected])].sort((a, b) =>
+    a.localeCompare(b, "pt-BR"),
+  );
+  const filtered = choices.filter((item) =>
+    normalize(item).includes(normalize(search)),
+  );
+  const exactMatch = choices.some(
+    (item) => normalize(item) === normalize(search.trim()),
+  );
+  const setSelected = (next: string[]) => onChange(next.join(", "));
+  const toggle = (item: string) =>
+    setSelected(
+      selectedKeys.has(normalize(item))
+        ? selected.filter((current) => normalize(current) !== normalize(item))
+        : [...selected, item],
+    );
+  const create = () => {
+    const item = search.trim();
+    if (!item || exactMatch) return;
+    setSelected([...selected, item]);
+    setSearch("");
+  };
+
+  return (
+    <div className={`choice-picker ${open ? "is-open" : ""}`}>
+      <div className="choice-picker-label">
+        <span>{label}</span>
+        <button type="button" onClick={() => setOpen((current) => !current)}>
+          <Plus size={15} />
+        </button>
+      </div>
+      <button
+        className="choice-picker-control"
+        type="button"
+        onClick={() => setOpen(true)}
+      >
+        {selected.length ? (
+          selected.map((item) => <span key={normalize(item)}>{item}</span>)
+        ) : (
+          <em>Nenhum item selecionado</em>
+        )}
+      </button>
+      {open && (
+        <div className="choice-picker-menu">
+          <div className="choice-picker-search">
+            <Search size={15} />
+            <input
+              autoFocus
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  create();
+                }
+                if (event.key === "Escape") setOpen(false);
+              }}
+              placeholder={`Pesquisar ou adicionar ${label.toLocaleLowerCase("pt-BR")}`}
+            />
+          </div>
+          <div className="choice-picker-options">
+            {filtered.map((item) => {
+              const checked = selectedKeys.has(normalize(item));
+              return (
+                <button
+                  type="button"
+                  key={normalize(item)}
+                  onClick={() => toggle(item)}
+                >
+                  <span className={checked ? "is-checked" : ""}>
+                    {checked && <Check size={12} />}
+                  </span>
+                  {item}
+                </button>
+              );
+            })}
+            {!filtered.length && exactMatch && <small>Nenhum resultado.</small>}
+          </div>
+          {search.trim() && !exactMatch && (
+            <button
+              className="choice-picker-create"
+              type="button"
+              onClick={create}
+            >
+              <Plus size={15} />
+              Criar “{search.trim()}”
+            </button>
+          )}
+          <button
+            className="choice-picker-done"
+            type="button"
+            onClick={() => setOpen(false)}
+          >
+            Concluir
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const currentTitle = (row: HistoryRow) =>
   row.tituloDepois || row.tituloAntes || "";
@@ -230,6 +357,10 @@ export function ProductDetailsDrawer({
   const [mediaSlideIndex, setMediaSlideIndex] = useState(0);
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaDragging, setMediaDragging] = useState(false);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [availableCollections, setAvailableCollections] = useState<string[]>(
+    [],
+  );
   const [draggedMediaIndex, setDraggedMediaIndex] = useState<number | null>(
     null,
   );
@@ -271,6 +402,8 @@ export function ProductDetailsDrawer({
     setOriginal(initial);
     setMedia(cachedMedia);
     setOriginalMedia(cachedMedia);
+    setAvailableTags([]);
+    setAvailableCollections([]);
     setMediaSlideIndex(0);
     setMessage("");
     setError("");
@@ -444,6 +577,16 @@ export function ProductDetailsDrawer({
       };
       setForm(next);
       setOriginal(next);
+      setAvailableTags(
+        Array.isArray(product.availableTags)
+          ? product.availableTags.map(String)
+          : [],
+      );
+      setAvailableCollections(
+        Array.isArray(product.availableCollections)
+          ? product.availableCollections.map(String)
+          : [],
+      );
       const loadedMedia = productMedia
         .map((item: any, index: number) => ({
           id: String(item?.id || ""),
@@ -1094,28 +1237,18 @@ export function ProductDetailsDrawer({
                   </button>
                 </div>
               </section>
-              <label className="product-edit-field">
-                <span>Tags</span>
-                <textarea
-                  value={form.tags}
-                  onChange={(event) => update("tags", event.target.value)}
-                  rows={3}
-                  placeholder="Separe as tags por vírgulas"
-                />
-                <small>Separe cada tag por vírgula.</small>
-              </label>
-              <label className="product-edit-field">
-                <span>Coleções</span>
-                <textarea
-                  value={form.collections}
-                  onChange={(event) =>
-                    update("collections", event.target.value)
-                  }
-                  rows={3}
-                  placeholder="Separe as coleções por vírgulas"
-                />
-                <small>Use os nomes exatos das coleções existentes.</small>
-              </label>
+              <ChoicePicker
+                label="Coleções"
+                value={form.collections}
+                options={availableCollections}
+                onChange={(value) => update("collections", value)}
+              />
+              <ChoicePicker
+                label="Tags"
+                value={form.tags}
+                options={availableTags}
+                onChange={(value) => update("tags", value)}
+              />
               <div className="product-edit-field">
                 <span>Peso</span>
                 <div className="weight-field">
