@@ -255,6 +255,7 @@ export function ProductDetailsDrawer({
   const [error, setError] = useState("");
   const [media, setMedia] = useState<ProductMedia[]>([]);
   const [originalMedia, setOriginalMedia] = useState<ProductMedia[]>([]);
+  const [mediaSlideIndex, setMediaSlideIndex] = useState(0);
   const [mediaLoading, setMediaLoading] = useState(false);
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
@@ -288,6 +289,7 @@ export function ProductDetailsDrawer({
     setOriginal(initial);
     setMedia(cachedMedia);
     setOriginalMedia(cachedMedia);
+    setMediaSlideIndex(0);
     setMessage("");
     setError("");
   }, [activeRow]);
@@ -340,6 +342,15 @@ export function ProductDetailsDrawer({
   const deletedMediaCount = media.filter(
     (item) => item.isDeleted && item.id,
   ).length;
+  const visibleMedia = useMemo(
+    () => media.filter((item) => !item.isDeleted && item.url),
+    [media],
+  );
+  useEffect(() => {
+    setMediaSlideIndex((current) =>
+      visibleMedia.length ? Math.min(current, visibleMedia.length - 1) : 0,
+    );
+  }, [visibleMedia.length]);
   const totalChanges = changedFields + newMediaCount + deletedMediaCount;
 
   if (!row || !activeRow || !form || !original) return null;
@@ -719,11 +730,48 @@ export function ProductDetailsDrawer({
           <div className="product-drawer-body">
             <section className="product-current-overview">
               <div className="product-current-image">
-                {media.find((item) => !item.isDeleted)?.url ? (
-                  <img
-                    src={media.find((item) => !item.isDeleted)!.url}
-                    alt={media.find((item) => !item.isDeleted)!.alt || title}
-                  />
+                {visibleMedia[mediaSlideIndex]?.url ? (
+                  <>
+                    <img
+                      src={visibleMedia[mediaSlideIndex].url}
+                      alt={visibleMedia[mediaSlideIndex].alt || title}
+                    />
+                    {visibleMedia.length > 1 && (
+                      <>
+                        <button
+                          className="product-current-image-nav is-previous"
+                          type="button"
+                          aria-label="Imagem anterior"
+                          onClick={() =>
+                            setMediaSlideIndex((current) =>
+                              current === 0
+                                ? visibleMedia.length - 1
+                                : current - 1,
+                            )
+                          }
+                        >
+                          <ArrowLeft size={17} />
+                        </button>
+                        <button
+                          className="product-current-image-nav is-next"
+                          type="button"
+                          aria-label="Próxima imagem"
+                          onClick={() =>
+                            setMediaSlideIndex((current) =>
+                              current === visibleMedia.length - 1
+                                ? 0
+                                : current + 1,
+                            )
+                          }
+                        >
+                          <ArrowRight size={17} />
+                        </button>
+                        <small className="product-current-image-count">
+                          {mediaSlideIndex + 1} / {visibleMedia.length}
+                        </small>
+                      </>
+                    )}
+                  </>
                 ) : (
                   <span>
                     <ImageIcon size={28} />
