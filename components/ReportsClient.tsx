@@ -1365,10 +1365,7 @@ export function ReportsClient() {
                           }
                         }}
                       >
-                        <td
-                          className="product-image-cell"
-                          onClick={(event) => event.stopPropagation()}
-                        >
+                        <td className="product-image-cell">
                           <ProductThumbnail
                             sku={row.sku}
                             title={row.tituloDepois || row.tituloAntes}
