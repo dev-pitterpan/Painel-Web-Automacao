@@ -492,6 +492,32 @@
   .catalog-add-filter {
     min-height: 40px;
   }
+  .shopify-products-selectionbar {
+    align-items: flex-start;
+    gap: 7px;
+    flex-wrap: wrap;
+    padding: 7px 9px;
+  }
+  .selected-products-actions {
+    min-width: 0;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .run-flow-automation {
+    max-width: 100%;
+    white-space: normal;
+  }
+  .shopify-products-table-actions {
+    margin-left: auto;
+  }
+  .catalog-filter-popover {
+    position: fixed;
+    top: 82px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-height: calc(100dvh - 100px);
+  }
 }
 
 /* A listagem processada acompanha o mesmo padrão compacto */

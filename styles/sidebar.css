@@ -551,6 +551,26 @@
     color: #fff;
     box-shadow: 0 8px 18px rgba(22, 75, 180, 0.28);
   }
+  .mobile-products-group > button {
+    min-height: 44px;
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 12px;
+  }
+  .mobile-products-group > button:hover,
+  .mobile-products-group > button:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    outline: none;
+  }
+  .mobile-products-group > button.is-active {
+    background: linear-gradient(135deg, #2879ff, #0759e9);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(22, 75, 180, 0.28);
+  }
+  .mobile-products-links {
+    padding: 2px 4px 7px 28px;
+  }
   .mobile-drawer-brand {
     min-height: 48px;
     display: flex;

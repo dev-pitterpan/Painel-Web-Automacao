@@ -28,6 +28,7 @@ import {
   type UpdatedProduct,
 } from "@/components/ProductDetailsDrawer";
 import { setCachedProductImage } from "@/components/ProductThumbnail";
+import { loadProductDetails } from "@/components/ProductDetailsCache";
 import type { ShopifyCatalogProduct } from "@/lib/auth";
 import type { HistoryRow } from "@/lib/types";
 
@@ -261,6 +262,34 @@ export function ShopifyProductsClient() {
   }, [filters, page, query, sort]);
   useEffect(() => void load(), [load]);
   useEffect(() => setSelectedIds([]), [filters, page, query, sort]);
+  useEffect(() => {
+    if (
+      page !== 1 ||
+      query ||
+      sort !== "updated" ||
+      Object.keys(filters).length > 0 ||
+      !data?.permissions?.canEditProducts ||
+      !data.products.length
+    )
+      return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      for (const product of data.products) {
+        if (cancelled) break;
+        if (!product.sku) continue;
+        try {
+          await loadProductDetails(product.sku, product.title);
+        } catch {
+          // Uma falha isolada não interrompe o pré-carregamento da página.
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+      }
+    }, 1500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [data, filters, page, query, sort]);
   const selected = useMemo(
     () =>
       data?.products.find((product) => product.shopifyId === selectedId) ||

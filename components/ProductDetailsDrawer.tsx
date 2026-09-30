@@ -37,6 +37,10 @@ import {
   getCachedProductImage,
   setCachedProductImage,
 } from "@/components/ProductThumbnail";
+import {
+  invalidateProductDetails,
+  loadProductDetails,
+} from "@/components/ProductDetailsCache";
 
 type DrawerStep = "details" | "edit";
 type SuccessPhase = "hidden" | "visible" | "leaving";
@@ -130,10 +134,11 @@ function ChoicePicker({
       <div className="choice-picker-body">
         <div className="choice-picker-label">
           <span>{label}</span>
-          <button type="button" onClick={() => setOpen((current) => !current)}>
-            <Plus size={14} />
-            {actionLabel}
-          </button>
+          {actionLabel && (
+            <button type="button" onClick={() => setOpen((current) => !current)}>
+              {actionLabel}
+            </button>
+          )}
         </div>
         <div
           className="choice-picker-control"
@@ -588,14 +593,10 @@ export function ProductDetailsDrawer({
     setError("");
     setMessage("");
     try {
-      const response = await fetch(
-        `/api/n8n/product-editor?sku=${encodeURIComponent(activeRow!.sku)}&title=${encodeURIComponent(currentTitle(activeRow!))}`,
-        { cache: "no-store" },
+      const product = await loadProductDetails(
+        activeRow!.sku,
+        currentTitle(activeRow!),
       );
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok)
-        throw new Error(body.error || "Não foi possível carregar o produto.");
-      const product = body.product || {};
       const productMedia = Array.isArray(product.images)
         ? product.images
         : Array.isArray(product.media)
@@ -796,6 +797,7 @@ export function ProductDetailsDrawer({
       const body = await response.json().catch(() => ({}));
       if (!response.ok)
         throw new Error(body.error || "Não foi possível atualizar o produto.");
+      invalidateProductDetails(activeRow!.sku, currentTitle(activeRow!));
       onProductUpdated?.(activeRow!, body.product);
       setOriginal(form!);
       const returnedMedia = body.product?.images;
@@ -1178,15 +1180,6 @@ export function ProductDetailsDrawer({
                     accept="image/png,image/jpeg,image/webp"
                     onChange={addMedia}
                   />
-                  <button
-                    className="product-media-head-add"
-                    type="button"
-                    disabled={mediaLoading}
-                    onClick={() => mediaInputRef.current?.click()}
-                  >
-                    <Plus size={14} />
-                    Adicionar mídia
-                  </button>
                 </div>
                 <div className="product-media-grid">
                   {media.map((item, index) => (
@@ -1319,7 +1312,7 @@ export function ProductDetailsDrawer({
               <ChoicePicker
                 label="Coleções"
                 icon={<Layers3 size={18} />}
-                actionLabel="Adicionar coleção"
+                actionLabel=""
                 value={form.collections}
                 options={availableCollections}
                 onChange={(value) => update("collections", value)}
@@ -1327,7 +1320,7 @@ export function ProductDetailsDrawer({
               <ChoicePicker
                 label="Tags"
                 icon={<Tag size={18} />}
-                actionLabel="Adicionar tag"
+                actionLabel=""
                 value={form.tags}
                 options={availableTags}
                 onChange={(value) => update("tags", value)}

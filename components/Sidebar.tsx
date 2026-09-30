@@ -211,7 +211,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
             </div>
             {navigationItems.map(([label, href, Icon]) => label === "Produtos" ? (
               <div className="mobile-products-group" key={href}>
-                <button type="button" onClick={() => setProductsOpen((value) => !value)} aria-expanded={productsOpen}>
+                <button className={pathname.startsWith("/produtos") ? "is-active" : undefined} type="button" onClick={() => setProductsOpen((value) => !value)} aria-expanded={productsOpen}>
                   <Icon size={18} strokeWidth={2} />
                   <span>{label}</span>
                   <ChevronRight className={productsOpen ? "is-open" : ""} size={16} />
