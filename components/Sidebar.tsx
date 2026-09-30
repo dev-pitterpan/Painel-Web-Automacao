@@ -67,9 +67,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
 
   useEffect(() => {
     setMobileOpen(false);
-  }, [pathname]);
-  useEffect(() => {
-    if (pathname.startsWith("/produtos")) setProductsOpen(true);
+    setProductsOpen(false);
   }, [pathname]);
   useEffect(() => {
     document.body.classList.toggle("mobile-menu-open", mobileOpen);
@@ -144,8 +142,8 @@ export function Sidebar({ user }: { user: AuthUser }) {
               {productsOpen && (
                 <div className="nav-products-flyout">
                   <strong>Produtos</strong>
-                  <Link href="/produtos" className={pathname === "/produtos" ? "is-active" : undefined}>Todos os produtos</Link>
-                  <Link href="/produtos/processados" className={pathname.startsWith("/produtos/processados") ? "is-active" : undefined}>Produtos processados</Link>
+                  <Link href="/produtos" className={pathname === "/produtos" ? "is-active" : undefined} onClick={() => setProductsOpen(false)}>Todos os produtos</Link>
+                  <Link href="/produtos/processados" className={pathname.startsWith("/produtos/processados") ? "is-active" : undefined} onClick={() => setProductsOpen(false)}>Produtos processados</Link>
                 </div>
               )}
             </div>
@@ -219,8 +217,8 @@ export function Sidebar({ user }: { user: AuthUser }) {
                   <ChevronRight className={productsOpen ? "is-open" : ""} size={16} />
                 </button>
                 {productsOpen && <div className="mobile-products-links">
-                  <Link href="/produtos" className={pathname === "/produtos" ? "is-active" : undefined} onClick={() => setMobileOpen(false)}>Todos os produtos</Link>
-                  <Link href="/produtos/processados" className={pathname.startsWith("/produtos/processados") ? "is-active" : undefined} onClick={() => setMobileOpen(false)}>Produtos processados</Link>
+                  <Link href="/produtos" className={pathname === "/produtos" ? "is-active" : undefined} onClick={() => { setMobileOpen(false); setProductsOpen(false); }}>Todos os produtos</Link>
+                  <Link href="/produtos/processados" className={pathname.startsWith("/produtos/processados") ? "is-active" : undefined} onClick={() => { setMobileOpen(false); setProductsOpen(false); }}>Produtos processados</Link>
                 </div>}
               </div>
             ) : (

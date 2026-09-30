@@ -752,6 +752,10 @@ function catalogProductFromRow(row: any): ShopifyCatalogProduct {
 export async function listShopifyCatalogProducts(input: {
   query?: string;
   status?: string;
+  vendor?: string;
+  tag?: string;
+  collection?: string;
+  productType?: string;
   page?: number;
   perPage?: number;
   sort?: "updated" | "title" | "inventory";
@@ -770,6 +774,23 @@ export async function listShopifyCatalogProducts(input: {
   if (["ACTIVE", "DRAFT", "ARCHIVED"].includes(status)) {
     params.push(status);
     where.push(`status = $${params.length}`);
+  }
+  const exactFilters: Array<[string, string]> = [
+    ["vendor", String(input.vendor || "").trim()],
+    ["product_type", String(input.productType || "").trim()],
+  ];
+  for (const [column, value] of exactFilters) {
+    if (!value) continue;
+    params.push(value);
+    where.push(`${column} = $${params.length}`);
+  }
+  for (const [column, value] of [
+    ["tags_json", String(input.tag || "").trim()],
+    ["collections_json", String(input.collection || "").trim()],
+  ]) {
+    if (!value) continue;
+    params.push(JSON.stringify([value]));
+    where.push(`${column} @> $${params.length}::jsonb`);
   }
   const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const order =
@@ -796,6 +817,19 @@ export async function listShopifyCatalogProducts(input: {
     total,
     totalPages: Math.max(1, Math.ceil(total / perPage)),
   };
+}
+
+export async function getShopifyCatalogFacets() {
+  await ensureDatabase();
+  const [vendors, productTypes, statuses, tags, collections] = await Promise.all([
+    query<{ value: string }>("SELECT DISTINCT vendor AS value FROM shopify_catalog_products WHERE vendor <> '' ORDER BY value"),
+    query<{ value: string }>("SELECT DISTINCT product_type AS value FROM shopify_catalog_products WHERE product_type <> '' ORDER BY value"),
+    query<{ value: string }>("SELECT DISTINCT status AS value FROM shopify_catalog_products WHERE status <> '' ORDER BY value"),
+    query<{ value: string }>("SELECT DISTINCT jsonb_array_elements_text(tags_json) AS value FROM shopify_catalog_products ORDER BY value"),
+    query<{ value: string }>("SELECT DISTINCT jsonb_array_elements_text(collections_json) AS value FROM shopify_catalog_products ORDER BY value"),
+  ]);
+  const values = (rows: Array<{ value: string }>) => rows.map((row) => String(row.value)).filter(Boolean);
+  return { vendors: values(vendors), productTypes: values(productTypes), statuses: values(statuses), tags: values(tags), collections: values(collections) };
 }
 
 export async function upsertShopifyCatalogProducts(

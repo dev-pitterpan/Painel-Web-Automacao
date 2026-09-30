@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   deleteShopifyCatalogProduct,
   getCurrentUser,
+  getShopifyCatalogFacets,
   listShopifyCatalogProducts,
   upsertShopifyCatalogProducts,
   type ShopifyCatalogProduct,
@@ -67,12 +68,18 @@ export async function GET(req: NextRequest) {
     const result = await listShopifyCatalogProducts({
       query: params.get("q") || "",
       status: params.get("status") || "",
+      vendor: params.get("vendor") || "",
+      tag: params.get("tag") || "",
+      collection: params.get("collection") || "",
+      productType: params.get("productType") || "",
       page: Number(params.get("page") || 1),
       perPage: Number(params.get("perPage") || 50),
       sort: (params.get("sort") || "updated") as "updated" | "title" | "inventory",
     });
+    const facets = params.get("facets") === "1" ? await getShopifyCatalogFacets() : undefined;
     return NextResponse.json({
       ...result,
+      facets,
       permissions: { canEditProducts: user.role === "admin" },
     });
   } catch (error) {
