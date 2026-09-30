@@ -257,6 +257,7 @@ export function ProductDetailsDrawer({
   const [originalMedia, setOriginalMedia] = useState<ProductMedia[]>([]);
   const [mediaSlideIndex, setMediaSlideIndex] = useState(0);
   const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaDragging, setMediaDragging] = useState(false);
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -327,6 +328,24 @@ export function ProductDetailsDrawer({
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
   }, [row, onClose, saving]);
+
+  useEffect(() => {
+    if (!row || step !== "edit") return;
+    const pasteImage = (event: ClipboardEvent) => {
+      const files = Array.from(event.clipboardData?.items || [])
+        .filter(
+          (item) => item.kind === "file" && item.type.startsWith("image/"),
+        )
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => Boolean(file));
+      if (!files.length) return;
+      event.preventDefault();
+      void processMediaFiles(files);
+    };
+    document.addEventListener("paste", pasteImage);
+    return () => document.removeEventListener("paste", pasteImage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row, step, media, mediaLoading, form]);
 
   const changedFields = useMemo(() => {
     if (!form || !original) return 0;
@@ -456,10 +475,9 @@ export function ProductDetailsDrawer({
     }
   }
 
-  async function addMedia(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || []);
-    event.target.value = "";
+  async function processMediaFiles(files: File[]) {
     if (!files.length) return;
+    if (mediaLoading) return;
     const available = Math.max(
       0,
       5 - media.filter((item) => item.isNew).length,
@@ -515,6 +533,12 @@ export function ProductDetailsDrawer({
     } finally {
       setMediaLoading(false);
     }
+  }
+
+  async function addMedia(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    await processMediaFiles(files);
   }
 
   async function saveProduct() {
@@ -866,25 +890,35 @@ export function ProductDetailsDrawer({
               onChange={(html) => update("description", html)}
             />
           </label>
-          <section className="product-media-editor">
+          <section
+            className={`product-media-editor ${mediaDragging ? "is-dragging" : ""}`}
+            onDragEnter={(event) => {
+              event.preventDefault();
+              if (event.dataTransfer.types.includes("Files"))
+                setMediaDragging(true);
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "copy";
+            }}
+            onDragLeave={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget as Node))
+                return;
+              setMediaDragging(false);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setMediaDragging(false);
+              void processMediaFiles(Array.from(event.dataTransfer.files));
+            }}
+          >
             <div className="product-media-head">
               <div>
                 <strong>Mídias</strong>
-                <small>Imagens atuais e novas imagens do produto.</small>
+                <small>
+                  Clique no +, arraste uma imagem ou cole com Ctrl + V.
+                </small>
               </div>
-              <button
-                className="btn"
-                type="button"
-                disabled={mediaLoading}
-                onClick={() => mediaInputRef.current?.click()}
-              >
-                {mediaLoading ? (
-                  <LoaderCircle className="spin" size={15} />
-                ) : (
-                  <ImagePlus size={15} />
-                )}
-                Adicionar imagem
-              </button>
               <input
                 ref={mediaInputRef}
                 type="file"
@@ -944,16 +978,20 @@ export function ProductDetailsDrawer({
                   </button>
                 </article>
               ))}
-              {!media.some((item) => !item.isDeleted) && (
-                <button
-                  className="product-media-empty"
-                  type="button"
-                  onClick={() => mediaInputRef.current?.click()}
-                >
-                  <ImageIcon size={25} />
-                  <span>Adicionar a primeira imagem</span>
-                </button>
-              )}
+              <button
+                className="product-media-add-tile"
+                type="button"
+                disabled={mediaLoading}
+                title="Adicionar imagem: clique, arraste ou use Ctrl + V"
+                aria-label="Adicionar imagem"
+                onClick={() => mediaInputRef.current?.click()}
+              >
+                {mediaLoading ? (
+                  <LoaderCircle className="spin" size={22} />
+                ) : (
+                  <ImagePlus size={23} />
+                )}
+              </button>
             </div>
           </section>
           <label className="product-edit-field">
