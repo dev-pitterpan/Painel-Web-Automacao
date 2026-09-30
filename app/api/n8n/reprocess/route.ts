@@ -46,6 +46,10 @@ export async function POST(req: NextRequest) {
     .trim()
     .slice(0, 80);
 
+  const shopifyProductId = String(body?.shopifyProductId || "")
+    .trim()
+    .slice(0, 180);
+
   if (!sku) {
     return NextResponse.json({ error: "SKU obrigatório." }, { status: 400 });
   }
@@ -56,6 +60,7 @@ export async function POST(req: NextRequest) {
     request_id: requestId,
     sku,
     titulo,
+    shopify_product_id: shopifyProductId || null,
     data_hora_historico: dataHoraHistorico || null,
     origem: "dashboard-pitter-pan",
     solicitado_em: new Date().toISOString(),

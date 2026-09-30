@@ -358,12 +358,14 @@ export function ShopifyProductsClient() {
     let nextIndex = 0;
     let successes = 0;
     let failures = 0;
+    const failureMessages: string[] = [];
     const worker = async () => {
       while (nextIndex < selectedProducts.length) {
         const product = selectedProducts[nextIndex];
         nextIndex += 1;
         if (!product.sku) {
           failures += 1;
+          failureMessages.push(`${product.title}: produto sem SKU.`);
           continue;
         }
         try {
@@ -374,14 +376,18 @@ export function ShopifyProductsClient() {
               sku: product.sku,
               titulo: product.title,
               dataHora: product.shopifyUpdatedAt,
+              shopifyProductId: product.shopifyId,
             }),
           });
           const result = await response.json().catch(() => null);
           if (!response.ok || !result?.ok)
             throw new Error(result?.error || "Falha ao iniciar automação.");
           successes += 1;
-        } catch {
+        } catch (cause) {
           failures += 1;
+          const message =
+            cause instanceof Error ? cause.message : "Falha ao iniciar automação.";
+          failureMessages.push(`${product.title}: ${message}`);
         }
       }
     };
@@ -400,7 +406,7 @@ export function ShopifyProductsClient() {
     } else {
       setAutomationMessage({
         tone: "error",
-        text: `Automação iniciada para ${successes}; ${failures} ${failures === 1 ? "produto falhou" : "produtos falharam"}.`,
+        text: `Automação iniciada para ${successes}; ${failures} ${failures === 1 ? "produto falhou" : "produtos falharam"}. ${failureMessages.join(" ")}`,
       });
     }
   };
