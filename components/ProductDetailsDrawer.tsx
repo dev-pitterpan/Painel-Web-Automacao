@@ -122,17 +122,39 @@ function ChoicePicker({
           <Plus size={15} />
         </button>
       </div>
-      <button
+      <div
         className="choice-picker-control"
-        type="button"
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
       >
         {selected.length ? (
-          selected.map((item) => <span key={normalize(item)}>{item}</span>)
+          selected.map((item) => (
+            <span className="choice-picker-chip" key={normalize(item)}>
+              {item}
+              <button
+                type="button"
+                aria-label={`Remover ${item}`}
+                title={`Remover ${item}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggle(item);
+                }}
+              >
+                <X size={11} />
+              </button>
+            </span>
+          ))
         ) : (
           <em>Nenhum item selecionado</em>
         )}
-      </button>
+      </div>
       {open && (
         <div className="choice-picker-menu">
           <div className="choice-picker-search">

@@ -3542,12 +3542,42 @@ tbody tr:hover {
   text-align: left;
   cursor: pointer;
 }
-.choice-picker-control > span {
+.choice-picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   padding: 5px 8px;
   border-radius: 7px;
   background: #f0f2f5;
   color: #27344a;
   font-size: 10px;
+}
+.choice-picker-chip > button {
+  display: grid;
+  width: 0;
+  height: 17px;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #d9dee6;
+  color: #344056;
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    width 0.16s ease,
+    opacity 0.16s ease,
+    background 0.16s ease;
+}
+.choice-picker-chip:hover > button,
+.choice-picker-chip:focus-within > button {
+  width: 17px;
+  opacity: 1;
+}
+.choice-picker-chip > button:hover {
+  background: #c8ced8;
+  color: #111827;
 }
 .choice-picker-control > em {
   color: var(--muted);
