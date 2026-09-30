@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -8,12 +9,15 @@ import {
   Check,
   CheckCircle2,
   CircleAlert,
+  CalendarDays,
+  FileText,
   ImageIcon,
   ImagePlus,
   GripVertical,
   Italic,
   List,
   ListOrdered,
+  Layers3,
   Info,
   LoaderCircle,
   Package,
@@ -21,6 +25,8 @@ import {
   Plus,
   Search,
   Scale,
+  ShoppingBag,
+  Tag,
   Code2,
   Underline,
   Trash2,
@@ -71,11 +77,15 @@ function ChoicePicker({
   value,
   options,
   onChange,
+  icon,
+  actionLabel,
 }: {
   label: string;
   value: string;
   options: string[];
   onChange: (value: string) => void;
+  icon: ReactNode;
+  actionLabel: string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -116,44 +126,48 @@ function ChoicePicker({
 
   return (
     <div ref={pickerRef} className={`choice-picker ${open ? "is-open" : ""}`}>
-      <div className="choice-picker-label">
-        <span>{label}</span>
-        <button type="button" onClick={() => setOpen((current) => !current)}>
-          <Plus size={15} />
-        </button>
-      </div>
-      <div
-        className="choice-picker-control"
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen(true)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            setOpen(true);
-          }
-        }}
-      >
-        {selected.length ? (
-          selected.map((item) => (
-            <span className="choice-picker-chip" key={normalize(item)}>
-              {item}
-              <button
-                type="button"
-                aria-label={`Remover ${item}`}
-                title={`Remover ${item}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  toggle(item);
-                }}
-              >
-                <X size={11} />
-              </button>
-            </span>
-          ))
-        ) : (
-          <em>Nenhum item selecionado</em>
-        )}
+      <span className="product-edit-card-icon">{icon}</span>
+      <div className="choice-picker-body">
+        <div className="choice-picker-label">
+          <span>{label}</span>
+          <button type="button" onClick={() => setOpen((current) => !current)}>
+            <Plus size={14} />
+            {actionLabel}
+          </button>
+        </div>
+        <div
+          className="choice-picker-control"
+          role="button"
+          tabIndex={0}
+          onClick={() => setOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setOpen(true);
+            }
+          }}
+        >
+          {selected.length ? (
+            selected.map((item) => (
+              <span className="choice-picker-chip" key={normalize(item)}>
+                {item}
+                <button
+                  type="button"
+                  aria-label={`Remover ${item}`}
+                  title={`Remover ${item}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggle(item);
+                  }}
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))
+          ) : (
+            <em>Nenhum item selecionado</em>
+          )}
+        </div>
       </div>
       {open && (
         <div className="choice-picker-menu">
@@ -839,7 +853,7 @@ export function ProductDetailsDrawer({
     <>
       <aside
         ref={windowRef}
-        className="product-drawer product-editor-drawer product-floating-window"
+        className={`product-drawer product-editor-drawer product-floating-window ${step === "edit" ? "is-editing-product" : ""}`}
         role="dialog"
         aria-modal="false"
         aria-labelledby="product-drawer-title"
@@ -898,17 +912,38 @@ export function ProductDetailsDrawer({
           </button>
         </header>
         <div className="product-drawer-meta">
-          <span>
-            <small>SKU</small>
-            <strong>{activeRow.sku || "—"}</strong>
+          <span className="product-meta-item">
+            {step === "edit" && (
+              <i>
+                <Tag size={18} />
+              </i>
+            )}
+            <span>
+              <small>SKU</small>
+              <strong>{activeRow.sku || "—"}</strong>
+            </span>
           </span>
-          <span>
-            <small>Marca</small>
-            <strong>{activeRow.marca || "—"}</strong>
+          <span className="product-meta-item">
+            {step === "edit" && (
+              <i>
+                <ShoppingBag size={18} />
+              </i>
+            )}
+            <span>
+              <small>Marca</small>
+              <strong>{activeRow.marca || "—"}</strong>
+            </span>
           </span>
-          <span>
-            <small>Última atualização</small>
-            <strong>{activeRow.dataHora || "—"}</strong>
+          <span className="product-meta-item">
+            {step === "edit" && (
+              <i>
+                <CalendarDays size={18} />
+              </i>
+            )}
+            <span>
+              <small>Última atualização</small>
+              <strong>{activeRow.dataHora || "—"}</strong>
+            </span>
           </span>
           <span className={failed ? "drawer-status is-error" : "drawer-status"}>
             {failed ? <CircleAlert size={14} /> : <CheckCircle2 size={14} />}
@@ -1073,25 +1108,36 @@ export function ProductDetailsDrawer({
                   só acontece depois da confirmação.
                 </span>
               </div>
-              <label className="product-edit-field">
-                <span>Título</span>
-                <input
-                  value={form.title}
-                  onChange={(event) => update("title", event.target.value)}
-                  maxLength={255}
-                  required
-                />
-                <small>{form.title.length}/255 caracteres</small>
-              </label>
-              <label className="product-edit-field">
-                <span>Descrição</span>
-                <HtmlDescriptionEditor
-                  value={form.description}
-                  onChange={(html) => update("description", html)}
-                />
-              </label>
+              <section className="product-edit-card product-title-card">
+                <span className="product-edit-card-icon">
+                  <FileText size={18} />
+                </span>
+                <label className="product-edit-field">
+                  <span>Título</span>
+                  <small className="product-field-help">Nome do produto</small>
+                  <input
+                    value={form.title}
+                    onChange={(event) => update("title", event.target.value)}
+                    maxLength={255}
+                    required
+                  />
+                  <small>{form.title.length}/255 caracteres</small>
+                </label>
+              </section>
+              <section className="product-edit-card product-description-card">
+                <span className="product-edit-card-icon">
+                  <FileText size={18} />
+                </span>
+                <label className="product-edit-field">
+                  <span>Descrição</span>
+                  <HtmlDescriptionEditor
+                    value={form.description}
+                    onChange={(html) => update("description", html)}
+                  />
+                </label>
+              </section>
               <section
-                className={`product-media-editor ${mediaDragging ? "is-dragging" : ""}`}
+                className={`product-media-editor product-edit-card ${mediaDragging ? "is-dragging" : ""}`}
                 onDragEnter={(event) => {
                   event.preventDefault();
                   if (event.dataTransfer.types.includes("Files"))
@@ -1113,6 +1159,9 @@ export function ProductDetailsDrawer({
                   void processMediaFiles(Array.from(event.dataTransfer.files));
                 }}
               >
+                <span className="product-edit-card-icon">
+                  <ImageIcon size={18} />
+                </span>
                 <div className="product-media-head">
                   <div>
                     <strong>Mídias</strong>
@@ -1129,6 +1178,15 @@ export function ProductDetailsDrawer({
                     accept="image/png,image/jpeg,image/webp"
                     onChange={addMedia}
                   />
+                  <button
+                    className="product-media-head-add"
+                    type="button"
+                    disabled={mediaLoading}
+                    onClick={() => mediaInputRef.current?.click()}
+                  >
+                    <Plus size={14} />
+                    Adicionar mídia
+                  </button>
                 </div>
                 <div className="product-media-grid">
                   {media.map((item, index) => (
@@ -1246,45 +1304,60 @@ export function ProductDetailsDrawer({
                     {mediaLoading ? (
                       <LoaderCircle className="spin" size={22} />
                     ) : (
-                      <ImagePlus size={23} />
+                      <>
+                        <ImagePlus size={25} />
+                        <strong>Adicionar mídia</strong>
+                        <span>
+                          Clique para selecionar ou arraste uma imagem aqui
+                        </span>
+                        <small>PNG, JPG ou WEBP (máx. 10MB)</small>
+                      </>
                     )}
                   </button>
                 </div>
               </section>
               <ChoicePicker
                 label="Coleções"
+                icon={<Layers3 size={18} />}
+                actionLabel="Adicionar coleção"
                 value={form.collections}
                 options={availableCollections}
                 onChange={(value) => update("collections", value)}
               />
               <ChoicePicker
                 label="Tags"
+                icon={<Tag size={18} />}
+                actionLabel="Adicionar tag"
                 value={form.tags}
                 options={availableTags}
                 onChange={(value) => update("tags", value)}
               />
-              <div className="product-edit-field">
-                <span>Peso</span>
-                <div className="weight-field">
-                  <Scale size={17} />
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.001"
-                    value={form.weight}
-                    onChange={(event) => update("weight", event.target.value)}
-                    placeholder="0"
-                    required
-                  />
-                  <select
-                    value={form.weightUnit}
-                    onChange={(event) =>
-                      update("weightUnit", event.target.value)
-                    }
-                  >
-                    <option value="g">g</option>
-                    <option value="kg">kg</option>
-                  </select>
+              <div className="product-edit-card product-weight-card">
+                <span className="product-edit-card-icon">
+                  <Scale size={18} />
+                </span>
+                <div className="product-edit-field">
+                  <span>Peso</span>
+                  <div className="weight-field">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={form.weight}
+                      onChange={(event) => update("weight", event.target.value)}
+                      placeholder="0"
+                      required
+                    />
+                    <select
+                      value={form.weightUnit}
+                      onChange={(event) =>
+                        update("weightUnit", event.target.value)
+                      }
+                    >
+                      <option value="g">g</option>
+                      <option value="kg">kg</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </form>
@@ -1311,6 +1384,7 @@ export function ProductDetailsDrawer({
               disabled={saving || !totalChanges}
             >
               {saving && <LoaderCircle className="spin" size={14} />}
+              {!saving && <ShoppingBag size={15} />}
               {saving ? "Salvando..." : "Salvar no Shopify"}
             </button>
           </footer>
