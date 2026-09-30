@@ -1,7 +1,18 @@
 import { DashboardClient } from "@/components/DashboardClient";
 import { getCurrentUser } from "@/lib/auth";
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ fromLogin?: string }>;
+}) {
   const user = await getCurrentUser();
-  return <DashboardClient mode="dashboard" greetingName={user?.name} />;
+  const params = await searchParams;
+  return (
+    <DashboardClient
+      mode="dashboard"
+      greetingName={user?.name}
+      loginTransition={params.fromLogin === "1"}
+    />
+  );
 }

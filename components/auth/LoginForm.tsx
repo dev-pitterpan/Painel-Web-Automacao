@@ -23,7 +23,7 @@ export function LoginForm() {
     const complete = window.setTimeout(() => {
       setLoginProgress(100);
       window.setTimeout(() => {
-        router.replace("/");
+        router.replace("/?fromLogin=1");
         router.refresh();
       }, 180);
     }, 1250);

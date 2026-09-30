@@ -696,358 +696,370 @@ export function ProductDetailsDrawer({
             {failed ? "Erro" : "Sincronizado"}
           </span>
         </div>
-        {(error || message) && (
-          <div
-            className={`product-editor-message ${error ? "is-error" : "is-success"}`}
-          >
-            {error ? <CircleAlert size={16} /> : <CheckCircle2 size={16} />}
-            <span>{error || message}</span>
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setMessage("");
-              }}
-              aria-label="Fechar aviso"
+        <div className="product-drawer-scroll">
+          {(error || message) && (
+            <div
+              className={`product-editor-message ${error ? "is-error" : "is-success"}`}
             >
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        {step === "details" && (
-          <>
-            <div className="drawer-edit-banner">
-              <div>
-                <strong>Editar informações no Shopify</strong>
-                <span>
-                  {canEdit
-                    ? "Carregue os valores atuais e altere título, tags, coleções e peso."
-                    : "Visualização liberada. Apenas administradores podem editar produtos."}
-                </span>
-              </div>
+              {error ? <CircleAlert size={16} /> : <CheckCircle2 size={16} />}
+              <span>{error || message}</span>
               <button
-                className={`btn btn-primary ${loadingProduct ? "is-loading" : ""}`}
                 type="button"
-                onClick={() => openEditor(true)}
-                disabled={loadingProduct || !canEdit}
-                title={
-                  canEdit
-                    ? "Editar informações do produto"
-                    : "Apenas administradores podem editar produtos"
-                }
+                onClick={() => {
+                  setError("");
+                  setMessage("");
+                }}
+                aria-label="Fechar aviso"
               >
-                {loadingProduct ? (
-                  <LoaderCircle className="spin" size={14} />
-                ) : (
-                  <Pencil size={14} />
-                )}
-                {loadingProduct ? "Carregando..." : "Editar produto"}
+                <X size={14} />
               </button>
             </div>
-            <div className="product-drawer-body">
-              <section className="product-current-overview">
-                <div className="product-current-image">
-                  {visibleMedia[mediaSlideIndex]?.url ? (
-                    <>
-                      <img
-                        src={visibleMedia[mediaSlideIndex].url}
-                        alt={visibleMedia[mediaSlideIndex].alt || title}
-                      />
-                      {visibleMedia.length > 1 && (
-                        <>
-                          <button
-                            className="product-current-image-nav is-previous"
-                            type="button"
-                            aria-label="Imagem anterior"
-                            onClick={() =>
-                              setMediaSlideIndex((current) =>
-                                current === 0
-                                  ? visibleMedia.length - 1
-                                  : current - 1,
-                              )
-                            }
-                          >
-                            <ArrowLeft size={17} />
-                          </button>
-                          <button
-                            className="product-current-image-nav is-next"
-                            type="button"
-                            aria-label="Próxima imagem"
-                            onClick={() =>
-                              setMediaSlideIndex((current) =>
-                                current === visibleMedia.length - 1
-                                  ? 0
-                                  : current + 1,
-                              )
-                            }
-                          >
-                            <ArrowRight size={17} />
-                          </button>
-                          <small className="product-current-image-count">
-                            {mediaSlideIndex + 1} / {visibleMedia.length}
-                          </small>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <span>
-                      <ImageIcon size={28} />
-                      {loadingProduct ? "Carregando imagem..." : "Sem imagem"}
-                    </span>
-                  )}
-                </div>
-                <div className="product-current-description">
-                  <strong>Descrição atual</strong>
-                  {form.description ? (
-                    <div
-                      className="shopify-description-preview"
-                      dangerouslySetInnerHTML={{
-                        __html: safeDescriptionHtml(form.description),
-                      }}
-                    />
-                  ) : (
-                    <p>Descrição não informada no Shopify.</p>
-                  )}
-                </div>
-              </section>
-              <ValueCard
-                label="Título"
-                before={activeRow.tituloAntes}
-                after={activeRow.tituloDepois}
-                changed={activeRow.tituloAlterado}
-              />
-              <ValueCard
-                label="Tags"
-                before={activeRow.tagsAntes}
-                after={activeRow.tagsDepois}
-                changed={activeRow.tagsAlteradas}
-              />
-              <ValueCard
-                label="Coleções"
-                before={activeRow.colecoesAntes}
-                after={activeRow.colecoesDepois}
-                changed={activeRow.colecoesAlteradas}
-              />
-              <section className="description-result">
-                <div>
-                  <strong>Descrição do produto</strong>
-                  <small>
-                    O conteúdo atual será carregado diretamente do Shopify ao
-                    editar.
-                  </small>
-                </div>
-                <span
-                  className={activeRow.descricaoGerada ? "is-generated" : ""}
-                >
-                  {activeRow.descricaoGerada ? "Gerada" : "Não gerada"}
-                </span>
-              </section>
-            </div>
-          </>
-        )}
+          )}
 
-        {step === "edit" && (
-          <form
-            className="product-edit-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void saveProduct();
-            }}
-          >
-            <div className="editor-phase-notice">
-              <Info size={16} />
-              <span>
-                Os valores abaixo foram consultados no Shopify. A atualização só
-                acontece depois da confirmação.
-              </span>
-            </div>
-            <label className="product-edit-field">
-              <span>Título</span>
-              <input
-                value={form.title}
-                onChange={(event) => update("title", event.target.value)}
-                maxLength={255}
-                required
-              />
-              <small>{form.title.length}/255 caracteres</small>
-            </label>
-            <label className="product-edit-field">
-              <span>Descrição</span>
-              <HtmlDescriptionEditor
-                value={form.description}
-                onChange={(html) => update("description", html)}
-              />
-            </label>
-            <section
-              className={`product-media-editor ${mediaDragging ? "is-dragging" : ""}`}
-              onDragEnter={(event) => {
-                event.preventDefault();
-                if (event.dataTransfer.types.includes("Files"))
-                  setMediaDragging(true);
-              }}
-              onDragOver={(event) => {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "copy";
-              }}
-              onDragLeave={(event) => {
-                if (event.currentTarget.contains(event.relatedTarget as Node))
-                  return;
-                setMediaDragging(false);
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                setMediaDragging(false);
-                void processMediaFiles(Array.from(event.dataTransfer.files));
-              }}
-            >
-              <div className="product-media-head">
+          {step === "details" && (
+            <>
+              <div className="drawer-edit-banner">
                 <div>
-                  <strong>Mídias</strong>
-                  <small>
-                    Clique no +, arraste uma imagem ou cole com Ctrl + V.
-                  </small>
+                  <strong>Editar informações no Shopify</strong>
+                  <span>
+                    {canEdit
+                      ? "Carregue os valores atuais e altere título, tags, coleções e peso."
+                      : "Visualização liberada. Apenas administradores podem editar produtos."}
+                  </span>
                 </div>
-                <input
-                  ref={mediaInputRef}
-                  type="file"
-                  hidden
-                  multiple
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={addMedia}
-                />
-              </div>
-              <div className="product-media-grid">
-                {media.map((item, index) => (
-                  <article
-                    className={`product-media-item ${item.isDeleted ? "is-deleted" : ""}`}
-                    key={`${item.id || "new"}-${index}`}
-                  >
-                    <img src={item.url} alt={item.alt || form.title} />
-                    {media.findIndex((mediaItem) => !mediaItem.isDeleted) ===
-                      index && <span>Principal</span>}
-                    {item.isDeleted && <em>{"Ser\u00e1 exclu\u00edda"}</em>}
-                    <button
-                      className={item.isDeleted ? "is-undo" : ""}
-                      type="button"
-                      aria-label={
-                        item.isDeleted ? "Desfazer exclusao" : "Excluir imagem"
-                      }
-                      title={
-                        item.isDeleted
-                          ? "Desfazer exclusao"
-                          : "Excluir imagem do Shopify"
-                      }
-                      onClick={() =>
-                        item.isNew
-                          ? setMedia((current) =>
-                              current.filter(
-                                (_, mediaIndex) => mediaIndex !== index,
-                              ),
-                            )
-                          : setMedia((current) =>
-                              current.map((mediaItem, mediaIndex) =>
-                                mediaIndex === index
-                                  ? {
-                                      ...mediaItem,
-                                      isDeleted: !mediaItem.isDeleted,
-                                    }
-                                  : mediaItem,
-                              ),
-                            )
-                      }
-                    >
-                      {item.isDeleted ? (
-                        <span>Desfazer</span>
-                      ) : item.isNew ? (
-                        <X size={14} />
-                      ) : (
-                        <Trash2 size={14} />
-                      )}
-                    </button>
-                  </article>
-                ))}
                 <button
-                  className="product-media-add-tile"
+                  className={`btn btn-primary ${loadingProduct ? "is-loading" : ""}`}
                   type="button"
-                  disabled={mediaLoading}
-                  title="Adicionar imagem: clique, arraste ou use Ctrl + V"
-                  aria-label="Adicionar imagem"
-                  onClick={() => mediaInputRef.current?.click()}
+                  onClick={() => openEditor(true)}
+                  disabled={loadingProduct || !canEdit}
+                  title={
+                    canEdit
+                      ? "Editar informações do produto"
+                      : "Apenas administradores podem editar produtos"
+                  }
                 >
-                  {mediaLoading ? (
-                    <LoaderCircle className="spin" size={22} />
+                  {loadingProduct ? (
+                    <LoaderCircle className="spin" size={14} />
                   ) : (
-                    <ImagePlus size={23} />
+                    <Pencil size={14} />
                   )}
+                  {loadingProduct ? "Carregando..." : "Editar produto"}
                 </button>
               </div>
-            </section>
-            <label className="product-edit-field">
-              <span>Tags</span>
-              <textarea
-                value={form.tags}
-                onChange={(event) => update("tags", event.target.value)}
-                rows={3}
-                placeholder="Separe as tags por vírgulas"
-              />
-              <small>Separe cada tag por vírgula.</small>
-            </label>
-            <label className="product-edit-field">
-              <span>Coleções</span>
-              <textarea
-                value={form.collections}
-                onChange={(event) => update("collections", event.target.value)}
-                rows={3}
-                placeholder="Separe as coleções por vírgulas"
-              />
-              <small>Use os nomes exatos das coleções existentes.</small>
-            </label>
-            <div className="product-edit-field">
-              <span>Peso</span>
-              <div className="weight-field">
-                <Scale size={17} />
+              <div className="product-drawer-body">
+                <section className="product-current-overview">
+                  <div className="product-current-image">
+                    {visibleMedia[mediaSlideIndex]?.url ? (
+                      <>
+                        <img
+                          src={visibleMedia[mediaSlideIndex].url}
+                          alt={visibleMedia[mediaSlideIndex].alt || title}
+                        />
+                        {visibleMedia.length > 1 && (
+                          <>
+                            <button
+                              className="product-current-image-nav is-previous"
+                              type="button"
+                              aria-label="Imagem anterior"
+                              onClick={() =>
+                                setMediaSlideIndex((current) =>
+                                  current === 0
+                                    ? visibleMedia.length - 1
+                                    : current - 1,
+                                )
+                              }
+                            >
+                              <ArrowLeft size={17} />
+                            </button>
+                            <button
+                              className="product-current-image-nav is-next"
+                              type="button"
+                              aria-label="Próxima imagem"
+                              onClick={() =>
+                                setMediaSlideIndex((current) =>
+                                  current === visibleMedia.length - 1
+                                    ? 0
+                                    : current + 1,
+                                )
+                              }
+                            >
+                              <ArrowRight size={17} />
+                            </button>
+                            <small className="product-current-image-count">
+                              {mediaSlideIndex + 1} / {visibleMedia.length}
+                            </small>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <span>
+                        <ImageIcon size={28} />
+                        {loadingProduct ? "Carregando imagem..." : "Sem imagem"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="product-current-description">
+                    <strong>Descrição atual</strong>
+                    {form.description ? (
+                      <div
+                        className="shopify-description-preview"
+                        dangerouslySetInnerHTML={{
+                          __html: safeDescriptionHtml(form.description),
+                        }}
+                      />
+                    ) : (
+                      <p>Descrição não informada no Shopify.</p>
+                    )}
+                  </div>
+                </section>
+                <ValueCard
+                  label="Título"
+                  before={activeRow.tituloAntes}
+                  after={activeRow.tituloDepois}
+                  changed={activeRow.tituloAlterado}
+                />
+                <ValueCard
+                  label="Tags"
+                  before={activeRow.tagsAntes}
+                  after={activeRow.tagsDepois}
+                  changed={activeRow.tagsAlteradas}
+                />
+                <ValueCard
+                  label="Coleções"
+                  before={activeRow.colecoesAntes}
+                  after={activeRow.colecoesDepois}
+                  changed={activeRow.colecoesAlteradas}
+                />
+                <section className="description-result">
+                  <div>
+                    <strong>Descrição do produto</strong>
+                    <small>
+                      O conteúdo atual será carregado diretamente do Shopify ao
+                      editar.
+                    </small>
+                  </div>
+                  <span
+                    className={activeRow.descricaoGerada ? "is-generated" : ""}
+                  >
+                    {activeRow.descricaoGerada ? "Gerada" : "Não gerada"}
+                  </span>
+                </section>
+              </div>
+            </>
+          )}
+
+          {step === "edit" && (
+            <form
+              id="product-edit-form"
+              className="product-edit-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveProduct();
+              }}
+            >
+              <div className="editor-phase-notice">
+                <Info size={16} />
+                <span>
+                  Os valores abaixo foram consultados no Shopify. A atualização
+                  só acontece depois da confirmação.
+                </span>
+              </div>
+              <label className="product-edit-field">
+                <span>Título</span>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  value={form.weight}
-                  onChange={(event) => update("weight", event.target.value)}
-                  placeholder="0"
+                  value={form.title}
+                  onChange={(event) => update("title", event.target.value)}
+                  maxLength={255}
                   required
                 />
-                <select
-                  value={form.weightUnit}
-                  onChange={(event) => update("weightUnit", event.target.value)}
-                >
-                  <option value="g">g</option>
-                  <option value="kg">kg</option>
-                </select>
-              </div>
-            </div>
-            <footer className="product-editor-actions">
-              <button
-                className="btn"
-                type="button"
-                disabled={saving}
-                onClick={() => {
-                  setForm(original);
-                  setMedia(originalMedia);
-                  setStep("details");
+                <small>{form.title.length}/255 caracteres</small>
+              </label>
+              <label className="product-edit-field">
+                <span>Descrição</span>
+                <HtmlDescriptionEditor
+                  value={form.description}
+                  onChange={(html) => update("description", html)}
+                />
+              </label>
+              <section
+                className={`product-media-editor ${mediaDragging ? "is-dragging" : ""}`}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  if (event.dataTransfer.types.includes("Files"))
+                    setMediaDragging(true);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "copy";
+                }}
+                onDragLeave={(event) => {
+                  if (event.currentTarget.contains(event.relatedTarget as Node))
+                    return;
+                  setMediaDragging(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setMediaDragging(false);
+                  void processMediaFiles(Array.from(event.dataTransfer.files));
                 }}
               >
-                Cancelar
-              </button>
-              <button
-                className="btn btn-primary"
-                type="submit"
-                disabled={saving || !totalChanges}
-              >
-                {saving && <LoaderCircle className="spin" size={14} />}
-                {saving ? "Salvando..." : "Salvar no Shopify"}
-              </button>
-            </footer>
-          </form>
+                <div className="product-media-head">
+                  <div>
+                    <strong>Mídias</strong>
+                    <small>
+                      Clique no +, arraste uma imagem ou cole com Ctrl + V.
+                    </small>
+                  </div>
+                  <input
+                    ref={mediaInputRef}
+                    type="file"
+                    hidden
+                    multiple
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={addMedia}
+                  />
+                </div>
+                <div className="product-media-grid">
+                  {media.map((item, index) => (
+                    <article
+                      className={`product-media-item ${item.isDeleted ? "is-deleted" : ""}`}
+                      key={`${item.id || "new"}-${index}`}
+                    >
+                      <img src={item.url} alt={item.alt || form.title} />
+                      {media.findIndex((mediaItem) => !mediaItem.isDeleted) ===
+                        index && <span>Principal</span>}
+                      {item.isDeleted && <em>{"Ser\u00e1 exclu\u00edda"}</em>}
+                      <button
+                        className={item.isDeleted ? "is-undo" : ""}
+                        type="button"
+                        aria-label={
+                          item.isDeleted
+                            ? "Desfazer exclusao"
+                            : "Excluir imagem"
+                        }
+                        title={
+                          item.isDeleted
+                            ? "Desfazer exclusao"
+                            : "Excluir imagem do Shopify"
+                        }
+                        onClick={() =>
+                          item.isNew
+                            ? setMedia((current) =>
+                                current.filter(
+                                  (_, mediaIndex) => mediaIndex !== index,
+                                ),
+                              )
+                            : setMedia((current) =>
+                                current.map((mediaItem, mediaIndex) =>
+                                  mediaIndex === index
+                                    ? {
+                                        ...mediaItem,
+                                        isDeleted: !mediaItem.isDeleted,
+                                      }
+                                    : mediaItem,
+                                ),
+                              )
+                        }
+                      >
+                        {item.isDeleted ? (
+                          <span>Desfazer</span>
+                        ) : item.isNew ? (
+                          <X size={14} />
+                        ) : (
+                          <Trash2 size={14} />
+                        )}
+                      </button>
+                    </article>
+                  ))}
+                  <button
+                    className="product-media-add-tile"
+                    type="button"
+                    disabled={mediaLoading}
+                    title="Adicionar imagem: clique, arraste ou use Ctrl + V"
+                    aria-label="Adicionar imagem"
+                    onClick={() => mediaInputRef.current?.click()}
+                  >
+                    {mediaLoading ? (
+                      <LoaderCircle className="spin" size={22} />
+                    ) : (
+                      <ImagePlus size={23} />
+                    )}
+                  </button>
+                </div>
+              </section>
+              <label className="product-edit-field">
+                <span>Tags</span>
+                <textarea
+                  value={form.tags}
+                  onChange={(event) => update("tags", event.target.value)}
+                  rows={3}
+                  placeholder="Separe as tags por vírgulas"
+                />
+                <small>Separe cada tag por vírgula.</small>
+              </label>
+              <label className="product-edit-field">
+                <span>Coleções</span>
+                <textarea
+                  value={form.collections}
+                  onChange={(event) =>
+                    update("collections", event.target.value)
+                  }
+                  rows={3}
+                  placeholder="Separe as coleções por vírgulas"
+                />
+                <small>Use os nomes exatos das coleções existentes.</small>
+              </label>
+              <div className="product-edit-field">
+                <span>Peso</span>
+                <div className="weight-field">
+                  <Scale size={17} />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={form.weight}
+                    onChange={(event) => update("weight", event.target.value)}
+                    placeholder="0"
+                    required
+                  />
+                  <select
+                    value={form.weightUnit}
+                    onChange={(event) =>
+                      update("weightUnit", event.target.value)
+                    }
+                  >
+                    <option value="g">g</option>
+                    <option value="kg">kg</option>
+                  </select>
+                </div>
+              </div>
+            </form>
+          )}
+        </div>
+        {step === "edit" && (
+          <footer className="product-editor-actions">
+            <button
+              className="btn"
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                setForm(original);
+                setMedia(originalMedia);
+                setStep("details");
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              className="btn btn-primary"
+              type="submit"
+              form="product-edit-form"
+              disabled={saving || !totalChanges}
+            >
+              {saving && <LoaderCircle className="spin" size={14} />}
+              {saving ? "Salvando..." : "Salvar no Shopify"}
+            </button>
+          </footer>
         )}
         {successPhase !== "hidden" && (
           <div

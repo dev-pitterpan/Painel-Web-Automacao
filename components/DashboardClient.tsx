@@ -306,9 +306,11 @@ const DEFAULT_FILTERS: AppliedFilters = {
 export function DashboardClient({
   mode = "dashboard",
   greetingName,
+  loginTransition = false,
 }: {
   mode?: "dashboard" | "products" | "errors";
   greetingName?: string;
+  loginTransition?: boolean;
 }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [errorOverviewRows, setErrorOverviewRows] = useState<HistoryRow[]>([]);
@@ -783,6 +785,11 @@ export function DashboardClient({
     return () => window.clearTimeout(timeout);
   }, [loading, loadingExiting]);
 
+  useEffect(() => {
+    if (!loginTransition || loading || loadingExiting) return;
+    window.history.replaceState(null, "", "/");
+  }, [loginTransition, loading, loadingExiting]);
+
   function addNotification(tone: NotificationItem["tone"], message: string) {
     const item: NotificationItem = {
       id: `${Date.now()}-${Math.random()}`,
@@ -1009,6 +1016,18 @@ export function DashboardClient({
   }
 
   if (loading || loadingExiting) {
+    if (loginTransition) {
+      return (
+        <main className="login-welcome-loading" aria-live="polite">
+          <div className="login-welcome-progress">
+            <div className="login-welcome-progress-track" aria-hidden="true">
+              <span style={{ width: "100%" }} />
+            </div>
+            <strong>100%</strong>
+          </div>
+        </main>
+      );
+    }
     return (
       <div
         className={`loading-screen ${loadingExiting ? "is-exiting" : ""}`}
