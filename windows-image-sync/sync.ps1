@@ -42,7 +42,8 @@ function Invoke-SyncCycle($Config) {
       }
       $destination = Join-Path $Config.directory $job.fileName
       if ([string]$job.operation -eq "reorder") {
-        $moves = @([string]$job.base64 | ConvertFrom-Json)
+        $parsedMoves = [string]$job.base64 | ConvertFrom-Json
+        $moves = @($parsedMoves)
         $staged = @()
         foreach ($move in $moves) {
           $sourceName = [string]$move.source
