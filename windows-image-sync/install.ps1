@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 $sourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $installDir = Join-Path $env:LOCALAPPDATA "PitterPanImageSync"
+$taskName = "Pitter Pan - Sincronizar Imagens"
 $defaultUrl = "https://catalogo-pro-sepia.vercel.app"
 $defaultDirectory = "W:\IMG\produtos"
 
@@ -21,6 +22,11 @@ if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
   throw "O diretório não está acessível: $directory"
 }
 
+if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
+  Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+  Start-Sleep -Seconds 1
+}
+
 New-Item -ItemType Directory -Path $installDir -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $sourceDir "sync.ps1") `
   -Destination (Join-Path $installDir "sync.ps1") -Force
@@ -33,7 +39,6 @@ Copy-Item -LiteralPath (Join-Path $sourceDir "sync.ps1") `
 
 $configPath = Join-Path $installDir "config.json"
 & icacls.exe $configPath /inheritance:r /grant:r "${env:USERNAME}:(R,W)" | Out-Null
-$taskName = "Pitter Pan - Sincronizar Imagens"
 $scriptPath = Join-Path $installDir "sync.ps1"
 $action = New-ScheduledTaskAction -Execute "powershell.exe" `
   -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptPath`""
