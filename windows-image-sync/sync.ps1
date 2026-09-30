@@ -41,7 +41,28 @@ function Invoke-SyncCycle($Config) {
         throw "Nome de arquivo recusado: $($job.fileName)"
       }
       $destination = Join-Path $Config.directory $job.fileName
-      if ([string]$job.operation -eq "delete") {
+      if ([string]$job.operation -eq "reorder") {
+        $moves = @([string]$job.base64 | ConvertFrom-Json)
+        $staged = @()
+        foreach ($move in $moves) {
+          $sourceName = [string]$move.source
+          $destinationName = [string]$move.destination
+          if ($sourceName -notmatch '^[a-zA-Z0-9._-]+\.jpg$' -or
+              $destinationName -notmatch '^[a-zA-Z0-9._-]+\.jpg$') {
+            throw "Nome de arquivo recusado na reordenacao."
+          }
+          $sourcePath = Join-Path $Config.directory $sourceName
+          if (Test-Path -LiteralPath $sourcePath -PathType Leaf) {
+            $temporaryPath = Join-Path $Config.directory ".$sourceName.$([Guid]::NewGuid().ToString('N')).reorder"
+            Move-Item -LiteralPath $sourcePath -Destination $temporaryPath -Force
+            $staged += @{ temporary = $temporaryPath; destination = (Join-Path $Config.directory $destinationName) }
+          }
+        }
+        foreach ($file in $staged) {
+          Move-Item -LiteralPath $file.temporary -Destination $file.destination -Force
+          Write-Log "Reordenado: $($file.destination)"
+        }
+      } elseif ([string]$job.operation -eq "delete") {
         if (Test-Path -LiteralPath $destination -PathType Leaf) {
           Remove-Item -LiteralPath $destination -Force
           Write-Log "Excluido: $destination"

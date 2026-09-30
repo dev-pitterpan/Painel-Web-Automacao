@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import {
   enqueueProductImageDeletions,
+  enqueueProductImageReorder,
   enqueueProductImages,
   getCurrentUser,
   recordAudit,
@@ -62,6 +63,37 @@ function cleanImagePositions(value: unknown) {
         ),
     ),
   ].slice(0, 50);
+}
+
+function cleanMediaMoves(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 50).flatMap((item) => {
+    const id = cleanText(item?.id, 200);
+    const newPosition = Number(item?.newPosition);
+    return /^gid:\/\/shopify\/MediaImage\/\d+$/.test(id) &&
+      Number.isInteger(newPosition) &&
+      newPosition >= 0 &&
+      newPosition <= 99
+      ? [{ id, newPosition }]
+      : [];
+  });
+}
+
+function cleanImageReorder(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 50).flatMap((item) => {
+    const from = Number(item?.from);
+    const to = Number(item?.to);
+    return Number.isInteger(from) &&
+      Number.isInteger(to) &&
+      from >= 0 &&
+      from <= 99 &&
+      to >= 0 &&
+      to <= 99 &&
+      from !== to
+      ? [{ from, to }]
+      : [];
+  });
 }
 
 async function callN8n(payload: Record<string, unknown>) {
@@ -176,6 +208,8 @@ export async function POST(req: NextRequest) {
   const weightUnit = body?.weightUnit === "kg" ? "kg" : "g";
   const deleteMediaIds = cleanMediaIds(body?.deleteMediaIds);
   const deleteImagePositions = cleanImagePositions(body?.deleteImagePositions);
+  const mediaMoves = cleanMediaMoves(body?.mediaMoves);
+  const imageReorder = cleanImageReorder(body?.imageReorder);
   let images: Array<{ source: string; alt: string; position: number }> = [];
   try {
     images = cleanImages(body?.images);
@@ -207,6 +241,7 @@ export async function POST(req: NextRequest) {
       weightUnit,
       images,
       deleteMediaIds,
+      mediaMoves,
     },
     origem: "dashboard-pitter-pan",
     solicitado_em: new Date().toISOString(),
@@ -229,7 +264,7 @@ export async function POST(req: NextRequest) {
       weightUnit,
     });
     let imageSync: "queued" | "failed" | "not_required" = "not_required";
-    if (images.length || deleteImagePositions.length) {
+    if (images.length || deleteImagePositions.length || imageReorder.length) {
       try {
         if (deleteImagePositions.length)
           await enqueueProductImageDeletions(
@@ -238,6 +273,8 @@ export async function POST(req: NextRequest) {
             sku,
             deleteImagePositions,
           );
+        if (imageReorder.length)
+          await enqueueProductImageReorder(user, requestId, sku, imageReorder);
         if (images.length)
           await enqueueProductImages(user, requestId, sku, images);
         imageSync = "queued";

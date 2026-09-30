@@ -3736,6 +3736,36 @@ tbody tr:hover {
   border-radius: 10px;
   background: #f7f9fc;
 }
+
+.product-media-item[draggable="true"] {
+  cursor: grab;
+}
+
+.product-media-item.is-reordering {
+  cursor: grabbing;
+  opacity: 0.48;
+}
+
+.product-media-item.is-reorder-target {
+  border-color: #1769ff;
+  box-shadow: 0 0 0 3px rgba(23, 105, 255, 0.16);
+}
+
+.product-media-drag-handle {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 2;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.72);
+  font-style: normal;
+  pointer-events: none;
+}
 .product-media-add-tile {
   display: grid;
   place-items: center;

@@ -9,6 +9,7 @@ import {
   CircleAlert,
   ImageIcon,
   ImagePlus,
+  GripVertical,
   Italic,
   List,
   ListOrdered,
@@ -52,6 +53,7 @@ type ProductMedia = {
   alt: string;
   isNew?: boolean;
   isDeleted?: boolean;
+  originalPosition?: number;
 };
 
 const currentTitle = (row: HistoryRow) =>
@@ -228,6 +230,10 @@ export function ProductDetailsDrawer({
   const [mediaSlideIndex, setMediaSlideIndex] = useState(0);
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaDragging, setMediaDragging] = useState(false);
+  const [draggedMediaIndex, setDraggedMediaIndex] = useState<number | null>(
+    null,
+  );
+  const [mediaDropIndex, setMediaDropIndex] = useState<number | null>(null);
   const [successPhase, setSuccessPhase] = useState<SuccessPhase>("hidden");
   const successTimers = useRef<number[]>([]);
   const mediaInputRef = useRef<HTMLInputElement>(null);
@@ -352,7 +358,23 @@ export function ProductDetailsDrawer({
       visibleMedia.length ? Math.min(current, visibleMedia.length - 1) : 0,
     );
   }, [visibleMedia.length]);
-  const totalChanges = changedFields + newMediaCount + deletedMediaCount;
+  const desiredMediaIds = media
+    .filter((item) => item.id && !item.isDeleted && !item.isNew)
+    .map((item) => item.id);
+  const originalMediaIds = originalMedia
+    .filter(
+      (item) =>
+        item.id && !media.find((current) => current.id === item.id)?.isDeleted,
+    )
+    .map((item) => item.id);
+  const mediaOrderChanged = desiredMediaIds.some(
+    (id, index) => id !== originalMediaIds[index],
+  );
+  const totalChanges =
+    changedFields +
+    newMediaCount +
+    deletedMediaCount +
+    (mediaOrderChanged ? 1 : 0);
 
   if (!row || !activeRow || !form || !original) return null;
   const failed = String(activeRow.status || "")
@@ -423,10 +445,11 @@ export function ProductDetailsDrawer({
       setForm(next);
       setOriginal(next);
       const loadedMedia = productMedia
-        .map((item: any) => ({
+        .map((item: any, index: number) => ({
           id: String(item?.id || ""),
           url: String(item?.url || item?.src || item?.image?.url || ""),
           alt: String(item?.alt || item?.altText || ""),
+          originalPosition: index,
         }))
         .filter((item: ProductMedia) => item.url);
       setMedia(loadedMedia);
@@ -525,6 +548,32 @@ export function ProductDetailsDrawer({
     setError("");
     setMessage("");
     try {
+      const originalSurvivingIds = originalMedia
+        .filter(
+          (item) =>
+            item.id &&
+            !media.find((current) => current.id === item.id)?.isDeleted,
+        )
+        .map((item) => item.id!);
+      const desiredExistingIds = media
+        .filter((item) => item.id && !item.isDeleted && !item.isNew)
+        .map((item) => item.id!);
+      const workingIds = [...originalSurvivingIds];
+      const mediaMoves: Array<{ id: string; newPosition: number }> = [];
+      desiredExistingIds.forEach((id, newPosition) => {
+        const currentPosition = workingIds.indexOf(id);
+        if (currentPosition < 0 || currentPosition === newPosition) return;
+        workingIds.splice(currentPosition, 1);
+        workingIds.splice(newPosition, 0, id);
+        mediaMoves.push({ id, newPosition });
+      });
+      const imageReorder = media
+        .filter((item) => item.id && !item.isDeleted && !item.isNew)
+        .map((item, position) => ({
+          from: item.originalPosition ?? position,
+          to: position,
+        }))
+        .filter((move) => move.from !== move.to);
       const response = await fetch("/api/n8n/product-editor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -559,6 +608,8 @@ export function ProductDetailsDrawer({
             .map((item, position) => ({ item, position }))
             .filter(({ item }) => item.isDeleted && item.id)
             .map(({ position }) => position),
+          mediaMoves,
+          imageReorder,
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -569,10 +620,11 @@ export function ProductDetailsDrawer({
       const returnedMedia = body.product?.images;
       if (Array.isArray(returnedMedia) && returnedMedia.length) {
         const savedMedia = returnedMedia
-          .map((item: any) => ({
+          .map((item: any, index: number) => ({
             id: String(item?.id || ""),
             url: String(item?.url || item?.src || item?.image?.url || ""),
             alt: String(item?.alt || item?.altText || ""),
+            originalPosition: index,
           }))
           .filter((item: ProductMedia) => item.url);
         setMedia(savedMedia);
@@ -898,6 +950,7 @@ export function ProductDetailsDrawer({
                   setMediaDragging(false);
                 }}
                 onDrop={(event) => {
+                  if (!event.dataTransfer.files.length) return;
                   event.preventDefault();
                   setMediaDragging(false);
                   void processMediaFiles(Array.from(event.dataTransfer.files));
@@ -907,7 +960,8 @@ export function ProductDetailsDrawer({
                   <div>
                     <strong>Mídias</strong>
                     <small>
-                      Clique no +, arraste uma imagem ou cole com Ctrl + V.
+                      Arraste as mídias para reordenar. Para adicionar, clique
+                      no +, solte uma imagem ou use Ctrl + V.
                     </small>
                   </div>
                   <input
@@ -922,9 +976,62 @@ export function ProductDetailsDrawer({
                 <div className="product-media-grid">
                   {media.map((item, index) => (
                     <article
-                      className={`product-media-item ${item.isDeleted ? "is-deleted" : ""}`}
+                      className={`product-media-item ${item.isDeleted ? "is-deleted" : ""} ${draggedMediaIndex === index ? "is-reordering" : ""} ${mediaDropIndex === index ? "is-reorder-target" : ""}`}
                       key={`${item.id || "new"}-${index}`}
+                      draggable={!item.isDeleted && !item.isNew && !saving}
+                      onDragStart={(event) => {
+                        if (item.isDeleted || item.isNew) return;
+                        event.stopPropagation();
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData(
+                          "application/x-pitter-media-index",
+                          String(index),
+                        );
+                        setDraggedMediaIndex(index);
+                      }}
+                      onDragOver={(event) => {
+                        if (
+                          draggedMediaIndex === null ||
+                          item.isDeleted ||
+                          item.isNew
+                        )
+                          return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        event.dataTransfer.dropEffect = "move";
+                        setMediaDropIndex(index);
+                      }}
+                      onDrop={(event) => {
+                        const raw = event.dataTransfer.getData(
+                          "application/x-pitter-media-index",
+                        );
+                        if (!raw) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const from = Number(raw);
+                        if (!Number.isInteger(from) || from === index) return;
+                        setMedia((current) => {
+                          const next = [...current];
+                          const [moved] = next.splice(from, 1);
+                          next.splice(index, 0, moved);
+                          return next;
+                        });
+                        setDraggedMediaIndex(null);
+                        setMediaDropIndex(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedMediaIndex(null);
+                        setMediaDropIndex(null);
+                      }}
                     >
+                      {!item.isDeleted && !item.isNew && (
+                        <i
+                          className="product-media-drag-handle"
+                          title="Arraste para reordenar"
+                        >
+                          <GripVertical size={16} />
+                        </i>
+                      )}
                       <img src={item.url} alt={item.alt || form.title} />
                       {media.findIndex((mediaItem) => !mediaItem.isDeleted) ===
                         index && <span>Principal</span>}

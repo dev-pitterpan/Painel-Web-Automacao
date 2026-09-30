@@ -728,6 +728,40 @@ export async function enqueueProductImageDeletions(
   });
 }
 
+export async function enqueueProductImageReorder(
+  actor: AuthUser,
+  batchId: string,
+  sku: string,
+  moves: Array<{ from: number; to: number }>,
+) {
+  await ensureDatabase();
+  const safeSku = sku
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 100);
+  if (!safeSku) throw new Error("SKU invǭlido para reordena��ǜo de imagens.");
+  const files = moves.map(({ from, to }) => ({
+    source: `${safeSku}${from ? `-${from}` : ""}.jpg`,
+    destination: `${safeSku}${to ? `-${to}` : ""}.jpg`,
+  }));
+  await query(
+    `INSERT INTO image_sync_jobs
+     (batch_id, sku, image_position, file_name, mime_type, image_base64, status)
+     VALUES ($1, $2, 0, $3, 'application/x-reorder', $4, 'pending')
+     ON CONFLICT (batch_id, image_position) DO UPDATE SET
+       file_name = EXCLUDED.file_name, mime_type = EXCLUDED.mime_type,
+       image_base64 = EXCLUDED.image_base64, status = 'pending', attempts = 0,
+       lease_until = NULL, last_error = NULL, completed_at = NULL`,
+    [`${batchId}:reorder`, sku.trim(), `${safeSku}.jpg`, JSON.stringify(files)],
+  );
+  await recordAudit({
+    userId: actor.id,
+    action: "image_sync_reorder_queued",
+    entity: "product",
+    details: { batchId, sku: sku.trim(), moves },
+  });
+}
+
 export async function claimImageSyncJobs(limit = 5) {
   await ensureDatabase();
   const rows = await query<{
@@ -766,7 +800,12 @@ export async function claimImageSyncJobs(limit = 5) {
     position: Number(row.image_position),
     fileName: row.file_name,
     mimeType: row.mime_type,
-    operation: row.mime_type === "application/x-delete" ? "delete" : "write",
+    operation:
+      row.mime_type === "application/x-delete"
+        ? "delete"
+        : row.mime_type === "application/x-reorder"
+          ? "reorder"
+          : "write",
     base64: row.image_base64,
     attempts: Number(row.attempts),
   }));
