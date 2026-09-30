@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -599,6 +598,7 @@ export function ProductDetailsDrawer({
       }
       setMessage("");
       setStep("details");
+      windowRef.current?.scrollTo({ top: 0, left: 0 });
       successTimers.current.forEach((timer) => window.clearTimeout(timer));
       setSuccessPhase("visible");
       successTimers.current = [
@@ -1049,36 +1049,15 @@ export function ProductDetailsDrawer({
             </footer>
           </form>
         )}
-      </aside>
-      {successPhase !== "hidden" &&
-        typeof document !== "undefined" &&
-        createPortal(
+        {successPhase !== "hidden" && (
           <div
             className={`product-success-screen ${successPhase === "leaving" ? "is-leaving" : ""}`}
             role="status"
+            aria-label="Produto atualizado com sucesso"
             aria-live="polite"
-          >
-            <span className="success-decoration success-decoration-one" />
-            <span className="success-decoration success-decoration-two" />
-            <span className="success-decoration success-decoration-three" />
-            <div className="product-success-content">
-              <div className="product-success-icon">
-                <CheckCircle2 size={92} strokeWidth={2.5} />
-              </div>
-              <h2>
-                Produto atualizado <strong>com sucesso!</strong>
-              </h2>
-              <p>
-                As informações do produto foram salvas e já estão disponíveis no
-                seu catálogo.
-              </p>
-              <div className="product-success-progress" aria-hidden="true">
-                <span />
-              </div>
-            </div>
-          </div>,
-          document.body,
+          />
         )}
+      </aside>
     </>
   );
 }
