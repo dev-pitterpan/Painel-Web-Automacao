@@ -214,11 +214,6 @@ export function ShopifyProductsClient() {
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [preloadProgress, setPreloadProgress] = useState<{
-    done: number;
-    total: number;
-  } | null>(null);
-  const loadGeneration = useRef(0);
   const [automationRunning, setAutomationRunning] = useState(false);
   const [automationMessage, setAutomationMessage] = useState<{
     tone: "success" | "error";
@@ -226,9 +221,7 @@ export function ShopifyProductsClient() {
   } | null>(null);
 
   const load = useCallback(async () => {
-    const generation = ++loadGeneration.current;
     setLoading(true);
-    setPreloadProgress(null);
     setError("");
     try {
       const params = new URLSearchParams({
@@ -245,7 +238,6 @@ export function ShopifyProductsClient() {
         cache: "no-store",
       });
       const result = (await response.json()) as CatalogResponse;
-      if (generation !== loadGeneration.current) return;
       if (!response.ok)
         throw new Error(
           result.error || "Não foi possível carregar o catálogo.",
@@ -260,54 +252,44 @@ export function ShopifyProductsClient() {
       });
       setData(result);
       if (result.facets) setFacets(result.facets);
-      const productsToPreload = result.permissions?.canEditProducts
-        ? result.products.filter((product) => product.sku)
-        : [];
-      if (productsToPreload.length) {
-        let nextIndex = 0;
-        let completed = 0;
-        setPreloadProgress({ done: 0, total: productsToPreload.length });
-        const worker = async () => {
-          while (
-            generation === loadGeneration.current &&
-            nextIndex < productsToPreload.length
-          ) {
-            const product = productsToPreload[nextIndex];
-            nextIndex += 1;
-            try {
-              await loadProductDetails(product.sku, product.title);
-            } catch {
-              // A página continua disponível mesmo se um produto isolado falhar.
-            }
-            completed += 1;
-            if (generation === loadGeneration.current)
-              setPreloadProgress({
-                done: completed,
-                total: productsToPreload.length,
-              });
-          }
-        };
-        await Promise.all(
-          Array.from(
-            { length: Math.min(2, productsToPreload.length) },
-            () => worker(),
-          ),
-        );
-      }
     } catch (cause) {
-      if (generation !== loadGeneration.current) return;
       setError(
         cause instanceof Error ? cause.message : "Erro ao carregar o catálogo.",
       );
     } finally {
-      if (generation === loadGeneration.current) {
-        setLoading(false);
-        setPreloadProgress(null);
-      }
+      setLoading(false);
     }
   }, [filters, page, query, sort]);
   useEffect(() => void load(), [load]);
   useEffect(() => setSelectedIds([]), [filters, page, query, sort]);
+  useEffect(() => {
+    if (
+      page !== 1 ||
+      query ||
+      sort !== "updated" ||
+      Object.keys(filters).length > 0 ||
+      !data?.permissions?.canEditProducts ||
+      !data.products.length
+    )
+      return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      for (const product of data.products) {
+        if (cancelled) break;
+        if (!product.sku) continue;
+        try {
+          await loadProductDetails(product.sku, product.title);
+        } catch {
+          // Uma falha isolada não interrompe o pré-carregamento da página.
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+      }
+    }, 1500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [data, filters, page, query, sort]);
   const selected = useMemo(
     () =>
       data?.products.find((product) => product.shopifyId === selectedId) ||
@@ -608,16 +590,7 @@ export function ShopifyProductsClient() {
         {loading ? (
           <div className="shopify-catalog-state">
             <LoaderCircle className="spin" size={28} />
-            <strong>
-              {preloadProgress
-                ? "Carregando descrições"
-                : "Carregando produtos"}
-            </strong>
-            {preloadProgress && (
-              <span>
-                {preloadProgress.done} de {preloadProgress.total} produtos
-              </span>
-            )}
+            <strong>Carregando produtos</strong>
           </div>
         ) : error ? (
           <div className="shopify-catalog-state is-error">
