@@ -894,9 +894,12 @@ export function ReportsClient() {
         row={selectedProduct}
         canEdit={canEditProducts}
         onClose={() => setSelectedProduct(null)}
-        onProductUpdated={(sku, product) => {
+        onProductUpdated={(updatedRow, product) => {
+          const sourceTitle =
+            updatedRow.tituloDepois || updatedRow.tituloAntes || "";
           const updateRow = (row: HistoryRow) =>
-            row.sku === sku
+            row.sku === updatedRow.sku &&
+            (row.tituloDepois || row.tituloAntes || "") === sourceTitle
               ? {
                   ...row,
                   tituloDepois: product.title,

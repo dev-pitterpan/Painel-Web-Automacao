@@ -256,6 +256,7 @@ export async function POST(req: NextRequest) {
     const result = await callN8n(payload);
     await upsertProductOverride(user, {
       sku,
+      sourceTitle: titleHint,
       title,
       description,
       tags,

@@ -3,6 +3,7 @@ import {
   getAppSettings,
   getCurrentUser,
   getProductOverrides,
+  productIdentityKey,
 } from "@/lib/auth";
 import { getHistoryRowsWithStatus } from "@/lib/googleSheets";
 import { buildDashboard } from "@/lib/metrics";
@@ -23,7 +24,9 @@ export async function GET(req: NextRequest) {
       getProductOverrides(),
     ]);
     const rows = sheet.rows.map((row) => {
-      const override = overrides.get(row.sku.trim());
+      const override = overrides.get(
+        productIdentityKey(row.sku, row.tituloDepois || row.tituloAntes),
+      );
       if (!override) return row;
       return {
         ...row,

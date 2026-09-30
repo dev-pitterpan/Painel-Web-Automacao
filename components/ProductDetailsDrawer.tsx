@@ -209,7 +209,7 @@ export function ProductDetailsDrawer({
 }: {
   row: HistoryRow | null;
   onClose: () => void;
-  onProductUpdated?: (sku: string, product: UpdatedProduct) => void;
+  onProductUpdated?: (row: HistoryRow, product: UpdatedProduct) => void;
   canEdit?: boolean;
 }) {
   const [history, setHistory] = useState<HistoryRow[]>([]);
@@ -244,7 +244,7 @@ export function ProductDetailsDrawer({
       const trimmed =
         historyIndex >= 0 ? current.slice(0, historyIndex + 1) : current;
       const last = trimmed.at(-1);
-      if (last?.sku === row.sku)
+      if (last?.sku === row.sku && last?.dataHora === row.dataHora)
         return trimmed.map((item, index) =>
           index === trimmed.length - 1 ? row : item,
         );
@@ -615,7 +615,7 @@ export function ProductDetailsDrawer({
       const body = await response.json().catch(() => ({}));
       if (!response.ok)
         throw new Error(body.error || "Não foi possível atualizar o produto.");
-      onProductUpdated?.(activeRow!.sku, body.product);
+      onProductUpdated?.(activeRow!, body.product);
       setOriginal(form!);
       const returnedMedia = body.product?.images;
       if (Array.isArray(returnedMedia) && returnedMedia.length) {

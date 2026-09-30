@@ -44,6 +44,7 @@ export type AuditRecord = {
 };
 export type ProductOverride = {
   sku: string;
+  sourceTitle: string;
   title: string;
   description: string;
   tags: string[];
@@ -143,6 +144,19 @@ async function ensureDatabase() {
           weight_unit TEXT NOT NULL DEFAULT 'g',
           updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`,
+        `CREATE TABLE IF NOT EXISTS product_overrides_v2 (
+          sku TEXT NOT NULL,
+          source_title TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          collections_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          weight DOUBLE PRECISION NOT NULL DEFAULT 0,
+          weight_unit TEXT NOT NULL DEFAULT 'g',
+          updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (sku, source_title)
         )`,
         `CREATE TABLE IF NOT EXISTS image_sync_jobs (
           id BIGSERIAL PRIMARY KEY,
@@ -584,11 +598,16 @@ export async function upsertProductOverride(
   product: Omit<ProductOverride, "updatedAt">,
 ) {
   await ensureDatabase();
-  await query(
-    `INSERT INTO product_overrides
-    (sku, title, description, tags_json, collections_json, weight, weight_unit, updated_by, updated_at)
-    VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, NOW())
-    ON CONFLICT (sku) DO UPDATE SET
+  const sku = product.sku.trim();
+  const sourceTitles = [product.sourceTitle, product.title]
+    .map(normalizeProductIdentityPart)
+    .filter((value, index, values) => value && values.indexOf(value) === index);
+  for (const sourceTitle of sourceTitles)
+    await query(
+      `INSERT INTO product_overrides_v2
+    (sku, source_title, title, description, tags_json, collections_json, weight, weight_unit, updated_by, updated_at)
+    VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, NOW())
+    ON CONFLICT (sku, source_title) DO UPDATE SET
       title = EXCLUDED.title,
       description = EXCLUDED.description,
       tags_json = EXCLUDED.tags_json,
@@ -597,23 +616,37 @@ export async function upsertProductOverride(
       weight_unit = EXCLUDED.weight_unit,
       updated_by = EXCLUDED.updated_by,
       updated_at = NOW()`,
-    [
-      product.sku.trim(),
-      product.title,
-      product.description,
-      JSON.stringify(product.tags),
-      JSON.stringify(product.collections),
-      product.weight,
-      product.weightUnit,
-      actor.id,
-    ],
-  );
+      [
+        sku,
+        sourceTitle,
+        product.title,
+        product.description,
+        JSON.stringify(product.tags),
+        JSON.stringify(product.collections),
+        product.weight,
+        product.weightUnit,
+        actor.id,
+      ],
+    );
+}
+
+function normalizeProductIdentityPart(value: string) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLocaleLowerCase("pt-BR");
+}
+
+export function productIdentityKey(sku: string, title: string) {
+  return `${String(sku || "").trim()}::${normalizeProductIdentityPart(title)}`;
 }
 
 export async function getProductOverrides() {
   await ensureDatabase();
   const rows = await query<{
     sku: string;
+    source_title: string;
     title: string;
     description: string;
     tags_json: unknown;
@@ -622,13 +655,14 @@ export async function getProductOverrides() {
     weight_unit: string;
     updated_at: unknown;
   }>(
-    "SELECT sku, title, description, tags_json, collections_json, weight, weight_unit, updated_at FROM product_overrides",
+    "SELECT sku, source_title, title, description, tags_json, collections_json, weight, weight_unit, updated_at FROM product_overrides_v2",
   );
   return new Map(
     rows.map((row) => [
-      row.sku.trim(),
+      productIdentityKey(row.sku, row.source_title),
       {
         sku: row.sku,
+        sourceTitle: row.source_title,
         title: row.title,
         description: row.description,
         tags: Array.isArray(row.tags_json) ? row.tags_json.map(String) : [],
