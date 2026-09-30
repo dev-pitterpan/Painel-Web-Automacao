@@ -3175,21 +3175,7 @@ tbody tr:hover {
   gap: 14px;
   margin: 16px 22px 0;
   padding: 14px 16px;
-  border: 1px solid #cfe0ff;
   border-radius: 12px;
-  background: linear-gradient(110deg, #eef5ff, #fff);
-}
-.drawer-edit-banner strong,
-.drawer-edit-banner span {
-  display: block;
-}
-.drawer-edit-banner strong {
-  margin-bottom: 4px;
-  font-size: 11px;
-}
-.drawer-edit-banner span {
-  color: var(--muted);
-  font-size: 9px;
 }
 .drawer-edit-banner .btn {
   flex: 0 0 auto;

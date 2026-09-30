@@ -939,12 +939,7 @@ export function ProductDetailsDrawer({
             <>
               <div className="drawer-edit-banner">
                 <div>
-                  <strong>Editar informações no Shopify</strong>
-                  <span>
-                    {canEdit
-                      ? "Carregue os valores atuais e altere título, tags, coleções e peso."
-                      : "Visualização liberada. Apenas administradores podem editar produtos."}
-                  </span>
+
                 </div>
                 <button
                   className={`btn btn-primary ${loadingProduct ? "is-loading" : ""}`}
@@ -962,7 +957,7 @@ export function ProductDetailsDrawer({
                   ) : (
                     <Pencil size={14} />
                   )}
-                  {loadingProduct ? "Carregando..." : "Editar produto"}
+                  {loadingProduct ? "Carregando..." : ""}
                 </button>
               </div>
               <div className="product-drawer-body">
