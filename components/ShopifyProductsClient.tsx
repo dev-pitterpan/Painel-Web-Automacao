@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Columns3, LoaderCircle, PackageSearch, Plus, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, Columns3, LoaderCircle, PackageSearch, Plus, Search, X } from "lucide-react";
 import { ProductDetailsDrawer, type UpdatedProduct } from "@/components/ProductDetailsDrawer";
 import type { ShopifyCatalogProduct } from "@/lib/auth";
 import type { HistoryRow } from "@/lib/types";
@@ -49,13 +49,14 @@ export function ShopifyProductsClient() {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Partial<Record<FilterKey, string>>>({});
+  const [sort, setSort] = useState<"updated" | "title" | "title_desc">("updated");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const params = new URLSearchParams({ page: String(page), perPage: "50", sort: "updated", facets: "1" });
+      const params = new URLSearchParams({ page: String(page), perPage: "50", sort, facets: "1" });
       if (query) params.set("q", query);
       Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
       const response = await fetch(`/api/shopify-products?${params}`, { cache: "no-store" });
@@ -64,12 +65,16 @@ export function ShopifyProductsClient() {
       setData(result); if (result.facets) setFacets(result.facets);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Erro ao carregar o catálogo."); }
     finally { setLoading(false); }
-  }, [filters, page, query]);
+  }, [filters, page, query, sort]);
   useEffect(() => void load(), [load]);
   const selected = useMemo(() => data?.products.find((product) => product.shopifyId === selectedId) || null, [data, selectedId]);
   const setFilter = (key: FilterKey, value: string) => { setFilters((current) => ({ ...current, [key]: value })); setPage(1); };
   const removeFilter = (key: FilterKey) => { setFilters((current) => { const next = { ...current }; delete next[key]; return next; }); setPage(1); };
   const updateProduct = (updated: UpdatedProduct) => setData((current) => current ? { ...current, products: current.products.map((product) => product.shopifyId === selectedId ? { ...product, title: updated.title, tags: updated.tags, collections: updated.collections } : product) } : current);
+  const toggleProductSort = () => {
+    setSort((current) => current === "title" ? "title_desc" : "title");
+    setPage(1);
+  };
 
   return <>
     <ProductDetailsDrawer row={selected ? toHistoryRow(selected) : null} canEdit={Boolean(data?.permissions?.canEditProducts)} onClose={() => setSelectedId(null)} onProductUpdated={(_, product) => updateProduct(product)} />
@@ -83,7 +88,7 @@ export function ShopifyProductsClient() {
       </form>
       {Object.keys(filters).some((key) => key !== "status" && filters[key as FilterKey]) && <div className="catalog-filter-chips">{(Object.entries(filters) as Array<[FilterKey, string]>).filter(([key, value]) => key !== "status" && value).map(([key, value]) => <span key={key}><b>{filterLabels[key]}:</b> {value}<button type="button" onClick={() => removeFilter(key)} aria-label={`Remover filtro ${filterLabels[key]}`}><X size={12} /></button></span>)}</div>}
       <div className="shopify-products-count">{(data?.total || 0).toLocaleString("pt-BR")} produtos</div>
-      {loading ? <div className="shopify-catalog-state"><LoaderCircle className="spin" size={28} /><strong>Carregando produtos</strong></div> : error ? <div className="shopify-catalog-state is-error"><strong>Não foi possível carregar</strong><span>{error}</span><button className="btn" onClick={load}>Tentar novamente</button></div> : !data?.products.length ? <div className="shopify-catalog-state"><PackageSearch size={34} /><strong>Nenhum produto encontrado</strong><span>Altere a pesquisa ou os filtros selecionados.</span></div> : <div className="shopify-products-table"><table><thead><tr><th><input type="checkbox" aria-label="Selecionar todos" /></th><th>Produto</th><th>Status</th><th>Estoque</th><th>SKU</th><th>Tipo de produto</th><th>Fabricante</th></tr></thead><tbody>{data.products.map((product) => <tr key={product.shopifyId} tabIndex={0} role="button" onClick={() => setSelectedId(product.shopifyId)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(product.shopifyId); } }}><td onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`Selecionar ${product.title}`} /></td><td><div className="shopify-product-main"><span className="shopify-product-image">{product.imageUrl ? <img src={product.imageUrl} alt={product.imageAlt || product.title} /> : <PackageSearch size={18} />}</span><strong>{product.title}</strong></div></td><td><span className={`shopify-status shopify-status-${product.status.toLowerCase()}`}>{statusLabel[product.status] || product.status}</span></td><td className={product.totalInventory <= 0 ? "is-out-of-stock" : ""}>{product.totalInventory.toLocaleString("pt-BR")} em estoque</td><td>{product.sku || "-"}</td><td>{product.productType || "-"}</td><td>{product.vendor || "-"}</td></tr>)}</tbody></table></div>}
+      {loading ? <div className="shopify-catalog-state"><LoaderCircle className="spin" size={28} /><strong>Carregando produtos</strong></div> : error ? <div className="shopify-catalog-state is-error"><strong>Não foi possível carregar</strong><span>{error}</span><button className="btn" onClick={load}>Tentar novamente</button></div> : !data?.products.length ? <div className="shopify-catalog-state"><PackageSearch size={34} /><strong>Nenhum produto encontrado</strong><span>Altere a pesquisa ou os filtros selecionados.</span></div> : <div className="shopify-products-table"><table><thead><tr><th><input type="checkbox" aria-label="Selecionar todos" /></th><th><button className={`catalog-sort-heading ${sort !== "updated" ? "is-active" : ""}`} type="button" onClick={toggleProductSort} title={sort === "title" ? "Ordenar de Z a A" : "Ordenar de A a Z"}>Produto{sort === "title" ? <ArrowUp size={13} /> : sort === "title_desc" ? <ArrowDown size={13} /> : null}</button></th><th>Status</th><th>Estoque</th><th>SKU</th><th>Tipo de produto</th><th>Fabricante</th></tr></thead><tbody>{data.products.map((product) => <tr key={product.shopifyId} tabIndex={0} role="button" onClick={() => setSelectedId(product.shopifyId)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(product.shopifyId); } }}><td onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`Selecionar ${product.title}`} /></td><td><div className="shopify-product-main"><span className="shopify-product-image">{product.imageUrl ? <img src={product.imageUrl} alt={product.imageAlt || product.title} /> : <PackageSearch size={18} />}</span><strong>{product.title}</strong></div></td><td><span className={`shopify-status shopify-status-${product.status.toLowerCase()}`}>{statusLabel[product.status] || product.status}</span></td><td className={product.totalInventory <= 0 ? "is-out-of-stock" : ""}>{product.totalInventory.toLocaleString("pt-BR")} em estoque</td><td>{product.sku || "-"}</td><td>{product.productType || "-"}</td><td>{product.vendor || "-"}</td></tr>)}</tbody></table></div>}
       {data && data.totalPages > 1 && <div className="shopify-products-pagination"><button type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft size={16} /></button><span>{((data.page - 1) * data.perPage + 1).toLocaleString("pt-BR")}–{Math.min(data.page * data.perPage, data.total).toLocaleString("pt-BR")}</span><button type="button" disabled={page >= data.totalPages} onClick={() => setPage((value) => value + 1)}><ChevronRight size={16} /></button></div>}
     </section>
   </>;

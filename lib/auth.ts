@@ -758,7 +758,7 @@ export async function listShopifyCatalogProducts(input: {
   productType?: string;
   page?: number;
   perPage?: number;
-  sort?: "updated" | "title" | "inventory";
+  sort?: "updated" | "title" | "title_desc" | "inventory";
 }) {
   await ensureDatabase();
   const page = Math.max(1, Math.trunc(input.page || 1));
@@ -796,6 +796,8 @@ export async function listShopifyCatalogProducts(input: {
   const order =
     input.sort === "title"
       ? "title ASC"
+      : input.sort === "title_desc"
+        ? "title DESC"
       : input.sort === "inventory"
         ? "total_inventory DESC, title ASC"
         : "shopify_updated_at DESC NULLS LAST, title ASC";

@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
       productType: params.get("productType") || "",
       page: Number(params.get("page") || 1),
       perPage: Number(params.get("perPage") || 50),
-      sort: (params.get("sort") || "updated") as "updated" | "title" | "inventory",
+      sort: (params.get("sort") || "updated") as "updated" | "title" | "title_desc" | "inventory",
     });
     const facets = params.get("facets") === "1" ? await getShopifyCatalogFacets() : undefined;
     return NextResponse.json({
