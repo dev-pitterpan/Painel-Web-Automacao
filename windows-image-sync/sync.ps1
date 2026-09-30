@@ -40,19 +40,28 @@ function Invoke-SyncCycle($Config) {
           $job.fileName -notmatch '^[a-zA-Z0-9._-]+\.jpg$') {
         throw "Nome de arquivo recusado: $($job.fileName)"
       }
-      $bytes = [Convert]::FromBase64String([string]$job.base64)
-      if ($bytes.Length -eq 0) { throw "Imagem vazia." }
       $destination = Join-Path $Config.directory $job.fileName
-      $temporary = Join-Path $Config.directory ".$($job.fileName).$([Guid]::NewGuid().ToString('N')).tmp"
-      try {
-        [IO.File]::WriteAllBytes($temporary, $bytes)
-        Move-Item -LiteralPath $temporary -Destination $destination -Force
-      } finally {
-        if (Test-Path -LiteralPath $temporary) {
-          Remove-Item -LiteralPath $temporary -Force
+      if ([string]$job.operation -eq "delete") {
+        if (Test-Path -LiteralPath $destination -PathType Leaf) {
+          Remove-Item -LiteralPath $destination -Force
+          Write-Log "Excluido: $destination"
+        } else {
+          Write-Log "Exclusao confirmada; arquivo inexistente: $destination"
         }
+      } else {
+        $bytes = [Convert]::FromBase64String([string]$job.base64)
+        if ($bytes.Length -eq 0) { throw "Imagem vazia." }
+        $temporary = Join-Path $Config.directory ".$($job.fileName).$([Guid]::NewGuid().ToString('N')).tmp"
+        try {
+          [IO.File]::WriteAllBytes($temporary, $bytes)
+          Move-Item -LiteralPath $temporary -Destination $destination -Force
+        } finally {
+          if (Test-Path -LiteralPath $temporary) {
+            Remove-Item -LiteralPath $temporary -Force
+          }
+        }
+        Write-Log "Gravado: $destination ($($bytes.Length) bytes)"
       }
-      Write-Log "Gravado: $destination ($($bytes.Length) bytes)"
       $results += @{ id = [long]$job.id; success = $true; error = "" }
     } catch {
       $message = $_.Exception.Message

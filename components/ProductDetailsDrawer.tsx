@@ -536,6 +536,10 @@ export function ProductDetailsDrawer({
           deleteMediaIds: media
             .filter((item) => item.isDeleted && item.id)
             .map((item) => item.id),
+          deleteImagePositions: media
+            .map((item, position) => ({ item, position }))
+            .filter(({ item }) => item.isDeleted && item.id)
+            .map(({ position }) => position),
         }),
       });
       const body = await response.json().catch(() => ({}));

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import {
+  enqueueProductImageDeletions,
   enqueueProductImages,
   getCurrentUser,
   recordAudit,
@@ -45,6 +46,20 @@ function cleanMediaIds(value: unknown) {
       value
         .map((item) => cleanText(item, 200))
         .filter((item) => /^gid:\/\/shopify\/MediaImage\/\d+$/.test(item)),
+    ),
+  ].slice(0, 50);
+}
+
+function cleanImagePositions(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .map(Number)
+        .filter(
+          (position) =>
+            Number.isInteger(position) && position >= 0 && position <= 99,
+        ),
     ),
   ].slice(0, 50);
 }
@@ -157,6 +172,7 @@ export async function POST(req: NextRequest) {
   const weight = Number(body?.weight);
   const weightUnit = body?.weightUnit === "kg" ? "kg" : "g";
   const deleteMediaIds = cleanMediaIds(body?.deleteMediaIds);
+  const deleteImagePositions = cleanImagePositions(body?.deleteImagePositions);
   let images: Array<{ source: string; alt: string; position: number }> = [];
   try {
     images = cleanImages(body?.images);
@@ -209,9 +225,17 @@ export async function POST(req: NextRequest) {
       weightUnit,
     });
     let imageSync: "queued" | "failed" | "not_required" = "not_required";
-    if (images.length) {
+    if (images.length || deleteImagePositions.length) {
       try {
-        await enqueueProductImages(user, requestId, sku, images);
+        if (deleteImagePositions.length)
+          await enqueueProductImageDeletions(
+            user,
+            requestId,
+            sku,
+            deleteImagePositions,
+          );
+        if (images.length)
+          await enqueueProductImages(user, requestId, sku, images);
         imageSync = "queued";
       } catch (syncError) {
         imageSync = "failed";

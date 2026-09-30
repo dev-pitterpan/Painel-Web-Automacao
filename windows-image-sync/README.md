@@ -8,6 +8,8 @@ Grava as novas imagens enviadas pelo painel no diretório configurado, usando:
 
 Arquivos existentes com o mesmo nome são substituídos. A gravação usa um arquivo
 temporário e uma troca atômica para evitar imagens incompletas.
+Quando uma imagem é excluída pelo editor do painel e a alteração é confirmada pelo
+Shopify, o arquivo correspondente também é removido do diretório.
 
 ## Instalação
 
