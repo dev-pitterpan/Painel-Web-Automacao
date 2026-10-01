@@ -69,6 +69,13 @@ type ProductMedia = {
   originalPosition?: number;
 };
 
+/* Limites do painel ancorado (apenas desktop, via ProductPanelProvider).
+   O mínimo mantém o painel legível e o máximo preserva uma área útil na tela
+   para o restante do conteúdo. */
+const DOCK_MIN_WIDTH = 320;
+const DOCK_MAX_WIDTH = 760;
+const DOCK_MIN_CONTENT_WIDTH = 480;
+
 function splitChoices(value: string) {
   return value
     .split(",")
@@ -398,6 +405,11 @@ export function ProductDetailsDrawer({
   const dockedDragStart = useRef(false);
   const snapTarget = useRef<"left" | "right" | null>(null);
   const resizeStart = useRef({ x: 0, width: dockWidth });
+  const dockWidthRef = useRef(dockWidth);
+  const [dockRange, setDockRange] = useState({
+    minWidth: DOCK_MIN_WIDTH,
+    maxWidth: DOCK_MAX_WIDTH,
+  });
   const [snapPreview, setSnapPreview] = useState<"left" | "right" | null>(
     null,
   );
@@ -566,6 +578,51 @@ export function ProductDetailsDrawer({
       visibleMedia.length ? Math.min(current, visibleMedia.length - 1) : 0,
     );
   }, [visibleMedia.length]);
+  useEffect(() => {
+    dockWidthRef.current = dockWidth;
+  }, [dockWidth]);
+  // Mantém a largura ancorada válida quando a janela muda de tamanho ou a
+  // sidebar recolhe: sem isso o painel poderia ficar largo demais (conteúdo
+  // espremido) ou estreito demais após um redimensionamento.
+  useEffect(() => {
+    if (dockSide === "floating") return;
+    const clampToRange = () => {
+      const range = getDockWidthRange();
+      setDockRange(range);
+      const current = dockWidthRef.current;
+      const clamped = Math.min(
+        range.maxWidth,
+        Math.max(range.minWidth, current),
+      );
+      if (clamped !== current) applyDockWidth(clamped);
+    };
+    clampToRange();
+    const shell =
+      windowRef.current?.closest<HTMLElement>(".app-shell") ?? null;
+    const sidebar = shell?.querySelector<HTMLElement>(".sidebar") ?? null;
+    const observer =
+      shell && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(clampToRange)
+        : null;
+    if (shell) observer?.observe(shell);
+    if (sidebar) observer?.observe(sidebar);
+    window.addEventListener("resize", clampToRange);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", clampToRange);
+    };
+  }, [dockSide, onDockWidthChange]);
+  // O redimensionamento nativo do modo flutuante (CSS `resize: both`) grava
+  // width/height como estilo inline na <aside> e o React nunca remove. Ao
+  // ancorar, esses valores congelariam a largura e a altura da aba. Limpar
+  // aqui garante que o painel ancorado responda a --product-panel-width.
+  useEffect(() => {
+    if (dockSide === "floating") return;
+    const node = windowRef.current;
+    if (!node) return;
+    node.style.removeProperty("width");
+    node.style.removeProperty("height");
+  }, [dockSide]);
   const desiredMediaIds = media
     .filter((item) => item.id && !item.isDeleted && !item.isNew)
     .map((item) => item.id);
@@ -649,26 +706,41 @@ export function ProductDetailsDrawer({
     snapTarget.current = null;
     setSnapPreview(null);
     if (!side) return;
-    const shell = windowRef.current?.closest<HTMLElement>(".app-shell");
-    const sidebar = shell?.querySelector<HTMLElement>(".sidebar");
-    const workspaceWidth =
-      (shell?.clientWidth || window.innerWidth) -
-      (sidebar?.getBoundingClientRect().width || 0);
-    onDockWidthChange?.(
-      Math.min(560, Math.max(440, Math.round(workspaceWidth * 0.42))),
+    const { minWidth, maxWidth } = getDockWidthRange();
+    const preferred = Math.min(
+      560,
+      Math.max(440, Math.round(getWorkspaceWidth() * 0.42)),
     );
+    applyDockWidth(Math.min(maxWidth, Math.max(minWidth, preferred)));
     onDockSideChange?.(side);
   }
-  function getDockWidthRange() {
+  function applyDockWidth(width: number) {
+    dockWidthRef.current = width;
+    onDockWidthChange?.(width);
+  }
+  function getWorkspaceWidth() {
     const shell = windowRef.current?.closest<HTMLElement>(".app-shell");
     const sidebar = shell?.querySelector<HTMLElement>(".sidebar");
-    const workspaceWidth =
+    return (
       (shell?.clientWidth || window.innerWidth) -
-      (sidebar?.getBoundingClientRect().width || 0);
-    const minWidth = Math.min(360, Math.round(workspaceWidth * 0.35));
+      (sidebar?.getBoundingClientRect().width || 0)
+    );
+  }
+  function getDockWidthRange() {
+    const workspaceWidth = getWorkspaceWidth();
+    const minWidth = Math.min(
+      DOCK_MIN_WIDTH,
+      Math.max(280, Math.round(workspaceWidth * 0.26)),
+    );
     return {
       minWidth,
-      maxWidth: Math.max(minWidth, Math.min(560, workspaceWidth - 524)),
+      maxWidth: Math.max(
+        minWidth,
+        Math.min(
+          DOCK_MAX_WIDTH,
+          workspaceWidth - DOCK_MIN_CONTENT_WIDTH,
+        ),
+      ),
     };
   }
   function startResizing(event: React.PointerEvent<HTMLDivElement>) {
@@ -684,7 +756,7 @@ export function ProductDetailsDrawer({
       dockSide === "right"
         ? resizeStart.current.x - event.clientX
         : event.clientX - resizeStart.current.x;
-    onDockWidthChange?.(
+    applyDockWidth(
       Math.min(
         maxWidth,
         Math.max(minWidth, resizeStart.current.width + delta),
@@ -704,7 +776,7 @@ export function ProductDetailsDrawer({
         ? 1
         : -1;
     const { minWidth, maxWidth } = getDockWidthRange();
-    onDockWidthChange?.(
+    applyDockWidth(
       Math.min(maxWidth, Math.max(minWidth, dockWidth + direction * 16)),
     );
   }
@@ -995,6 +1067,10 @@ export function ProductDetailsDrawer({
             aria-orientation="vertical"
             aria-label="Redimensionar painel do produto"
             aria-valuenow={dockWidth}
+            aria-valuemin={dockRange.minWidth}
+            aria-valuemax={dockRange.maxWidth}
+            aria-valuetext={`${dockWidth} pixels de largura`}
+            title="Arraste para redimensionar o painel"
             tabIndex={0}
             onPointerDown={startResizing}
             onPointerMove={resizeDock}

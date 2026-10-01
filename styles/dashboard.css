@@ -3475,16 +3475,34 @@ tbody tr:hover {
     0 4px 16px rgba(7, 26, 54, 0.12);
   animation: drawer-fade 0.18s ease;
 }
+
+/* Janela flutuante em telas menores: respeita a sidebar e a coluna restante
+   para nao cobrir o conteudo de forma inutilizavel. */
+@media (max-width: 1279px), (max-height: 699px) {
+  .product-floating-window {
+    min-width: 0;
+    max-width: calc(100vw - var(--sidebar-width, 240px) - 24px);
+  }
+}
+/* Janela ancorada.
+   `width`/`height` usam !important de propósito: o redimensionamento nativo
+   (CSS `resize: both` no modo flutuante) grava width/height como estilo
+   INLINE na <aside>, e estilo inline normal vence qualquer regra de folha.
+   Sem o !important, um redimensionamento vertical feito no modo flutuante
+   deixaria o painel ancorado com altura e largura congeladas — o arrasto
+   horizontal passaria a mexer só no layout da página, não na aba.
+   O !important também sobrepõe `.is-editing-product`, que tem a mesma
+   especificidade mas aparece depois neste arquivo. */
 .product-floating-window.is-docked-right,
 .product-floating-window.is-docked-left {
   top: 12px !important;
   bottom: 12px;
-  width: var(--product-panel-width, 460px);
+  width: var(--product-panel-width, 460px) !important;
   min-width: 0;
   min-height: 0;
   max-width: none;
   max-height: none;
-  height: auto;
+  height: auto !important;
   resize: none;
   border-radius: 12px;
   container: product-panel / inline-size;
@@ -3563,6 +3581,9 @@ tbody tr:hover {
   .product-drawer-body {
     padding-inline: 14px;
   }
+}
+
+@container app-content (max-width: 900px) {
 }
 @container app-content (max-width: 900px) {
   .reports-filterbar {
@@ -5311,8 +5332,12 @@ tbody tr:hover {
     right: 8px;
     top: 72px !important;
     bottom: 8px;
-    width: auto;
-    height: auto;
+    /* !important para vencer a regra ancorada desktop, que também usa
+       !important em width/height. Na prática o painel nunca ancora no
+       celular (ProductPanelProvider força "floating" fora de >=1280x700),
+       mas sem isto esta regra viraria refém daquela. */
+    width: auto !important;
+    height: auto !important;
     max-width: none;
     max-height: none;
   }
@@ -7948,4 +7973,398 @@ tbody tr:hover {
   margin: 0;
   font-size: 29px;
   letter-spacing: -0.8px;
+}
+/* ==========================================================================
+   Responsividade com o painel de produto aberto
+   --------------------------------------------------------------------------
+   Os breakpoints @media acima respondem à largura da JANELA. Quando o painel
+   de produto está ancorado, a janela continua larga, mas o espaço útil do
+   conteúdo encolhe -- por isso os grids ficavam espremidos e cortados
+   (cards de métrica e filtros quebrando) em vez de se reorganizarem.
+
+   O .content já é declarado como container "app-content" em base.css, então
+   estas @container reagem à largura REAL disponível. Aplicam-se somente
+   quando o painel está ancorado (fora do container, não ha efeito algum).
+   ========================================================================== */
+
+/* Espaço mais apertado: topbar dobra linha e métricas passam a 3 colunas. */
+@container app-content (max-width: 1180px) {
+  .dashboard-topbar,
+  .dashboard-topbar-dashboard {
+    grid-template-columns:
+      minmax(220px, 1.25fr) minmax(140px, 0.6fr) minmax(130px, 0.5fr)
+      auto auto;
+    gap: 8px;
+  }
+  .topbar-sheet,
+  .topbar-sync {
+    grid-row: 2;
+    padding-left: 10px;
+  }
+  .topbar-actions {
+    grid-row: 2;
+    justify-self: end;
+  }
+  .metrics,
+  .metrics.secondary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .metrics .metric-card {
+    min-height: 138px;
+    padding: 16px;
+  }
+  .metrics .metric-value {
+    font-size: clamp(22px, 2.4cqi, 27px);
+  }
+  .bento-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .chart-panel,
+  .brand-panel {
+    min-height: 330px;
+  }
+  .quality-indicators {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Espaço bem apertado: 2 colunas e bento empilhado. */
+@container app-content (max-width: 860px) {
+  .dashboard-topbar,
+  .dashboard-topbar-dashboard,
+  .dashboard-topbar-products {
+    grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.55fr) auto;
+  }
+  .topbar-compare,
+  .topbar-brand {
+    grid-row: 2;
+  }
+  .topbar-sheet,
+  .topbar-sync,
+  .topbar-actions {
+    grid-row: 3;
+    justify-self: start;
+    padding-left: 10px;
+  }
+  .metrics,
+  .metrics.secondary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .metrics .metric-card {
+    min-height: 124px;
+  }
+  .metrics .metric-bottom {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .metrics .metric-change-wrap {
+    min-width: 0;
+  }
+  .quality-indicators {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .quality-summary {
+    flex-direction: column;
+  }
+  .page-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .filters {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .filter-actions {
+    grid-column: 1 / -1;
+  }
+  .filters .btn {
+    width: 100%;
+  }
+}
+
+/* Espaço crítico: uma coluna só para o conteúdo ainda mais estreito. */
+@container app-content (max-width: 620px) {
+  .metrics,
+  .metrics.secondary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .metrics .metric-card:first-child {
+    grid-column: auto;
+  }
+  .quality-indicators {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .chart-panel,
+  .brand-panel {
+    min-height: 290px;
+  }
+  .dashboard-topbar,
+  .dashboard-topbar-dashboard,
+  .dashboard-topbar-products {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .topbar-search,
+  .topbar-compare,
+  .topbar-brand,
+  .topbar-reset,
+  .topbar-sheet,
+  .topbar-sync,
+  .topbar-actions {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-self: stretch;
+  }
+  .topbar-sheet,
+  .topbar-sync {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .topbar-actions .btn {
+    flex: 1;
+  }
+}
+
+/* Evita transbordo horizontal de qualquer grid dentro do conteúdo estreito. */
+@container app-content (max-width: 1180px) {
+  .metrics > *,
+  .bento-grid > *,
+  .filters > *,
+  .quality-indicators > *,
+  .dashboard-topbar > * {
+    min-width: 0;
+  }
+  .metrics .metric-value,
+  .metrics .metric-label {
+    overflow-wrap: anywhere;
+  }
+  .metrics .metric-value {
+    white-space: normal;
+  }
+  .topbar-search,
+  .topbar-period,
+  .topbar-compare,
+  .topbar-brand {
+    min-width: 0;
+  }
+  .topbar-sheet,
+  .topbar-sync {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .topbar-sheet strong,
+  .topbar-sheet small,
+  .topbar-sync strong,
+  .topbar-sync span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* ==========================================================================
+   Painel de produto redimensionável (somente desktop)
+   --------------------------------------------------------------------------
+   A aba ancorada pode ir de ~320px até ~760px (ProductDetailsDrawer).
+   Só .product-floating-window.is-docked-left/right declaram o container
+   "product-panel", portanto estas regras respondem à largura QUE O USUÁRIO
+   ESCOLHEU no desktop. Celular e o modo flutuante não possuem esse
+   container, então nada muda neles.
+   ========================================================================== */
+
+/* Painel largo: aproveita o espaço extra em vez de deixar buraco. */
+@container product-panel (min-width: 680px) {
+  .product-current-overview {
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 24px;
+  }
+  .shopify-description-preview {
+    max-height: 330px;
+  }
+  .product-drawer-body {
+    padding-inline: 28px;
+  }
+  .is-editing-product .product-media-item {
+    width: 186px;
+    height: 142px;
+  }
+  .is-editing-product .product-media-add-tile {
+    width: 340px;
+    height: 142px;
+  }
+}
+
+/* Painel estreito: a faixa de metadados do editor não cabe em 3 colunas. */
+@container product-panel (max-width: 640px) {
+  .is-editing-product .product-drawer-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 0;
+  }
+  .is-editing-product .product-meta-item {
+    padding: 0 12px;
+  }
+  .is-editing-product .drawer-status {
+    grid-column: 1 / -1;
+    min-width: 0;
+    margin: 4px 0 0;
+  }
+  .is-editing-product .product-media-grid {
+    gap: 6px;
+  }
+  .is-editing-product .product-media-item {
+    width: 118px;
+    height: 96px;
+  }
+  .is-editing-product .product-media-add-tile {
+    width: 246px;
+    height: 96px;
+  }
+}
+
+/* Painel bem estreito: empilha tudo e encolhe os controles. */
+@container product-panel (max-width: 440px) {
+  .product-drawer-head.product-window-bar {
+    grid-template-columns: 30px 30px 36px minmax(0, 1fr) 30px;
+    gap: 6px;
+    padding: 10px;
+  }
+  .product-drawer-head button {
+    width: 30px;
+    height: 30px;
+  }
+  .product-drawer-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+  .product-drawer-meta {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding: 10px 12px;
+  }
+  .product-drawer-meta .drawer-status {
+    justify-self: start;
+  }
+  .product-drawer-body {
+    padding-inline: 12px;
+  }
+  .product-current-overview {
+    padding: 12px 46px 12px 12px;
+  }
+  .product-current-image {
+    max-width: 210px;
+  }
+  .product-current-description > strong {
+    font-size: 10px;
+  }
+  .product-current-overview .shopify-description-preview {
+    margin-right: 0;
+    padding-right: 4px;
+  }
+  .product-current-overview .product-overview-edit {
+    right: 12px;
+  }
+  .comparison-values {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .comparison-values > svg {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+  .media-review-summary {
+    flex-direction: column;
+  }
+  .html-editor-toolbar {
+    flex-wrap: wrap;
+  }
+  .is-editing-product .product-drawer-head.product-window-bar {
+    padding: 8px 10px;
+  }
+  .is-editing-product .product-drawer-meta {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    padding: 8px 10px;
+  }
+  .is-editing-product .product-meta-item {
+    min-height: 36px;
+    padding: 0 8px;
+    border-right: 0;
+    border-bottom: 1px solid #d8e4f5;
+  }
+  .is-editing-product .product-meta-item:last-of-type {
+    border-bottom: 0;
+  }
+  .is-editing-product .drawer-status {
+    margin: 6px 0 0;
+  }
+  .product-edit-card,
+  .is-editing-product .choice-picker {
+    grid-template-columns: 30px minmax(0, 1fr);
+    padding: 8px 9px;
+  }
+  .is-editing-product .product-media-head,
+  .is-editing-product .product-media-grid {
+    grid-column: 1 / -1;
+  }
+  .is-editing-product .product-media-item,
+  .is-editing-product .product-media-add-tile {
+    width: 100%;
+    height: 104px;
+  }
+  .is-editing-product .product-weight-card .product-edit-field {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+  .is-editing-product .weight-field {
+    grid-template-columns: minmax(0, 1fr) 66px;
+  }
+  .is-editing-product .product-editor-actions {
+    flex-wrap: wrap;
+    padding: 8px 10px;
+  }
+  .is-editing-product .product-editor-actions .btn {
+    flex: 1 1 110px;
+  }
+  .is-editing-product .choice-picker-menu {
+    left: 36px;
+  }
+}
+
+/* Painel no limite mínimo: ainda precisa ser legível. */
+@container product-panel (max-width: 360px) {
+  .product-drawer-head.product-window-bar {
+    grid-template-columns: 28px 28px minmax(0, 1fr) 28px;
+    gap: 5px;
+    padding: 9px;
+  }
+  .product-drawer-icon {
+    display: none;
+  }
+  .product-drawer-body {
+    padding-inline: 10px;
+  }
+  .product-current-image {
+    max-width: 168px;
+  }
+  .is-editing-product .product-media-item,
+  .is-editing-product .product-media-add-tile {
+    height: 92px;
+  }
+}
+
+/* Conteúdo com o painel no máximo: some a folga horizontal restante. */
+@container app-content (max-width: 560px) {
+  .page-title {
+    font-size: 24px;
+    letter-spacing: -0.5px;
+  }
+  .filters {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .filter-actions .btn,
+  .filters .btn {
+    width: 100%;
+  }
+  .chart-panel,
+  .brand-panel {
+    min-height: 260px;
+  }
 }

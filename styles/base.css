@@ -132,6 +132,10 @@ button:hover {
     width: calc(100% - var(--product-panel-width, 460px) - 24px);
     max-width: none;
     margin: 0;
+    /* Respiro menor: o espaço útil já foi reduzido pelo painel de produto. */
+    padding-inline: 26px;
+    transition: width 0.28s ease;
+    /* Permite que @container app-content reflita a largura real disponível. */
     container: app-content / inline-size;
   }
   .app-shell.has-docked-product-left .content {
