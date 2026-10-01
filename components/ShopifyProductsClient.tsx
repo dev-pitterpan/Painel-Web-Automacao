@@ -48,6 +48,7 @@ type CatalogResponse = {
   error?: string;
 };
 type FilterKey = "vendor" | "tag" | "status" | "productType" | "collection";
+type BulkAction = "archive" | "unpublish" | "delete";
 const filterLabels: Record<FilterKey, string> = {
   vendor: "Fabricante",
   tag: "Tag",
@@ -211,8 +212,13 @@ export function ShopifyProductsClient() {
     "updated",
   );
   const [page, setPage] = useState(1);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<
+    Record<string, ShopifyCatalogProduct>
+  >({});
   const [automationRunning, setAutomationRunning] = useState(false);
+  const [bulkActionRunning, setBulkActionRunning] = useState<BulkAction | null>(
+    null,
+  );
   const [automationMessage, setAutomationMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -259,7 +265,7 @@ export function ShopifyProductsClient() {
     }
   }, [filters, page, query, sort]);
   useEffect(() => void load(), [load]);
-  useEffect(() => setSelectedIds([]), [filters, page, query, sort]);
+  useEffect(() => setSelectedProducts({}), [filters, query, sort]);
   useEffect(() => {
     if (
       page !== 1 ||
@@ -318,39 +324,43 @@ export function ShopifyProductsClient() {
           }
         : current,
     );
-    const openProductDetails = (product: ShopifyCatalogProduct) =>
-      openProduct(
-        toHistoryRow(product),
-        Boolean(data?.permissions?.canEditProducts),
-        (_, updated) => updateProduct(product.shopifyId, updated),
-      );
+  const openProductDetails = (product: ShopifyCatalogProduct) =>
+    openProduct(
+      toHistoryRow(product),
+      Boolean(data?.permissions?.canEditProducts),
+      (_, updated) => updateProduct(product.shopifyId, updated),
+    );
   const toggleProductSort = () => {
     setSort((current) => (current === "title" ? "title_desc" : "title"));
     setPage(1);
   };
+  const selectedIds = Object.keys(selectedProducts);
+  const selectedProductsList = Object.values(selectedProducts);
   const visibleIds = data?.products.map((product) => product.shopifyId) || [];
   const allVisibleSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
-  const someVisibleSelected = visibleIds.some((id) =>
-    selectedIds.includes(id),
-  );
+  const someVisibleSelected = visibleIds.some((id) => selectedIds.includes(id));
   const toggleAllVisible = () =>
-    setSelectedIds((current) =>
-      allVisibleSelected
-        ? current.filter((id) => !visibleIds.includes(id))
-        : [...new Set([...current, ...visibleIds])],
-    );
-  const toggleSelected = (id: string) =>
-    setSelectedIds((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
-    );
+    setSelectedProducts((current) => {
+      const next = { ...current };
+      if (allVisibleSelected) {
+        visibleIds.forEach((id) => delete next[id]);
+      } else {
+        data?.products.forEach((product) => {
+          next[product.shopifyId] = product;
+        });
+      }
+      return next;
+    });
+  const toggleSelected = (product: ShopifyCatalogProduct) =>
+    setSelectedProducts((current) => {
+      const next = { ...current };
+      if (next[product.shopifyId]) delete next[product.shopifyId];
+      else next[product.shopifyId] = product;
+      return next;
+    });
   const runSelectedAutomation = async () => {
-    if (automationRunning || !selectedIds.length || !data) return;
-    const selectedProducts = data.products.filter((product) =>
-      selectedIds.includes(product.shopifyId),
-    );
+    if (automationRunning || bulkActionRunning || !selectedIds.length) return;
     setAutomationRunning(true);
     setAutomationMessage(null);
     let nextIndex = 0;
@@ -358,8 +368,8 @@ export function ShopifyProductsClient() {
     let failures = 0;
     const failureMessages: string[] = [];
     const worker = async () => {
-      while (nextIndex < selectedProducts.length) {
-        const product = selectedProducts[nextIndex];
+      while (nextIndex < selectedProductsList.length) {
+        const product = selectedProductsList[nextIndex];
         nextIndex += 1;
         if (!product.sku) {
           failures += 1;
@@ -384,19 +394,21 @@ export function ShopifyProductsClient() {
         } catch (cause) {
           failures += 1;
           const message =
-            cause instanceof Error ? cause.message : "Falha ao iniciar automação.";
+            cause instanceof Error
+              ? cause.message
+              : "Falha ao iniciar automação.";
           failureMessages.push(`${product.title}: ${message}`);
         }
       }
     };
     await Promise.all(
-      Array.from({ length: Math.min(3, selectedProducts.length) }, () =>
+      Array.from({ length: Math.min(3, selectedProductsList.length) }, () =>
         worker(),
       ),
     );
     setAutomationRunning(false);
     if (!failures) {
-      setSelectedIds([]);
+      setSelectedProducts({});
       setAutomationMessage({
         tone: "success",
         text: `${successes} ${successes === 1 ? "produto enviado" : "produtos enviados"} para a automação.`,
@@ -406,6 +418,65 @@ export function ShopifyProductsClient() {
         tone: "error",
         text: `Automação iniciada para ${successes}; ${failures} ${failures === 1 ? "produto falhou" : "produtos falharam"}. ${failureMessages.join(" ")}`,
       });
+    }
+  };
+
+  const runBulkAction = async (action: BulkAction) => {
+    if (automationRunning || bulkActionRunning || !selectedProductsList.length)
+      return;
+
+    const count = selectedProductsList.length;
+    const plural = count === 1 ? "produto" : "produtos";
+    if (action === "delete") {
+      const confirmation = window.prompt(
+        `A exclusão de ${count} ${plural} é permanente no Shopify. Digite EXCLUIR para continuar.`,
+      );
+      if (confirmation !== "EXCLUIR") return;
+    } else {
+      const message =
+        action === "archive"
+          ? `Arquivar ${count} ${plural} no Shopify?`
+          : `Remover ${count} ${plural} de todos os canais de venda?`;
+      if (!window.confirm(message)) return;
+    }
+
+    setBulkActionRunning(action);
+    setAutomationMessage(null);
+    try {
+      const response = await fetch("/api/n8n/product-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          products: selectedProductsList.map((product) => ({
+            shopifyId: product.shopifyId,
+            sku: product.sku,
+            title: product.title,
+          })),
+        }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.ok)
+        throw new Error(result?.error || "Não foi possível concluir a ação.");
+
+      setSelectedProducts({});
+      setAutomationMessage({
+        tone: "success",
+        text:
+          result.message ||
+          `${count} ${plural} ${count === 1 ? "foi atualizado" : "foram atualizados"} no Shopify.`,
+      });
+      await load();
+    } catch (cause) {
+      setAutomationMessage({
+        tone: "error",
+        text:
+          cause instanceof Error
+            ? cause.message
+            : "Não foi possível concluir a ação.",
+      });
+    } finally {
+      setBulkActionRunning(null);
     }
   };
 
@@ -507,7 +578,7 @@ export function ShopifyProductsClient() {
                   <ChevronDown size={14} />
                 </summary>
                 <div>
-                  <button type="button" onClick={() => setSelectedIds([])}>
+                  <button type="button" onClick={() => setSelectedProducts({})}>
                     Desmarcar todos
                   </button>
                 </div>
@@ -516,14 +587,16 @@ export function ShopifyProductsClient() {
                 className="run-flow-automation"
                 type="button"
                 onClick={runSelectedAutomation}
-                disabled={automationRunning}
+                disabled={automationRunning || Boolean(bulkActionRunning)}
               >
                 {automationRunning ? (
                   <LoaderCircle className="spin" size={17} />
                 ) : (
                   <Workflow size={17} />
                 )}
-                {automationRunning ? "Iniciando automação..." : "Run Flow automation"}
+                {automationRunning
+                  ? "Iniciando automação..."
+                  : "Run Flow automation"}
               </button>
             </div>
           ) : (
@@ -549,21 +622,36 @@ export function ShopifyProductsClient() {
                 <MoreHorizontal size={18} />
               </summary>
               <div>
-                <button type="button" disabled={!selectedIds.length}>
+                <button
+                  type="button"
+                  disabled={!selectedIds.length || Boolean(bulkActionRunning)}
+                  onClick={() => runBulkAction("archive")}
+                >
                   <Archive size={15} />
-                  Arquivar produtos
+                  {bulkActionRunning === "archive"
+                    ? "Arquivando produtos..."
+                    : "Arquivar produtos"}
                 </button>
-                <button type="button" disabled={!selectedIds.length}>
+                <button
+                  type="button"
+                  disabled={!selectedIds.length || Boolean(bulkActionRunning)}
+                  onClick={() => runBulkAction("unpublish")}
+                >
                   <EyeOff size={15} />
-                  Remover produtos das listas
+                  {bulkActionRunning === "unpublish"
+                    ? "Removendo dos canais..."
+                    : "Remover produtos das listas"}
                 </button>
                 <button
                   className="is-danger"
                   type="button"
-                  disabled={!selectedIds.length}
+                  disabled={!selectedIds.length || Boolean(bulkActionRunning)}
+                  onClick={() => runBulkAction("delete")}
                 >
                   <Trash2 size={15} />
-                  Excluir produtos
+                  {bulkActionRunning === "delete"
+                    ? "Excluindo produtos..."
+                    : "Excluir produtos"}
                 </button>
                 <hr />
               </div>
@@ -671,7 +759,7 @@ export function ShopifyProductsClient() {
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(product.shopifyId)}
-                        onChange={() => toggleSelected(product.shopifyId)}
+                        onChange={() => toggleSelected(product)}
                         aria-label={`Selecionar ${product.title}`}
                       />
                     </td>

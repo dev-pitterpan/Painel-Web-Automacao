@@ -883,6 +883,28 @@ export async function deleteShopifyCatalogProduct(shopifyId: string) {
   ]);
 }
 
+export async function archiveShopifyCatalogProducts(shopifyIds: string[]) {
+  await ensureDatabase();
+  const ids = [...new Set(shopifyIds.map(String).filter(Boolean))].slice(0, 250);
+  if (!ids.length) return;
+  await query(
+    `UPDATE shopify_catalog_products
+     SET status = 'ARCHIVED', shopify_updated_at = NOW(), synced_at = NOW()
+     WHERE shopify_id = ANY($1::text[])`,
+    [ids],
+  );
+}
+
+export async function deleteShopifyCatalogProducts(shopifyIds: string[]) {
+  await ensureDatabase();
+  const ids = [...new Set(shopifyIds.map(String).filter(Boolean))].slice(0, 250);
+  if (!ids.length) return;
+  await query(
+    "DELETE FROM shopify_catalog_products WHERE shopify_id = ANY($1::text[])",
+    [ids],
+  );
+}
+
 export type ImageSyncInput = {
   source: string;
   position: number;

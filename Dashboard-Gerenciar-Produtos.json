@@ -1,0 +1,468 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dashboard-gerenciar-produtos",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1120,
+        0
+      ],
+      "id": "8ca40d9a-9863-4dc2-97f1-9eb38a906101",
+      "name": "01 - Receber Ação em Massa",
+      "webhookId": "a9633b61-592a-44ec-8849-b7b4da4ac101"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const request = $input.first().json || {};\nconst body = request.body || request;\nconst headers = request.headers || {};\nconst TOKEN_ESPERADO = 'pitterpan-dashboard-2026-token-seguro-8472';\nconst token = String(headers['x-pitterpan-token'] || headers['X-Pitterpan-Token'] || '').trim();\nif (!token || token !== TOKEN_ESPERADO) throw new Error('Token inválido.');\nconst action = String(body.action || '').trim().toLowerCase();\nif (!['archive', 'unpublish', 'delete'].includes(action)) throw new Error('Ação inválida.');\nconst source = Array.isArray(body.products) ? body.products : [];\nconst productPrefix = 'gid://shopify/Product/';\nconst products = [...new Map(source.map(item => {\n  const id = String(item?.shopify_id || '').trim();\n  return [id, { id, sku: String(item?.sku || '').trim(), title: String(item?.title || '').trim() }];\n}).filter(([id]) => id.startsWith(productPrefix) && /^\\d+$/.test(id.slice(productPrefix.length)))).values()].slice(0, 250);\nif (!products.length) throw new Error('Nenhum produto válido recebido.');\nreturn products.map(product => ({ json: {\n  action,\n  product,\n  request_id: String(body.request_id || ''),\n} }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -896,
+        0
+      ],
+      "id": "226d764e-1aa1-4db1-96f3-003a4b18a102",
+      "name": "02 - Validar e Separar Produtos"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "16760239-cd16-4371-a878-09dd8753a103-condition",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "archive",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -672,
+        0
+      ],
+      "id": "16760239-cd16-4371-a878-09dd8753a103",
+      "name": "03 - Arquivar?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pitter-pan.myshopify.com/admin/api/2026-07/graphql.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "shopifyOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { query: 'mutation ArchiveProduct($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id status } userErrors { field message } } }', variables: { product: { id: $json.product.id, status: 'ARCHIVED' } } } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -448,
+        -224
+      ],
+      "id": "b3e0d683-4f79-4a1d-9847-7be9651ba104",
+      "name": "04 - Arquivar no Shopify",
+      "credentials": {
+        "shopifyOAuth2Api": {
+          "id": "61CmKhicE2ONluvE",
+          "name": "Pitter Pan - Shopify"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const responses = $input.all().map(item => item.json || {});\nconst errors = responses.flatMap(response => [\n  ...(Array.isArray(response.errors) ? response.errors : []),\n  ...(Array.isArray(response.data?.productUpdate?.userErrors) ? response.data.productUpdate.userErrors : []),\n]).map(error => error?.message || 'Erro desconhecido.');\nif (errors.length) throw new Error(errors.join(' | '));\nreturn [{ json: { ok: true, action: 'archive', count: responses.length, message: responses.length + (responses.length === 1 ? ' produto arquivado com sucesso.' : ' produtos arquivados com sucesso.') } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        -224
+      ],
+      "id": "6692a5bf-1aa8-4f00-8e56-45d78074a105",
+      "name": "05 - Confirmar Arquivamento"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        -224
+      ],
+      "id": "29d74429-2bd8-4ff8-91cb-628b14d9a106",
+      "name": "06 - Responder Arquivamento"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "531ac846-0568-4594-9686-1ec3a94aa107-condition",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "unpublish",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -448,
+        64
+      ],
+      "id": "531ac846-0568-4594-9686-1ec3a94aa107",
+      "name": "07 - Remover dos Canais?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pitter-pan.myshopify.com/admin/api/2026-07/graphql.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "shopifyOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { query: 'query ProductPublications($id: ID!) { product(id: $id) { id resourcePublications(first: 100, onlyPublished: true) { nodes { publication { id } } } } }', variables: { id: $json.product.id } } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -224,
+        -16
+      ],
+      "id": "a7728fa1-c32a-4314-b585-0d77031cd108",
+      "name": "08 - Buscar Canais Publicados",
+      "credentials": {
+        "shopifyOAuth2Api": {
+          "id": "61CmKhicE2ONluvE",
+          "name": "Pitter Pan - Shopify"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const response = $json || {};\nif (response.errors?.length) throw new Error(response.errors.map(error => error.message).join(' | '));\nconst product = response.data?.product;\nif (!product?.id) throw new Error('Produto não encontrado no Shopify.');\nconst input = (product.resourcePublications?.nodes || [])\n  .map(item => item?.publication?.id)\n  .filter(Boolean)\n  .map(publicationId => ({ publicationId }));\nreturn { product_id: product.id, input };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -16
+      ],
+      "id": "0eab6007-d810-46bc-950e-2feaffb4a109",
+      "name": "09 - Preparar Remoção dos Canais"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pitter-pan.myshopify.com/admin/api/2026-07/graphql.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "shopifyOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { query: 'mutation UnpublishProduct($id: ID!, $input: [PublicationInput!]!) { publishableUnpublish(id: $id, input: $input) { publishable { ... on Product { id } } userErrors { field message } } }', variables: { id: $json.product_id, input: $json.input } } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        -16
+      ],
+      "id": "736092c5-08e0-45f1-b722-42a7364ba110",
+      "name": "10 - Remover dos Canais no Shopify",
+      "credentials": {
+        "shopifyOAuth2Api": {
+          "id": "61CmKhicE2ONluvE",
+          "name": "Pitter Pan - Shopify"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const responses = $input.all().map(item => item.json || {});\nconst errors = responses.flatMap(response => [\n  ...(Array.isArray(response.errors) ? response.errors : []),\n  ...(Array.isArray(response.data?.publishableUnpublish?.userErrors) ? response.data.publishableUnpublish.userErrors : []),\n]).map(error => error?.message || 'Erro desconhecido.');\nif (errors.length) throw new Error(errors.join(' | '));\nreturn [{ json: { ok: true, action: 'unpublish', count: responses.length, message: responses.length + (responses.length === 1 ? ' produto removido dos canais de venda.' : ' produtos removidos dos canais de venda.') } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -16
+      ],
+      "id": "8521de33-c20a-4890-bec4-33f6b07ed111",
+      "name": "11 - Confirmar Remoção dos Canais"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        672,
+        -16
+      ],
+      "id": "ed622e1d-03df-4ebf-9c55-914dc251a112",
+      "name": "12 - Responder Remoção dos Canais"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pitter-pan.myshopify.com/admin/api/2026-07/graphql.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "shopifyOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { query: 'mutation DeleteProduct($input: ProductDeleteInput!) { productDelete(input: $input, synchronous: true) { deletedProductId userErrors { field message } } }', variables: { input: { id: $json.product.id } } } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -224,
+        208
+      ],
+      "id": "8332bb65-09b5-4e2c-93c3-47a2bbc1a113",
+      "name": "13 - Excluir no Shopify",
+      "credentials": {
+        "shopifyOAuth2Api": {
+          "id": "61CmKhicE2ONluvE",
+          "name": "Pitter Pan - Shopify"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const responses = $input.all().map(item => item.json || {});\nconst errors = responses.flatMap(response => [\n  ...(Array.isArray(response.errors) ? response.errors : []),\n  ...(Array.isArray(response.data?.productDelete?.userErrors) ? response.data.productDelete.userErrors : []),\n]).map(error => error?.message || 'Erro desconhecido.');\nif (errors.length) throw new Error(errors.join(' | '));\nconst deleted = responses.filter(response => response.data?.productDelete?.deletedProductId).length;\nif (deleted !== responses.length) throw new Error('O Shopify não confirmou todas as exclusões.');\nreturn [{ json: { ok: true, action: 'delete', count: deleted, message: deleted + (deleted === 1 ? ' produto excluído com sucesso.' : ' produtos excluídos com sucesso.') } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        208
+      ],
+      "id": "d7d9464e-27f5-4dba-b69c-c693f11c8114",
+      "name": "14 - Confirmar Exclusão"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        224,
+        208
+      ],
+      "id": "3ddf2616-890c-444d-bf5c-0b6b1068a115",
+      "name": "15 - Responder Exclusão"
+    }
+  ],
+  "connections": {
+    "01 - Receber Ação em Massa": {
+      "main": [
+        [
+          {
+            "node": "02 - Validar e Separar Produtos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 - Validar e Separar Produtos": {
+      "main": [
+        [
+          {
+            "node": "03 - Arquivar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 - Arquivar?": {
+      "main": [
+        [
+          {
+            "node": "04 - Arquivar no Shopify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "07 - Remover dos Canais?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 - Arquivar no Shopify": {
+      "main": [
+        [
+          {
+            "node": "05 - Confirmar Arquivamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 - Confirmar Arquivamento": {
+      "main": [
+        [
+          {
+            "node": "06 - Responder Arquivamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07 - Remover dos Canais?": {
+      "main": [
+        [
+          {
+            "node": "08 - Buscar Canais Publicados",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "13 - Excluir no Shopify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 - Buscar Canais Publicados": {
+      "main": [
+        [
+          {
+            "node": "09 - Preparar Remoção dos Canais",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 - Preparar Remoção dos Canais": {
+      "main": [
+        [
+          {
+            "node": "10 - Remover dos Canais no Shopify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 - Remover dos Canais no Shopify": {
+      "main": [
+        [
+          {
+            "node": "11 - Confirmar Remoção dos Canais",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 - Confirmar Remoção dos Canais": {
+      "main": [
+        [
+          {
+            "node": "12 - Responder Remoção dos Canais",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13 - Excluir no Shopify": {
+      "main": [
+        [
+          {
+            "node": "14 - Confirmar Exclusão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14 - Confirmar Exclusão": {
+      "main": [
+        [
+          {
+            "node": "15 - Responder Exclusão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "28b1b1081fdce1804fa2e416a99812aa4482318686ce1851048a33b2736deb9d"
+  },
+  "name": "Dashboard - Gerenciar Produtos",
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
