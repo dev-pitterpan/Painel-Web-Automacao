@@ -595,7 +595,7 @@ export function ShopifyProductsClient() {
                   <Workflow size={17} />
                 )}
                 {automationRunning
-                  ? "Iniciando automação..."
+                  ? "Rodando Automação..."
                   : "Run Flow automation"}
               </button>
             </div>
