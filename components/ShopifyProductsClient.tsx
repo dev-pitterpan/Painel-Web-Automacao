@@ -23,10 +23,8 @@ import {
   Workflow,
   X,
 } from "lucide-react";
-import {
-  ProductDetailsDrawer,
-  type UpdatedProduct,
-} from "@/components/ProductDetailsDrawer";
+import type { UpdatedProduct } from "@/components/ProductDetailsDrawer";
+import { useProductPanel } from "@/components/ProductPanelProvider";
 import { setCachedProductImage } from "@/components/ProductThumbnail";
 import { loadProductDetails } from "@/components/ProductDetailsCache";
 import type { ShopifyCatalogProduct } from "@/lib/auth";
@@ -199,6 +197,7 @@ function FilterPicker({
 }
 
 export function ShopifyProductsClient() {
+  const { openProduct } = useProductPanel();
   const [data, setData] = useState<CatalogResponse | null>(null);
   const [facets, setFacets] = useState<Facets>();
   const [loading, setLoading] = useState(true);
@@ -212,7 +211,6 @@ export function ShopifyProductsClient() {
     "updated",
   );
   const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [automationRunning, setAutomationRunning] = useState(false);
   const [automationMessage, setAutomationMessage] = useState<{
@@ -290,12 +288,6 @@ export function ShopifyProductsClient() {
       window.clearTimeout(timer);
     };
   }, [data, filters, page, query, sort]);
-  const selected = useMemo(
-    () =>
-      data?.products.find((product) => product.shopifyId === selectedId) ||
-      null,
-    [data, selectedId],
-  );
   const setFilter = (key: FilterKey, value: string) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
@@ -308,13 +300,13 @@ export function ShopifyProductsClient() {
     });
     setPage(1);
   };
-  const updateProduct = (updated: UpdatedProduct) =>
+  const updateProduct = (productId: string, updated: UpdatedProduct) =>
     setData((current) =>
       current
         ? {
             ...current,
             products: current.products.map((product) =>
-              product.shopifyId === selectedId
+              product.shopifyId === productId
                 ? {
                     ...product,
                     title: updated.title,
@@ -326,6 +318,12 @@ export function ShopifyProductsClient() {
           }
         : current,
     );
+    const openProductDetails = (product: ShopifyCatalogProduct) =>
+      openProduct(
+        toHistoryRow(product),
+        Boolean(data?.permissions?.canEditProducts),
+        (_, updated) => updateProduct(product.shopifyId, updated),
+      );
   const toggleProductSort = () => {
     setSort((current) => (current === "title" ? "title_desc" : "title"));
     setPage(1);
@@ -413,12 +411,6 @@ export function ShopifyProductsClient() {
 
   return (
     <>
-      <ProductDetailsDrawer
-        row={selected ? toHistoryRow(selected) : null}
-        canEdit={Boolean(data?.permissions?.canEditProducts)}
-        onClose={() => setSelectedId(null)}
-        onProductUpdated={(_, product) => updateProduct(product)}
-      />
       <div className="page-head dashboard-title-row">
         <div>
           <h1 className="page-title">Produtos</h1>
@@ -667,11 +659,11 @@ export function ShopifyProductsClient() {
                     key={product.shopifyId}
                     tabIndex={0}
                     role="button"
-                    onClick={() => setSelectedId(product.shopifyId)}
+                    onClick={() => openProductDetails(product)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        setSelectedId(product.shopifyId);
+                        openProductDetails(product);
                       }
                     }}
                   >

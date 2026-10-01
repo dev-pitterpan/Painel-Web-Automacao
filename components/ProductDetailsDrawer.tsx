@@ -376,18 +376,34 @@ export function ProductDetailsDrawer({
   onClose,
   onProductUpdated,
   canEdit = false,
+  dockSide = "floating",
+  onDockSideChange,
+  dockWidth = 460,
+  onDockWidthChange,
 }: {
   row: HistoryRow | null;
   onClose: () => void;
   onProductUpdated?: (row: HistoryRow, product: UpdatedProduct) => void;
   canEdit?: boolean;
+  dockSide?: "left" | "right" | "floating";
+  onDockSideChange?: (side: "left" | "right" | "floating") => void;
+  dockWidth?: number;
+  onDockWidthChange?: (width: number) => void;
 }) {
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [position, setPosition] = useState({ x: 24, y: 72 });
   const dragOffset = useRef({ x: 0, y: 0 });
+  const pointerOrigin = useRef({ x: 0, y: 0 });
+  const dockedDragStart = useRef(false);
+  const snapTarget = useRef<"left" | "right" | null>(null);
+  const resizeStart = useRef({ x: 0, width: dockWidth });
+  const [snapPreview, setSnapPreview] = useState<"left" | "right" | null>(
+    null,
+  );
   const windowRef = useRef<HTMLElement>(null);
   const wasOpen = useRef(false);
+  const previousDockSide = useRef(dockSide);
   const [step, setStep] = useState<DrawerStep>("details");
   const [form, setForm] = useState<EditForm | null>(null);
   const [original, setOriginal] = useState<EditForm | null>(null);
@@ -476,6 +492,22 @@ export function ProductDetailsDrawer({
   }, [row]);
 
   useEffect(() => {
+    if (
+      previousDockSide.current !== "floating" &&
+      dockSide === "floating" &&
+      !window.matchMedia("(min-width: 1280px) and (min-height: 700px)").matches
+    ) {
+      const width = Math.min(960, window.innerWidth - 32);
+      const height = Math.min(760, window.innerHeight - 48);
+      setPosition({
+        x: Math.max(8, Math.round((window.innerWidth - width) / 2)),
+        y: Math.max(16, Math.round((window.innerHeight - height) / 2)),
+      });
+    }
+    previousDockSide.current = dockSide;
+  }, [dockSide]);
+
+  useEffect(() => {
     if (!row) return;
     const close = (event: KeyboardEvent) =>
       event.key === "Escape" && !saving && onClose();
@@ -562,14 +594,28 @@ export function ProductDetailsDrawer({
 
   function startDragging(event: React.PointerEvent<HTMLElement>) {
     if ((event.target as HTMLElement).closest("button")) return;
+    const bounds = windowRef.current?.getBoundingClientRect();
+    dockedDragStart.current = dockSide !== "floating";
+    pointerOrigin.current = { x: event.clientX, y: event.clientY };
     dragOffset.current = {
-      x: event.clientX - position.x,
-      y: event.clientY - position.y,
+      x: event.clientX - (bounds?.left ?? position.x),
+      y: event.clientY - (bounds?.top ?? position.y),
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
   function dragWindow(event: React.PointerEvent<HTMLElement>) {
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    if (dockedDragStart.current) {
+      const distance = Math.hypot(
+        event.clientX - pointerOrigin.current.x,
+        event.clientY - pointerOrigin.current.y,
+      );
+      if (distance < 4) return;
+      const bounds = windowRef.current?.getBoundingClientRect();
+      setPosition({ x: bounds?.left ?? position.x, y: bounds?.top ?? position.y });
+      dockedDragStart.current = false;
+      onDockSideChange?.("floating");
+    }
     const width = windowRef.current?.offsetWidth || 600;
     const next = {
       x: Math.min(
@@ -581,11 +627,86 @@ export function ProductDetailsDrawer({
         Math.max(8, window.innerHeight - 80),
       ),
     };
+    const canSnap = window.matchMedia(
+      "(min-width: 1280px) and (min-height: 700px)",
+    ).matches;
+    const snapSide = canSnap
+      ? next.x <= 20
+        ? "left"
+        : next.x + width >= window.innerWidth - 20
+          ? "right"
+          : null
+      : null;
+    snapTarget.current = snapSide;
+    setSnapPreview(snapSide);
     setPosition(next);
   }
   function stopDragging(event: React.PointerEvent<HTMLElement>) {
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
     event.currentTarget.releasePointerCapture(event.pointerId);
+    dockedDragStart.current = false;
+    const side = snapTarget.current;
+    snapTarget.current = null;
+    setSnapPreview(null);
+    if (!side) return;
+    const shell = windowRef.current?.closest<HTMLElement>(".app-shell");
+    const sidebar = shell?.querySelector<HTMLElement>(".sidebar");
+    const workspaceWidth =
+      (shell?.clientWidth || window.innerWidth) -
+      (sidebar?.getBoundingClientRect().width || 0);
+    onDockWidthChange?.(
+      Math.min(560, Math.max(440, Math.round(workspaceWidth * 0.42))),
+    );
+    onDockSideChange?.(side);
+  }
+  function getDockWidthRange() {
+    const shell = windowRef.current?.closest<HTMLElement>(".app-shell");
+    const sidebar = shell?.querySelector<HTMLElement>(".sidebar");
+    const workspaceWidth =
+      (shell?.clientWidth || window.innerWidth) -
+      (sidebar?.getBoundingClientRect().width || 0);
+    const minWidth = Math.min(360, Math.round(workspaceWidth * 0.35));
+    return {
+      minWidth,
+      maxWidth: Math.max(minWidth, Math.min(560, workspaceWidth - 524)),
+    };
+  }
+  function startResizing(event: React.PointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    resizeStart.current = { x: event.clientX, width: dockWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+  function resizeDock(event: React.PointerEvent<HTMLDivElement>) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    const { minWidth, maxWidth } = getDockWidthRange();
+    const delta =
+      dockSide === "right"
+        ? resizeStart.current.x - event.clientX
+        : event.clientX - resizeStart.current.x;
+    onDockWidthChange?.(
+      Math.min(
+        maxWidth,
+        Math.max(minWidth, resizeStart.current.width + delta),
+      ),
+    );
+  }
+  function stopResizing(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+  function resizeWithKeyboard(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const direction =
+      (dockSide === "right" && event.key === "ArrowLeft") ||
+      (dockSide === "left" && event.key === "ArrowRight")
+        ? 1
+        : -1;
+    const { minWidth, maxWidth } = getDockWidthRange();
+    onDockWidthChange?.(
+      Math.min(maxWidth, Math.max(minWidth, dockWidth + direction * 16)),
+    );
   }
 
   async function openEditor(showEditor = true) {
@@ -853,14 +974,34 @@ export function ProductDetailsDrawer({
 
   return (
     <>
+      {snapPreview && (
+        <div
+          className={`product-snap-preview is-${snapPreview}`}
+          aria-hidden="true"
+        />
+      )}
       <aside
         ref={windowRef}
-        className={`product-drawer product-editor-drawer product-floating-window ${step === "edit" ? "is-editing-product" : ""}`}
+        className={`product-drawer product-editor-drawer product-floating-window ${dockSide !== "floating" ? `is-docked-${dockSide}` : ""} ${step === "edit" ? "is-editing-product" : ""}`}
         role="dialog"
         aria-modal="false"
         aria-labelledby="product-drawer-title"
-        style={{ left: position.x, top: position.y }}
+        style={dockSide === "floating" ? { left: position.x, top: position.y } : undefined}
       >
+        {dockSide !== "floating" && (
+          <div
+            className="product-dock-resize-handle"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Redimensionar painel do produto"
+            aria-valuenow={dockWidth}
+            tabIndex={0}
+            onPointerDown={startResizing}
+            onPointerMove={resizeDock}
+            onPointerUp={stopResizing}
+            onKeyDown={resizeWithKeyboard}
+          />
+        )}
         <header
           className="product-drawer-head product-window-bar"
           onPointerDown={startDragging}

@@ -1220,7 +1220,9 @@ tbody tr:hover {
   display: grid;
   place-items: center;
   padding: 28px 0;
-  background: var(--bg);
+  background: rgba(243, 247, 252, 0.2);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 .loading-card {
   width: min(100%, 698px);
@@ -3473,6 +3475,119 @@ tbody tr:hover {
     0 4px 16px rgba(7, 26, 54, 0.12);
   animation: drawer-fade 0.18s ease;
 }
+.product-floating-window.is-docked-right,
+.product-floating-window.is-docked-left {
+  top: 12px !important;
+  bottom: 12px;
+  width: var(--product-panel-width, 460px);
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  height: auto;
+  resize: none;
+  border-radius: 12px;
+  container: product-panel / inline-size;
+}
+.product-floating-window.is-docked-right {
+  left: auto !important;
+  right: 12px;
+}
+.product-floating-window.is-docked-left {
+  left: calc(var(--sidebar-width, 240px) + 12px) !important;
+  right: auto;
+}
+.product-snap-preview {
+  position: fixed;
+  z-index: 99;
+  top: 12px;
+  bottom: 12px;
+  width: calc((100vw - var(--sidebar-width, 240px)) / 2 - 12px);
+  border: 2px solid rgba(25, 103, 210, 0.42);
+  border-radius: 12px;
+  background: rgba(50, 126, 224, 0.13);
+  pointer-events: none;
+}
+.product-snap-preview.is-left {
+  left: calc(var(--sidebar-width, 240px) + 12px);
+}
+.product-snap-preview.is-right {
+  right: 12px;
+}
+.product-dock-resize-handle {
+  position: absolute;
+  z-index: 21;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+.product-floating-window.is-docked-right .product-dock-resize-handle {
+  left: 0;
+}
+.product-floating-window.is-docked-left .product-dock-resize-handle {
+  right: 0;
+}
+.product-dock-resize-handle::after {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 2px;
+  height: 42px;
+  border-radius: 2px;
+  background: #cbd7e7;
+  content: "";
+  transform: translateY(-50%);
+}
+.product-dock-resize-handle:hover::after,
+.product-dock-resize-handle:focus-visible::after {
+  background: #2877d4;
+}
+@container product-panel (max-width: 520px) {
+  .product-current-overview {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 14px 16px;
+  }
+  .product-current-image {
+    width: 100%;
+    max-width: 260px;
+    margin-inline: auto;
+  }
+  .product-drawer-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 12px 14px;
+  }
+  .product-drawer-body {
+    padding-inline: 14px;
+  }
+}
+@container app-content (max-width: 900px) {
+  .reports-filterbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .reports-filterbar .report-period-label,
+  .reports-filterbar .reports-filter-actions {
+    grid-column: 1 / -1;
+  }
+  .reports-filterbar .reports-filter-actions {
+    justify-content: flex-end;
+  }
+}
+@container app-content (max-width: 640px) {
+  .report-metrics,
+  .report-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container app-content (max-width: 460px) {
+  .report-metrics,
+  .report-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .product-drawer-scroll {
   position: relative;
   min-height: 0;
@@ -5190,8 +5305,25 @@ tbody tr:hover {
     max-height: calc(100vh - 80px);
     resize: none;
   }
+  .product-floating-window.is-docked-left,
+  .product-floating-window.is-docked-right {
+    left: 8px !important;
+    right: 8px;
+    top: 72px !important;
+    bottom: 8px;
+    width: auto;
+    height: auto;
+    max-width: none;
+    max-height: none;
+  }
+  .product-dock-resize-handle,
+  .product-snap-preview {
+    display: none;
+  }
   .product-drawer-head.product-window-bar {
     grid-template-columns: 32px 32px 38px minmax(0, 1fr) 32px;
+    gap: 6px;
+    padding: 10px;
   }
   .product-drawer-head {
     padding: 16px;

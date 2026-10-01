@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import type { DashboardData, HistoryRow } from "@/lib/types";
 import { calculateTimeSavedMinutes, parseHistoryDate } from "@/lib/metrics";
-import { ProductDetailsDrawer } from "@/components/ProductDetailsDrawer";
+import { useProductPanel } from "@/components/ProductPanelProvider";
 import { ProductThumbnail } from "@/components/ProductThumbnail";
 
 type ReportKind =
@@ -157,9 +157,6 @@ export function ReportsClient() {
   const [visibleCompleteCount, setVisibleCompleteCount] = useState(
     PROGRESSIVE_BATCH_SIZE,
   );
-  const [selectedProduct, setSelectedProduct] = useState<HistoryRow | null>(
-    null,
-  );
   const [canEditProducts, setCanEditProducts] = useState(false);
   const [timeSettings, setTimeSettings] = useState({
     manualSecondsPerProduct: 60,
@@ -179,6 +176,7 @@ export function ReportsClient() {
   const previewRef = useRef<HTMLDivElement>(null);
   const completeTableRef = useRef<HTMLDivElement>(null);
   const datePickerRef = useRef<HTMLDivElement>(null);
+  const { openProduct } = useProductPanel();
 
   async function load(refresh = false) {
     setLoading(true);
@@ -888,31 +886,26 @@ export function ReportsClient() {
     },
   ];
 
+  const openProductDetails = (row: HistoryRow) =>
+    openProduct(row, canEditProducts, (updatedRow, product) => {
+      const sourceTitle =
+        updatedRow.tituloDepois || updatedRow.tituloAntes || "";
+      const updateRow = (currentRow: HistoryRow) =>
+        currentRow.sku === updatedRow.sku &&
+        (currentRow.tituloDepois || currentRow.tituloAntes || "") ===
+          sourceTitle
+          ? {
+              ...currentRow,
+              tituloDepois: product.title,
+              tagsDepois: product.tags.join(", "),
+              colecoesDepois: product.collections.join(", "),
+            }
+          : currentRow;
+      setAllRows((current) => current.map(updateRow));
+    });
+
   return (
     <>
-      <ProductDetailsDrawer
-        row={selectedProduct}
-        canEdit={canEditProducts}
-        onClose={() => setSelectedProduct(null)}
-        onProductUpdated={(updatedRow, product) => {
-          const sourceTitle =
-            updatedRow.tituloDepois || updatedRow.tituloAntes || "";
-          const updateRow = (row: HistoryRow) =>
-            row.sku === updatedRow.sku &&
-            (row.tituloDepois || row.tituloAntes || "") === sourceTitle
-              ? {
-                  ...row,
-                  tituloDepois: product.title,
-                  tagsDepois: product.tags.join(", "),
-                  colecoesDepois: product.collections.join(", "),
-                }
-              : row;
-          setAllRows((current) => current.map(updateRow));
-          setSelectedProduct((current) =>
-            current ? updateRow(current) : current,
-          );
-        }}
-      />
       {toast && (
         <div className="reports-toast">
           <Check size={16} />
@@ -1360,11 +1353,11 @@ export function ReportsClient() {
                         className="product-row-clickable"
                         role="button"
                         tabIndex={0}
-                        onClick={() => setSelectedProduct(row)}
+                        onClick={() => openProductDetails(row)}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
                             event.preventDefault();
-                            setSelectedProduct(row);
+                            openProductDetails(row);
                           }
                         }}
                       >

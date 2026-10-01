@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import type { DashboardData, HistoryRow } from "@/lib/types";
 import { calculateTimeSavedMinutes, parseHistoryDate } from "@/lib/metrics";
-import { ProductDetailsDrawer } from "@/components/ProductDetailsDrawer";
+import { useProductPanel } from "@/components/ProductPanelProvider";
 import { ProductThumbnail } from "@/components/ProductThumbnail";
 
 const colors = [
@@ -349,14 +349,12 @@ export function DashboardClient({
   } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<HistoryRow | null>(
-    null,
-  );
   const [productsPage, setProductsPage] = useState(1);
   const [productsSort, setProductsSort] = useState<"recent" | "az">("recent");
   const automationHealthRef = useRef<
     "unknown" | "operational" | "warning" | "error"
   >("unknown");
+  const { openProduct } = useProductPanel();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1128,36 +1126,34 @@ export function DashboardClient({
     selectableVisibleRows.every((row) =>
       selectedReprocessKeys.includes(reprocessKey(row)),
     );
+  const openProductDetails = (row: HistoryRow) =>
+    openProduct(
+      row,
+      Boolean(data.permissions?.canEditProducts),
+      (updatedRow, product) => {
+        const sourceTitle =
+          updatedRow.tituloDepois || updatedRow.tituloAntes || "";
+        const updateRow = (currentRow: HistoryRow) =>
+          currentRow.sku === updatedRow.sku &&
+          (currentRow.tituloDepois || currentRow.tituloAntes || "") ===
+            sourceTitle
+            ? {
+                ...currentRow,
+                tituloDepois: product.title,
+                tagsDepois: product.tags.join(", "),
+                colecoesDepois: product.collections.join(", "),
+              }
+            : currentRow;
+        setData((current) =>
+          current
+            ? { ...current, rows: current.rows.map(updateRow) }
+            : current,
+        );
+      },
+    );
 
   return (
     <>
-      <ProductDetailsDrawer
-        row={selectedProduct}
-        canEdit={Boolean(data.permissions?.canEditProducts)}
-        onClose={() => setSelectedProduct(null)}
-        onProductUpdated={(updatedRow, product) => {
-          const sourceTitle =
-            updatedRow.tituloDepois || updatedRow.tituloAntes || "";
-          const updateRow = (row: HistoryRow) =>
-            row.sku === updatedRow.sku &&
-            (row.tituloDepois || row.tituloAntes || "") === sourceTitle
-              ? {
-                  ...row,
-                  tituloDepois: product.title,
-                  tagsDepois: product.tags.join(", "),
-                  colecoesDepois: product.collections.join(", "),
-                }
-              : row;
-          setData((current) =>
-            current
-              ? { ...current, rows: current.rows.map(updateRow) }
-              : current,
-          );
-          setSelectedProduct((current) =>
-            current ? updateRow(current) : current,
-          );
-        }}
-      />
       {toast && (
         <div
           className={`integration-toast integration-toast-${toast.tone}`}
@@ -1964,11 +1960,11 @@ export function DashboardClient({
                       className="product-row-clickable"
                       role="button"
                       tabIndex={0}
-                      onClick={() => setSelectedProduct(row)}
+                      onClick={() => openProductDetails(row)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          setSelectedProduct(row);
+                          openProductDetails(row);
                         }
                       }}
                     >

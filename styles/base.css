@@ -66,8 +66,12 @@ button:hover {
   isolation: isolate;
   min-height: 100vh;
   display: grid;
+  --sidebar-width: 240px;
   grid-template-columns: 240px minmax(0, 1fr);
   transition: grid-template-columns 0.28s ease;
+}
+.app-shell:has(.sidebar.is-collapsed) {
+  --sidebar-width: 78px;
 }
 .app-shell::before {
   content: "";
@@ -122,9 +126,22 @@ button:hover {
   padding: 30px 44px 52px;
   margin: 0 auto;
 }
+@media (min-width: 1280px) and (min-height: 700px) {
+  .app-shell.has-docked-product-right .content,
+  .app-shell.has-docked-product-left .content {
+    width: calc(100% - var(--product-panel-width, 460px) - 24px);
+    max-width: none;
+    margin: 0;
+    container: app-content / inline-size;
+  }
+  .app-shell.has-docked-product-left .content {
+    margin-left: auto;
+  }
+}
 
 @media (min-width: 641px) and (max-width: 1023px) {
   .app-shell {
+    --sidebar-width: 78px;
     grid-template-columns: 78px minmax(0, 1fr);
   }
   .app-shell::before {

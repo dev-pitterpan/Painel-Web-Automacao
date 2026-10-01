@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import "./globals.css";
 import { PageContent } from "@/components/PageContent";
+import { ProductPanelProvider } from "@/components/ProductPanelProvider";
 import { Sidebar } from "@/components/Sidebar";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -31,10 +32,10 @@ export default async function RootLayout({
     <html lang="pt-BR">
       <body>
         {user ? (
-          <div className="app-shell">
+          <ProductPanelProvider>
             <Sidebar user={user} />
             <PageContent>{children}</PageContent>
-          </div>
+          </ProductPanelProvider>
         ) : (
           children
         )}
