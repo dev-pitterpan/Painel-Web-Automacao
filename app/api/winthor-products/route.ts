@@ -7,18 +7,34 @@ import {
   type WinthorStatusProduct,
 } from "@/lib/auth";
 
+function normalizeSyncToken(value: unknown) {
+  let token = String(value || "")
+    .trim()
+    .replace(/^(?:WINTHOR_SYNC_TOKEN|N8N_REPROCESS_TOKEN)\s*=\s*/i, "")
+    .trim();
+  if (
+    token.length >= 2 &&
+    ((token.startsWith('"') && token.endsWith('"')) ||
+      (token.startsWith("'") && token.endsWith("'")))
+  ) {
+    token = token.slice(1, -1).trim();
+  }
+  return token;
+}
+
 function isValidSyncToken(req: NextRequest) {
   const expectedTokens = [
-    process.env.WINTHOR_SYNC_TOKEN,
-    process.env.N8N_REPROCESS_TOKEN,
-  ]
-    .map((token) => String(token || "").trim())
-    .filter(Boolean);
-  const received = String(
+    ...new Set(
+      [process.env.WINTHOR_SYNC_TOKEN, process.env.N8N_REPROCESS_TOKEN]
+        .map(normalizeSyncToken)
+        .filter(Boolean),
+    ),
+  ];
+  const received = normalizeSyncToken(
     req.headers.get("x-pitterpan-token") ||
       req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
       "",
-  ).trim();
+  );
   if (!expectedTokens.length || !received) return false;
   const receivedHash = createHash("sha256").update(received).digest();
   let valid = false;
