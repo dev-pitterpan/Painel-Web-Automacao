@@ -1,10 +1,14 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  beginShopifyCatalogSync,
+  completeShopifyCatalogSync,
   deleteShopifyCatalogProduct,
+  failShopifyCatalogSync,
   getCurrentUser,
   getShopifyCatalogFacets,
   listShopifyCatalogProducts,
+  stageShopifyCatalogProducts,
   upsertShopifyCatalogProducts,
   type ShopifyCatalogSyncProduct,
 } from "@/lib/auth";
@@ -115,7 +119,37 @@ export async function POST(req: NextRequest) {
     );
   try {
     const body = await req.json();
-    const action = text(body?.action || "upsert", 20);
+    const action = text(body?.action || "upsert", 30);
+    const batchId = text(body?.batchId, 180);
+    if (action === "bulk_begin") {
+      if (!batchId)
+        return NextResponse.json(
+          { error: "Identificador do lote obrigatório." },
+          { status: 400 },
+        );
+      await beginShopifyCatalogSync(batchId, text(body?.operationId, 250));
+      return NextResponse.json({ ok: true, batchId });
+    }
+    if (action === "bulk_complete") {
+      if (!batchId)
+        return NextResponse.json(
+          { error: "Identificador do lote obrigatório." },
+          { status: 400 },
+        );
+      const result = await completeShopifyCatalogSync(
+        batchId,
+        Number(body?.expectedCount || 0),
+      );
+      return NextResponse.json({ ok: true, batchId, ...result });
+    }
+    if (action === "bulk_fail") {
+      if (batchId)
+        await failShopifyCatalogSync(
+          batchId,
+          text(body?.error || "Falha informada pelo sincronizador.", 1000),
+        );
+      return NextResponse.json({ ok: true, batchId });
+    }
     if (action === "delete") {
       const shopifyId = text(body?.shopifyId || body?.id, 180);
       if (!shopifyId)
@@ -138,10 +172,20 @@ export async function POST(req: NextRequest) {
         { error: "Nenhum produto válido recebido." },
         { status: 400 },
       );
-    await upsertShopifyCatalogProducts(products);
+    if (action === "bulk_chunk" && !batchId)
+      return NextResponse.json(
+        { error: "Identificador do lote obrigatório." },
+        { status: 400 },
+      );
+    const stagedTotal =
+      action === "bulk_chunk"
+        ? await stageShopifyCatalogProducts(batchId, products)
+        : undefined;
+    if (action !== "bulk_chunk") await upsertShopifyCatalogProducts(products);
     return NextResponse.json({
       ok: true,
       synchronized: products.length,
+      stagedTotal,
       cursor: body?.cursor || null,
       hasNextPage: Boolean(body?.hasNextPage),
     });

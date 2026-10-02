@@ -8,5 +8,6 @@ credentials/*
 !credentials/.gitkeep
 data/*.db
 data/*.db-*
+data/*.jsonl
 .vercel
 .env*

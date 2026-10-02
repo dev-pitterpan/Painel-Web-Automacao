@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "shopify:sync": "node scripts/sync-shopify-catalog.mjs",
     "auth:create": "node scripts/create-user.cjs",
     "db:migrate": "node scripts/migrate-sqlite-to-postgres.mjs"
   },

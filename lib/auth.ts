@@ -214,6 +214,36 @@ async function ensureDatabase() {
           shopify_updated_at TIMESTAMPTZ,
           synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`,
+        `CREATE TABLE IF NOT EXISTS shopify_catalog_sync_runs (
+          batch_id TEXT PRIMARY KEY,
+          shopify_operation_id TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'processing',
+          expected_count INTEGER,
+          received_count INTEGER NOT NULL DEFAULT 0,
+          error_message TEXT NOT NULL DEFAULT '',
+          started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          completed_at TIMESTAMPTZ
+        )`,
+        `CREATE TABLE IF NOT EXISTS shopify_catalog_staging (
+          batch_id TEXT NOT NULL REFERENCES shopify_catalog_sync_runs(batch_id) ON DELETE CASCADE,
+          shopify_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          handle TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'DRAFT',
+          vendor TEXT NOT NULL DEFAULT '',
+          product_type TEXT NOT NULL DEFAULT '',
+          tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          collections_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          image_url TEXT NOT NULL DEFAULT '',
+          image_alt TEXT NOT NULL DEFAULT '',
+          primary_sku TEXT NOT NULL DEFAULT '',
+          variants_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          total_inventory INTEGER NOT NULL DEFAULT 0,
+          price_min DOUBLE PRECISION NOT NULL DEFAULT 0,
+          price_max DOUBLE PRECISION NOT NULL DEFAULT 0,
+          shopify_updated_at TIMESTAMPTZ,
+          PRIMARY KEY (batch_id, shopify_id)
+        )`,
         `CREATE TABLE IF NOT EXISTS winthor_product_statuses (
           sku TEXT NOT NULL,
           description TEXT NOT NULL DEFAULT '',
@@ -250,6 +280,7 @@ async function ensureDatabase() {
         "CREATE INDEX IF NOT EXISTS idx_shopify_catalog_title ON shopify_catalog_products(title)",
         "CREATE INDEX IF NOT EXISTS idx_shopify_catalog_sku ON shopify_catalog_products(primary_sku)",
         "CREATE INDEX IF NOT EXISTS idx_shopify_catalog_updated ON shopify_catalog_products(shopify_updated_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_shopify_staging_batch ON shopify_catalog_staging(batch_id)",
         "CREATE INDEX IF NOT EXISTS idx_winthor_status_synced ON winthor_product_statuses(synced_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_winthor_status_sku ON winthor_product_statuses(sku)",
       ];
@@ -988,13 +1019,22 @@ export async function upsertShopifyCatalogProducts(
   products: ShopifyCatalogSyncProduct[],
 ) {
   await ensureDatabase();
-  for (const product of products) {
-    await query(
-      `INSERT INTO shopify_catalog_products
+  if (!products.length) return;
+  await query(
+    `INSERT INTO shopify_catalog_products
        (shopify_id, title, handle, status, vendor, product_type, tags_json,
         collections_json, image_url, image_alt, primary_sku, variants_json,
         total_inventory, price_min, price_max, shopify_updated_at, synced_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
+       SELECT shopify_id, title, handle, status, vendor, product_type, tags_json,
+         collections_json, image_url, image_alt, primary_sku, variants_json,
+         total_inventory, price_min, price_max, shopify_updated_at, NOW()
+       FROM jsonb_to_recordset($1::jsonb) AS incoming(
+         shopify_id TEXT, title TEXT, handle TEXT, status TEXT, vendor TEXT,
+         product_type TEXT, tags_json JSONB, collections_json JSONB,
+         image_url TEXT, image_alt TEXT, primary_sku TEXT, variants_json JSONB,
+         total_inventory INTEGER, price_min DOUBLE PRECISION,
+         price_max DOUBLE PRECISION, shopify_updated_at TIMESTAMPTZ
+       )
        ON CONFLICT (shopify_id) DO UPDATE SET
         title=EXCLUDED.title, handle=EXCLUDED.handle, status=EXCLUDED.status,
         vendor=EXCLUDED.vendor, product_type=EXCLUDED.product_type,
@@ -1004,26 +1044,169 @@ export async function upsertShopifyCatalogProducts(
         total_inventory=EXCLUDED.total_inventory, price_min=EXCLUDED.price_min,
         price_max=EXCLUDED.price_max, shopify_updated_at=EXCLUDED.shopify_updated_at,
         synced_at=NOW()`,
-      [
-        product.shopifyId,
-        product.title,
-        product.handle,
-        product.status,
-        product.vendor,
-        product.productType,
-        JSON.stringify(product.tags),
-        JSON.stringify(product.collections),
-        product.imageUrl,
-        product.imageAlt,
-        product.sku,
-        JSON.stringify(product.variants),
-        product.totalInventory,
-        product.priceMin,
-        product.priceMax,
-        product.shopifyUpdatedAt || null,
-      ],
+    [JSON.stringify(products.map(shopifyProductRecord))],
+  );
+}
+
+function shopifyProductRecord(product: ShopifyCatalogSyncProduct) {
+  return {
+    shopify_id: product.shopifyId,
+    title: product.title,
+    handle: product.handle,
+    status: product.status,
+    vendor: product.vendor,
+    product_type: product.productType,
+    tags_json: product.tags,
+    collections_json: product.collections,
+    image_url: product.imageUrl,
+    image_alt: product.imageAlt,
+    primary_sku: product.sku,
+    variants_json: product.variants,
+    total_inventory: product.totalInventory,
+    price_min: product.priceMin,
+    price_max: product.priceMax,
+    shopify_updated_at: product.shopifyUpdatedAt || null,
+  };
+}
+
+export async function beginShopifyCatalogSync(
+  batchId: string,
+  operationId: string,
+) {
+  await ensureDatabase();
+  await query(
+    `INSERT INTO shopify_catalog_sync_runs
+       (batch_id, shopify_operation_id, status, started_at)
+     VALUES ($1, $2, 'processing', NOW())
+     ON CONFLICT (batch_id) DO UPDATE SET
+       shopify_operation_id = EXCLUDED.shopify_operation_id,
+       status = 'processing', expected_count = NULL, received_count = 0,
+       error_message = '', started_at = NOW(), completed_at = NULL`,
+    [batchId, operationId],
+  );
+  await query("DELETE FROM shopify_catalog_staging WHERE batch_id = $1", [
+    batchId,
+  ]);
+}
+
+export async function stageShopifyCatalogProducts(
+  batchId: string,
+  products: ShopifyCatalogSyncProduct[],
+) {
+  await ensureDatabase();
+  if (!products.length) return 0;
+  const run = await query<{ status: string }>(
+    "SELECT status FROM shopify_catalog_sync_runs WHERE batch_id = $1",
+    [batchId],
+  );
+  if (run[0]?.status !== "processing")
+    throw new Error("Lote de sincronização inexistente ou já encerrado.");
+  await query(
+    `INSERT INTO shopify_catalog_staging
+       (batch_id, shopify_id, title, handle, status, vendor, product_type,
+        tags_json, collections_json, image_url, image_alt, primary_sku,
+        variants_json, total_inventory, price_min, price_max, shopify_updated_at)
+     SELECT $1, shopify_id, title, handle, status, vendor, product_type,
+       tags_json, collections_json, image_url, image_alt, primary_sku,
+       variants_json, total_inventory, price_min, price_max, shopify_updated_at
+     FROM jsonb_to_recordset($2::jsonb) AS incoming(
+       shopify_id TEXT, title TEXT, handle TEXT, status TEXT, vendor TEXT,
+       product_type TEXT, tags_json JSONB, collections_json JSONB,
+       image_url TEXT, image_alt TEXT, primary_sku TEXT, variants_json JSONB,
+       total_inventory INTEGER, price_min DOUBLE PRECISION,
+       price_max DOUBLE PRECISION, shopify_updated_at TIMESTAMPTZ
+     )
+     ON CONFLICT (batch_id, shopify_id) DO UPDATE SET
+       title=EXCLUDED.title, handle=EXCLUDED.handle, status=EXCLUDED.status,
+       vendor=EXCLUDED.vendor, product_type=EXCLUDED.product_type,
+       tags_json=EXCLUDED.tags_json, collections_json=EXCLUDED.collections_json,
+       image_url=EXCLUDED.image_url, image_alt=EXCLUDED.image_alt,
+       primary_sku=EXCLUDED.primary_sku, variants_json=EXCLUDED.variants_json,
+       total_inventory=EXCLUDED.total_inventory, price_min=EXCLUDED.price_min,
+       price_max=EXCLUDED.price_max,
+       shopify_updated_at=EXCLUDED.shopify_updated_at`,
+    [batchId, JSON.stringify(products.map(shopifyProductRecord))],
+  );
+  const [{ total }] = await query<{ total: number }>(
+    "SELECT COUNT(*)::int AS total FROM shopify_catalog_staging WHERE batch_id = $1",
+    [batchId],
+  );
+  await query(
+    "UPDATE shopify_catalog_sync_runs SET received_count = $2 WHERE batch_id = $1",
+    [batchId, Number(total)],
+  );
+  return Number(total);
+}
+
+export async function completeShopifyCatalogSync(
+  batchId: string,
+  expectedCount: number,
+) {
+  await ensureDatabase();
+  const expected = Math.max(0, Math.trunc(expectedCount));
+  const [{ total }] = await query<{ total: number }>(
+    "SELECT COUNT(*)::int AS total FROM shopify_catalog_staging WHERE batch_id = $1",
+    [batchId],
+  );
+  const received = Number(total || 0);
+  if (!expected || received !== expected)
+    throw new Error(
+      `Lote incompleto: eram esperados ${expected} produtos e foram recebidos ${received}.`,
     );
-  }
+  await query(
+    `INSERT INTO shopify_catalog_products
+       (shopify_id, title, handle, status, vendor, product_type, tags_json,
+        collections_json, image_url, image_alt, primary_sku, variants_json,
+        total_inventory, price_min, price_max, shopify_updated_at, synced_at)
+     SELECT shopify_id, title, handle, status, vendor, product_type, tags_json,
+       collections_json, image_url, image_alt, primary_sku, variants_json,
+       total_inventory, price_min, price_max, shopify_updated_at, NOW()
+     FROM shopify_catalog_staging WHERE batch_id = $1
+     ON CONFLICT (shopify_id) DO UPDATE SET
+       title=EXCLUDED.title, handle=EXCLUDED.handle, status=EXCLUDED.status,
+       vendor=EXCLUDED.vendor, product_type=EXCLUDED.product_type,
+       tags_json=EXCLUDED.tags_json, collections_json=EXCLUDED.collections_json,
+       image_url=EXCLUDED.image_url, image_alt=EXCLUDED.image_alt,
+       primary_sku=EXCLUDED.primary_sku, variants_json=EXCLUDED.variants_json,
+       total_inventory=EXCLUDED.total_inventory, price_min=EXCLUDED.price_min,
+       price_max=EXCLUDED.price_max, shopify_updated_at=EXCLUDED.shopify_updated_at,
+       synced_at=NOW()`,
+    [batchId],
+  );
+  await query(
+    `DELETE FROM shopify_catalog_products current
+     WHERE NOT EXISTS (
+       SELECT 1 FROM shopify_catalog_staging staged
+       WHERE staged.batch_id = $1 AND staged.shopify_id = current.shopify_id
+     )`,
+    [batchId],
+  );
+  await query(
+    `UPDATE shopify_catalog_sync_runs
+     SET status = 'completed', expected_count = $2, received_count = $2,
+       completed_at = NOW(), error_message = ''
+     WHERE batch_id = $1`,
+    [batchId, expected],
+  );
+  await query("DELETE FROM shopify_catalog_staging WHERE batch_id = $1", [
+    batchId,
+  ]);
+  await query(
+    `DELETE FROM shopify_catalog_sync_runs
+     WHERE batch_id <> $1 AND started_at < NOW() - INTERVAL '30 days'`,
+    [batchId],
+  );
+  return { synchronized: received };
+}
+
+export async function failShopifyCatalogSync(batchId: string, error: string) {
+  await ensureDatabase();
+  await query(
+    `UPDATE shopify_catalog_sync_runs
+     SET status = 'failed', error_message = $2, completed_at = NOW()
+     WHERE batch_id = $1`,
+    [batchId, error.slice(0, 1000)],
+  );
 }
 
 export async function deleteShopifyCatalogProduct(shopifyId: string) {
