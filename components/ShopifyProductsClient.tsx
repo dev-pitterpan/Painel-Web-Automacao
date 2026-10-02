@@ -24,7 +24,10 @@ import {
   X,
 } from "lucide-react";
 import type { UpdatedProduct } from "@/components/ProductDetailsDrawer";
-import { useProductPanel } from "@/components/ProductPanelProvider";
+import {
+  productRowKey,
+  useProductPanel,
+} from "@/components/ProductPanelProvider";
 import { setCachedProductImage } from "@/components/ProductThumbnail";
 import { loadProductDetails } from "@/components/ProductDetailsCache";
 import type { ShopifyCatalogProduct } from "@/lib/auth";
@@ -207,7 +210,7 @@ export function ShopifyProductsClient({
 }: {
   winthorOnly?: boolean;
 }) {
-  const { openProduct } = useProductPanel();
+  const { activeProductKey, openProduct } = useProductPanel();
   const [data, setData] = useState<CatalogResponse | null>(null);
   const [facets, setFacets] = useState<Facets>();
   const [loading, setLoading] = useState(true);
@@ -795,7 +798,10 @@ export function ShopifyProductsClient({
             <table>
               <thead>
                 <tr>
-                  <th>
+                  <th className="catalog-row-number-column" scope="col">
+                    #
+                  </th>
+                  <th className="catalog-selection-column">
                     <input
                       ref={(input) => {
                         if (input)
@@ -836,16 +842,26 @@ export function ShopifyProductsClient({
                 </tr>
               </thead>
               <tbody>
-                {data.products.map((product) => (
+                {data.products.map((product, index) => (
                   <tr
-                    className={
+                    className={[
                       selectedIds.includes(product.shopifyId)
                         ? "is-selected"
-                        : ""
-                    }
+                        : "",
+                      activeProductKey === productRowKey(toHistoryRow(product))
+                        ? "is-product-open"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                     key={product.shopifyId}
                     tabIndex={0}
                     role="button"
+                    aria-current={
+                      activeProductKey === productRowKey(toHistoryRow(product))
+                        ? "true"
+                        : undefined
+                    }
                     onClick={() => openProductDetails(product)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -854,7 +870,13 @@ export function ShopifyProductsClient({
                       }
                     }}
                   >
-                    <td onClick={(event) => event.stopPropagation()}>
+                    <td className="catalog-row-number-column">
+                      {(data.page - 1) * data.perPage + index + 1}
+                    </td>
+                    <td
+                      className="catalog-selection-column"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(product.shopifyId)}

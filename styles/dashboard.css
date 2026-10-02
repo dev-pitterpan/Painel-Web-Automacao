@@ -591,10 +591,17 @@
 .catalog-sort-heading.is-active {
   color: #0759e9;
 }
-.shopify-products-table th:first-child,
-.shopify-products-table td:first-child {
+.shopify-products-table .catalog-row-number-column,
+.shopify-products-table .catalog-selection-column {
   width: 34px;
   text-align: center;
+}
+.shopify-products-table .catalog-row-number-column {
+  width: 38px;
+  min-width: 38px;
+  padding-inline: 6px;
+  color: #667085;
+  font-variant-numeric: tabular-nums;
 }
 .shopify-products-table td {
   padding: 7px 12px;
@@ -1156,6 +1163,38 @@
   width: 42px;
   min-width: 42px;
   text-align: center;
+}
+.row-number-column {
+  width: 42px;
+  min-width: 42px;
+  padding-inline: 8px !important;
+  color: #667085;
+  font-variant-numeric: tabular-nums;
+  text-align: center !important;
+}
+
+.shopify-products-table tbody tr,
+.table-wrap tbody tr.product-row-clickable {
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.shopify-products-table tbody tr.is-product-open,
+.table-wrap tbody tr.product-row-clickable.is-product-open {
+  background: #eaf2ff !important;
+  box-shadow: inset 3px 0 0 #1677ff;
+}
+
+.shopify-products-table tbody tr.is-product-open:hover,
+.table-wrap tbody tr.product-row-clickable.is-product-open:hover {
+  background: #deebff !important;
+}
+
+.shopify-products-table tbody tr.is-product-open .catalog-row-number-column,
+.table-wrap tbody tr.product-row-clickable.is-product-open .row-number-column {
+  color: #0759e9;
+  font-weight: 800;
 }
 .selection-column input {
   width: 16px;

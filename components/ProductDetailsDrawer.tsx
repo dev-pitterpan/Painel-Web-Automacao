@@ -389,6 +389,7 @@ function ValueCard({
 export function ProductDetailsDrawer({
   row,
   onClose,
+  onActiveRowChange,
   onProductUpdated,
   canEdit = false,
   dockSide = "floating",
@@ -398,6 +399,7 @@ export function ProductDetailsDrawer({
 }: {
   row: HistoryRow | null;
   onClose: () => void;
+  onActiveRowChange?: (row: HistoryRow) => void;
   onProductUpdated?: (row: HistoryRow, product: UpdatedProduct) => void;
   canEdit?: boolean;
   dockSide?: "left" | "right" | "floating";
@@ -465,6 +467,10 @@ export function ProductDetailsDrawer({
   }, [row]);
 
   const activeRow = historyIndex >= 0 ? history[historyIndex] : row;
+
+  useEffect(() => {
+    if (activeRow) onActiveRowChange?.(activeRow);
+  }, [activeRow, onActiveRowChange]);
 
   useEffect(() => {
     if (!activeRow?.sku) {

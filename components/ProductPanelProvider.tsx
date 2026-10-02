@@ -11,6 +11,7 @@ import type { HistoryRow } from "@/lib/types";
 type DockSide = "left" | "right" | "floating";
 type ProductUpdateHandler = (row: HistoryRow, product: UpdatedProduct) => void;
 type ProductPanelContextValue = {
+  activeProductKey: string | null;
   openProduct: (
     row: HistoryRow,
     canEdit: boolean,
@@ -18,12 +19,25 @@ type ProductPanelContextValue = {
   ) => void;
 };
 
+export function productRowKey(row: HistoryRow | null) {
+  if (!row) return null;
+  const title = row.tituloDepois || row.tituloAntes || "";
+  return [row.sku, title, row.dataHora]
+    .map((value) =>
+      String(value || "")
+        .trim()
+        .toLocaleLowerCase("pt-BR"),
+    )
+    .join("::");
+}
+
 const ProductPanelContext = createContext<ProductPanelContextValue | null>(
   null,
 );
 
 export function ProductPanelProvider({ children }: { children: ReactNode }) {
   const [row, setRow] = useState<HistoryRow | null>(null);
+  const [activeRow, setActiveRow] = useState<HistoryRow | null>(null);
   const [canEdit, setCanEdit] = useState(false);
   const [dockSide, setDockSide] = useState<DockSide>("floating");
   const [dockWidth, setDockWidth] = useState(460);
@@ -47,10 +61,12 @@ export function ProductPanelProvider({ children }: { children: ReactNode }) {
     updateHandler.current = onProductUpdated || null;
     setCanEdit(editable);
     setRow(productRow);
+    setActiveRow(productRow);
   };
   const closeProduct = () => {
     updateHandler.current = null;
     setRow(null);
+    setActiveRow(null);
     setDockSide("floating");
     setDockWidth(460);
   };
@@ -71,6 +87,16 @@ export function ProductPanelProvider({ children }: { children: ReactNode }) {
           }
         : current,
     );
+    setActiveRow((current) =>
+      current && productRowKey(current) === productRowKey(updatedRow)
+        ? {
+            ...current,
+            tituloDepois: product.title,
+            tagsDepois: product.tags.join(", "),
+            colecoesDepois: product.collections.join(", "),
+          }
+        : current,
+    );
     updateHandler.current?.(updatedRow, product);
   };
   const shellClass = row
@@ -78,7 +104,9 @@ export function ProductPanelProvider({ children }: { children: ReactNode }) {
     : "app-shell";
 
   return (
-    <ProductPanelContext.Provider value={{ openProduct }}>
+    <ProductPanelContext.Provider
+      value={{ openProduct, activeProductKey: productRowKey(activeRow) }}
+    >
       <div
         className={shellClass}
         style={
@@ -96,6 +124,7 @@ export function ProductPanelProvider({ children }: { children: ReactNode }) {
           dockWidth={dockWidth}
           onDockWidthChange={setDockWidth}
           onClose={closeProduct}
+          onActiveRowChange={setActiveRow}
           onProductUpdated={handleProductUpdated}
         />
       </div>

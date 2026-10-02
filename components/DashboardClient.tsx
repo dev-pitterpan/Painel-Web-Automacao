@@ -38,7 +38,10 @@ import {
 } from "lucide-react";
 import type { DashboardData, HistoryRow } from "@/lib/types";
 import { calculateTimeSavedMinutes, parseHistoryDate } from "@/lib/metrics";
-import { useProductPanel } from "@/components/ProductPanelProvider";
+import {
+  productRowKey,
+  useProductPanel,
+} from "@/components/ProductPanelProvider";
 import { ProductThumbnail } from "@/components/ProductThumbnail";
 
 const colors = [
@@ -354,7 +357,7 @@ export function DashboardClient({
   const automationHealthRef = useRef<
     "unknown" | "operational" | "warning" | "error"
   >("unknown");
-  const { openProduct } = useProductPanel();
+  const { activeProductKey, openProduct } = useProductPanel();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1919,6 +1922,9 @@ export function DashboardClient({
               <table>
                 <thead>
                   <tr>
+                    <th className="row-number-column" scope="col">
+                      #
+                    </th>
                     {canReprocess && (
                       <th className="selection-column">
                         <input
@@ -1956,9 +1962,14 @@ export function DashboardClient({
                   {visibleRows.map((row, index) => (
                     <tr
                       key={`${row.sku}-${index}`}
-                      className="product-row-clickable"
+                      className={`product-row-clickable ${activeProductKey === productRowKey(row) ? "is-product-open" : ""}`}
                       role="button"
                       tabIndex={0}
+                      aria-current={
+                        activeProductKey === productRowKey(row)
+                          ? "true"
+                          : undefined
+                      }
                       onClick={() => openProductDetails(row)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
@@ -1967,6 +1978,11 @@ export function DashboardClient({
                         }
                       }}
                     >
+                      <td className="row-number-column">
+                        {mode === "products"
+                          ? (productsPage - 1) * PRODUCTS_PER_PAGE + index + 1
+                          : index + 1}
+                      </td>
                       {canReprocess && (
                         <td
                           className="selection-column"
