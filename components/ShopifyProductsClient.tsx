@@ -433,7 +433,7 @@ export function ShopifyProductsClient({
       }
     };
     await Promise.all(
-      Array.from({ length: Math.min(3, selectedProductsList.length) }, () =>
+      Array.from({ length: Math.min(5, selectedProductsList.length) }, () =>
         worker(),
       ),
     );

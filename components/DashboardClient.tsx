@@ -1001,7 +1001,7 @@ export function DashboardClient({
     };
 
     await Promise.all(
-      Array.from({ length: Math.min(3, selectedRows.length) }, () => worker()),
+      Array.from({ length: Math.min(5, selectedRows.length) }, () => worker()),
     );
     setBatchReprocessing(false);
     setSelectedReprocessKeys([]);
