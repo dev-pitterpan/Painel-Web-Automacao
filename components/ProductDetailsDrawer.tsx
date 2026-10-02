@@ -1205,10 +1205,35 @@ export function ProductDetailsDrawer({
               <strong>{activeRow.dataHora || "—"}</strong>
             </span>
           </span>
-          <span className={failed ? "drawer-status is-error" : "drawer-status"}>
-            {failed ? <CircleAlert size={14} /> : <CheckCircle2 size={14} />}
-            {failed ? "Erro" : "Sincronizado"}
-          </span>
+          <div className="drawer-status-actions">
+            <span
+              className={failed ? "drawer-status is-error" : "drawer-status"}
+            >
+              {failed ? <CircleAlert size={14} /> : <CheckCircle2 size={14} />}
+              {failed ? "Erro" : "Sincronizado"}
+            </span>
+            {step === "details" && (
+              <button
+                className={`drawer-edit-button ${loadingProduct ? "is-loading" : ""}`}
+                type="button"
+                onClick={() => openEditor(true)}
+                disabled={loadingProduct || !canEdit}
+                title={
+                  canEdit
+                    ? "Editar informações do produto"
+                    : "Apenas administradores podem editar produtos"
+                }
+                aria-label="Editar informações do produto"
+              >
+                {loadingProduct ? (
+                  <LoaderCircle className="spin" size={15} />
+                ) : (
+                  <Pencil size={15} />
+                )}
+                <span>Editar</span>
+              </button>
+            )}
+          </div>
           <span
             className={`drawer-winthor-status is-${(winthorStatus?.status || "PENDENTE").toLowerCase()}`}
             title={winthorStatus?.description || "Status no WinThor"}
@@ -1247,24 +1272,6 @@ export function ProductDetailsDrawer({
             <>
               <div className="product-drawer-body">
                 <section className="product-current-overview">
-                  <button
-                    className={`product-overview-edit ${loadingProduct ? "is-loading" : ""}`}
-                    type="button"
-                    onClick={() => openEditor(true)}
-                    disabled={loadingProduct || !canEdit}
-                    title={
-                      canEdit
-                        ? "Editar informações do produto"
-                        : "Apenas administradores podem editar produtos"
-                    }
-                    aria-label="Editar informações do produto"
-                  >
-                    {loadingProduct ? (
-                      <LoaderCircle className="spin" size={17} />
-                    ) : (
-                      <Pencil size={17} />
-                    )}
-                  </button>
                   <div className="product-current-image">
                     {visibleMedia[mediaSlideIndex]?.url ? (
                       <>
