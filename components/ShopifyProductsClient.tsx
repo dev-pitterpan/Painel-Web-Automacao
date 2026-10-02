@@ -211,6 +211,8 @@ export function ShopifyProductsClient({
   const [data, setData] = useState<CatalogResponse | null>(null);
   const [facets, setFacets] = useState<Facets>();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
@@ -232,9 +234,16 @@ export function ShopifyProductsClient({
     tone: "success" | "error";
     text: string;
   } | null>(null);
+  const refreshInProgress = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (background = false) => {
+    if (background && refreshInProgress.current) return;
+    if (background) {
+      refreshInProgress.current = true;
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError("");
     try {
       const params = new URLSearchParams({
@@ -265,16 +274,28 @@ export function ShopifyProductsClient({
         );
       });
       setData(result);
+      setLastRefreshAt(new Date().toISOString());
       if (result.facets) setFacets(result.facets);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Erro ao carregar o catálogo.",
       );
     } finally {
-      setLoading(false);
+      if (background) {
+        refreshInProgress.current = false;
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   }, [filters, page, query, sort, winthorOnly]);
   useEffect(() => void load(), [load]);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load(true);
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [load]);
   useEffect(() => setSelectedProducts({}), [filters, query, sort]);
   useEffect(() => {
     if (
@@ -631,6 +652,24 @@ export function ShopifyProductsClient({
                 <RefreshCcw size={16} />
               </button>
             )}
+            <button
+              className="catalog-reset-sort"
+              type="button"
+              onClick={() => void load(true)}
+              disabled={loading || refreshing}
+              title={
+                lastRefreshAt
+                  ? `Atualizar painel · última atualização às ${new Date(lastRefreshAt).toLocaleTimeString("pt-BR")}`
+                  : "Atualizar painel"
+              }
+              aria-label="Atualizar painel"
+            >
+              {refreshing ? (
+                <LoaderCircle className="spin" size={16} />
+              ) : (
+                <RefreshCcw size={16} />
+              )}
+            </button>
             <details className="catalog-bulk-menu">
               <summary aria-label="Mais ações">
                 <MoreHorizontal size={18} />
@@ -687,16 +726,21 @@ export function ShopifyProductsClient({
             </button>
           </div>
         )}
+        {error && data && (
+          <div className="catalog-automation-message is-error" role="status">
+            <span>{error}</span>
+          </div>
+        )}
         {loading ? (
           <div className="shopify-catalog-state">
             <LoaderCircle className="spin" size={28} />
             <strong>Carregando produtos</strong>
           </div>
-        ) : error ? (
+        ) : error && !data ? (
           <div className="shopify-catalog-state is-error">
             <strong>Não foi possível carregar</strong>
             <span>{error}</span>
-            <button className="btn" onClick={load}>
+            <button className="btn" onClick={() => void load()}>
               Tentar novamente
             </button>
           </div>

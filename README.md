@@ -61,9 +61,13 @@ O dashboard mantém o status do WinThor separado do status do Shopify:
 - códigos presentes na exportação são marcados como **Fora de linha**;
 - após uma sincronização válida, os demais códigos são exibidos como **Ativo**;
 - antes da primeira sincronização, o status aparece como **Aguardando sincronização**.
+- com o painel aberto, os status são atualizados automaticamente a cada minuto;
+  também é possível atualizar manualmente pelo botão de recarregar na lista de produtos.
 
-Configure no ambiente do dashboard `WINTHOR_SYNC_TOKEN` (ou reutilize
-`N8N_REPROCESS_TOKEN`). No computador que gera o arquivo, configure:
+Configure `WINTHOR_SYNC_TOKEN` no ambiente Production da Vercel e no
+computador que gera o arquivo, usando o mesmo valor nos dois locais. Também é
+possível reutilizar `N8N_REPROCESS_TOKEN`, desde que o valor seja igual nos
+dois ambientes. Após alterar uma variável na Vercel, faça um novo deploy:
 
 ```powershell
 $env:WINTHOR_DASHBOARD_URL = "https://seu-dashboard.vercel.app"

@@ -8,19 +8,25 @@ import {
 } from "@/lib/auth";
 
 function isValidSyncToken(req: NextRequest) {
-  const expected = String(
-    process.env.WINTHOR_SYNC_TOKEN || process.env.N8N_REPROCESS_TOKEN || "",
-  ).trim();
+  const expectedTokens = [
+    process.env.WINTHOR_SYNC_TOKEN,
+    process.env.N8N_REPROCESS_TOKEN,
+  ]
+    .map((token) => String(token || "").trim())
+    .filter(Boolean);
   const received = String(
     req.headers.get("x-pitterpan-token") ||
       req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
       "",
   ).trim();
-  if (!expected || !received) return false;
-  return timingSafeEqual(
-    createHash("sha256").update(expected).digest(),
-    createHash("sha256").update(received).digest(),
-  );
+  if (!expectedTokens.length || !received) return false;
+  const receivedHash = createHash("sha256").update(received).digest();
+  let valid = false;
+  for (const expected of expectedTokens) {
+    const expectedHash = createHash("sha256").update(expected).digest();
+    if (timingSafeEqual(expectedHash, receivedHash)) valid = true;
+  }
+  return valid;
 }
 
 export async function GET(req: NextRequest) {
