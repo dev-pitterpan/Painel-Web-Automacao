@@ -3,13 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   beginShopifyCatalogSync,
   completeShopifyCatalogSync,
-  deleteShopifyCatalogProduct,
   failShopifyCatalogSync,
   getCurrentUser,
   getShopifyCatalogFacets,
   listShopifyCatalogProducts,
   stageShopifyCatalogProducts,
-  upsertShopifyCatalogProducts,
   type ShopifyCatalogSyncProduct,
 } from "@/lib/auth";
 
@@ -150,13 +148,11 @@ export async function POST(req: NextRequest) {
         );
       return NextResponse.json({ ok: true, batchId });
     }
-    if (action === "delete") {
-      const shopifyId = text(body?.shopifyId || body?.id, 180);
-      if (!shopifyId)
-        return NextResponse.json({ error: "ID obrigatório." }, { status: 400 });
-      await deleteShopifyCatalogProduct(shopifyId);
-      return NextResponse.json({ ok: true, deleted: 1 });
-    }
+    if (action !== "bulk_chunk")
+      return NextResponse.json(
+        { error: "Ação de sincronização inválida." },
+        { status: 400 },
+      );
     const products = (
       Array.isArray(body?.products) ? body.products : [body?.product]
     )
@@ -172,22 +168,16 @@ export async function POST(req: NextRequest) {
         { error: "Nenhum produto válido recebido." },
         { status: 400 },
       );
-    if (action === "bulk_chunk" && !batchId)
+    if (!batchId)
       return NextResponse.json(
         { error: "Identificador do lote obrigatório." },
         { status: 400 },
       );
-    const stagedTotal =
-      action === "bulk_chunk"
-        ? await stageShopifyCatalogProducts(batchId, products)
-        : undefined;
-    if (action !== "bulk_chunk") await upsertShopifyCatalogProducts(products);
+    const stagedTotal = await stageShopifyCatalogProducts(batchId, products);
     return NextResponse.json({
       ok: true,
       synchronized: products.length,
       stagedTotal,
-      cursor: body?.cursor || null,
-      hasNextPage: Boolean(body?.hasNextPage),
     });
   } catch (error) {
     return NextResponse.json(

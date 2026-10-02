@@ -1015,39 +1015,6 @@ export async function getShopifyCatalogFacets() {
   };
 }
 
-export async function upsertShopifyCatalogProducts(
-  products: ShopifyCatalogSyncProduct[],
-) {
-  await ensureDatabase();
-  if (!products.length) return;
-  await query(
-    `INSERT INTO shopify_catalog_products
-       (shopify_id, title, handle, status, vendor, product_type, tags_json,
-        collections_json, image_url, image_alt, primary_sku, variants_json,
-        total_inventory, price_min, price_max, shopify_updated_at, synced_at)
-       SELECT shopify_id, title, handle, status, vendor, product_type, tags_json,
-         collections_json, image_url, image_alt, primary_sku, variants_json,
-         total_inventory, price_min, price_max, shopify_updated_at, NOW()
-       FROM jsonb_to_recordset($1::jsonb) AS incoming(
-         shopify_id TEXT, title TEXT, handle TEXT, status TEXT, vendor TEXT,
-         product_type TEXT, tags_json JSONB, collections_json JSONB,
-         image_url TEXT, image_alt TEXT, primary_sku TEXT, variants_json JSONB,
-         total_inventory INTEGER, price_min DOUBLE PRECISION,
-         price_max DOUBLE PRECISION, shopify_updated_at TIMESTAMPTZ
-       )
-       ON CONFLICT (shopify_id) DO UPDATE SET
-        title=EXCLUDED.title, handle=EXCLUDED.handle, status=EXCLUDED.status,
-        vendor=EXCLUDED.vendor, product_type=EXCLUDED.product_type,
-        tags_json=EXCLUDED.tags_json, collections_json=EXCLUDED.collections_json,
-        image_url=EXCLUDED.image_url, image_alt=EXCLUDED.image_alt,
-        primary_sku=EXCLUDED.primary_sku, variants_json=EXCLUDED.variants_json,
-        total_inventory=EXCLUDED.total_inventory, price_min=EXCLUDED.price_min,
-        price_max=EXCLUDED.price_max, shopify_updated_at=EXCLUDED.shopify_updated_at,
-        synced_at=NOW()`,
-    [JSON.stringify(products.map(shopifyProductRecord))],
-  );
-}
-
 function shopifyProductRecord(product: ShopifyCatalogSyncProduct) {
   return {
     shopify_id: product.shopifyId,
@@ -1207,13 +1174,6 @@ export async function failShopifyCatalogSync(batchId: string, error: string) {
      WHERE batch_id = $1`,
     [batchId, error.slice(0, 1000)],
   );
-}
-
-export async function deleteShopifyCatalogProduct(shopifyId: string) {
-  await ensureDatabase();
-  await query("DELETE FROM shopify_catalog_products WHERE shopify_id = $1", [
-    shopifyId,
-  ]);
 }
 
 export async function archiveShopifyCatalogProducts(shopifyIds: string[]) {
