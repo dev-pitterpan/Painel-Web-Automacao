@@ -62,7 +62,8 @@ export async function POST(req: NextRequest) {
     titulo,
     shopify_product_id: shopifyProductId || null,
     data_hora_historico: dataHoraHistorico || null,
-    origem: "dashboard-pitter-pan",
+    origem: "dashboard-reprocessamento",
+    callback_url: `${req.nextUrl.origin}/api/n8n/reprocess/callback`,
     solicitado_em: new Date().toISOString(),
     solicitado_por: {
       id: user.id,

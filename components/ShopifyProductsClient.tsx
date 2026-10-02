@@ -392,62 +392,91 @@ export function ShopifyProductsClient({
     });
   const runSelectedAutomation = async () => {
     if (automationRunning || bulkActionRunning || !selectedIds.length) return;
+
     setAutomationRunning(true);
     setAutomationMessage(null);
-    let nextIndex = 0;
+
     let successes = 0;
     let failures = 0;
     const failureMessages: string[] = [];
-    const worker = async () => {
-      while (nextIndex < selectedProductsList.length) {
-        const product = selectedProductsList[nextIndex];
-        nextIndex += 1;
-        if (!product.sku) {
-          failures += 1;
-          failureMessages.push(`${product.title}: produto sem SKU.`);
-          continue;
+
+    const processProduct = async (product: ShopifyCatalogProduct) => {
+      if (!product.sku)
+        return { ok: false as const, error: `${product.title}: produto sem SKU.` };
+
+      try {
+        const response = await fetch("/api/n8n/product-automation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sku: product.sku,
+            titulo: product.title,
+            shopifyProductId: product.shopifyId,
+          }),
+        });
+
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result?.ok)
+          throw new Error(result?.error || "Falha ao iniciar automação.");
+
+        const maxAttempts = 160;
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 3000));
+          const statusResponse = await fetch(
+            `/api/n8n/product-automation/status?request_id=${encodeURIComponent(result.requestId)}`,
+            { cache: "no-store" },
+          );
+          const statusJson = await statusResponse.json().catch(() => null);
+          if (!statusResponse.ok)
+            throw new Error(
+              statusJson?.error || "Não foi possível consultar o status da automação.",
+            );
+          if (statusJson?.completed) return { ok: true as const };
         }
-        try {
-          const response = await fetch("/api/n8n/reprocess", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sku: product.sku,
-              titulo: product.title,
-              dataHora: product.shopifyUpdatedAt,
-              shopifyProductId: product.shopifyId,
-            }),
-          });
-          const result = await response.json().catch(() => null);
-          if (!response.ok || !result?.ok)
-            throw new Error(result?.error || "Falha ao iniciar automação.");
-          successes += 1;
-        } catch (cause) {
-          failures += 1;
-          const message =
-            cause instanceof Error
-              ? cause.message
-              : "Falha ao iniciar automação.";
-          failureMessages.push(`${product.title}: ${message}`);
-        }
+
+        throw new Error(
+          "A automação ainda não concluiu o produto dentro do tempo esperado.",
+        );
+      } catch (cause) {
+        return {
+          ok: false as const,
+          error: `${product.title}: ${
+            cause instanceof Error ? cause.message : "Falha ao iniciar automação."
+          }`,
+        };
       }
     };
-    await Promise.all(
-      Array.from({ length: Math.min(5, selectedProductsList.length) }, () =>
-        worker(),
-      ),
-    );
+
+    // Lote rígido: envia até 5 e espera TODOS terminarem.
+    // Somente então libera o próximo grupo de até 5.
+    for (let index = 0; index < selectedProductsList.length; index += 5) {
+      const batch = selectedProductsList.slice(index, index + 5);
+      const results = await Promise.all(batch.map(processProduct));
+      for (const result of results) {
+        if (result.ok) successes += 1;
+        else {
+          failures += 1;
+          failureMessages.push(result.error);
+        }
+      }
+    }
+
     setAutomationRunning(false);
+
     if (!failures) {
       setSelectedProducts({});
       setAutomationMessage({
         tone: "success",
-        text: `${successes} ${successes === 1 ? "produto enviado" : "produtos enviados"} para a automação.`,
+        text: `${successes} ${
+          successes === 1 ? "produto processado" : "produtos processados"
+        } pela automação em lotes de até 5.`,
       });
     } else {
       setAutomationMessage({
         tone: "error",
-        text: `Automação iniciada para ${successes}; ${failures} ${failures === 1 ? "produto falhou" : "produtos falharam"}. ${failureMessages.join(" ")}`,
+        text: `Automação concluída para ${successes}; ${failures} ${
+          failures === 1 ? "produto falhou" : "produtos falharam"
+        }. ${failureMessages.join(" ")}`,
       });
     }
   };

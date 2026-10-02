@@ -988,21 +988,22 @@ export function DashboardClient({
     if (!selectedRows.length) return;
 
     setBatchReprocessing(true);
-    let nextIndex = 0;
     let successes = 0;
     let failures = 0;
-    const worker = async () => {
-      while (nextIndex < selectedRows.length) {
-        const row = selectedRows[nextIndex];
-        nextIndex += 1;
-        if (await reprocess(row, { silent: true })) successes += 1;
+
+    // Lote rígido: os 5 primeiros precisam terminar por completo
+    // antes de qualquer item do próximo grupo ser enviado.
+    for (let index = 0; index < selectedRows.length; index += 5) {
+      const batch = selectedRows.slice(index, index + 5);
+      const results = await Promise.all(
+        batch.map((row) => reprocess(row, { silent: true })),
+      );
+      for (const ok of results) {
+        if (ok) successes += 1;
         else failures += 1;
       }
-    };
+    }
 
-    await Promise.all(
-      Array.from({ length: Math.min(5, selectedRows.length) }, () => worker()),
-    );
     setBatchReprocessing(false);
     setSelectedReprocessKeys([]);
     addNotification(

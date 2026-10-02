@@ -157,6 +157,7 @@ async function ensureDatabase() {
           result_json JSONB,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`,
+        "ALTER TABLE reprocess_jobs ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'reprocess'",
         `CREATE TABLE IF NOT EXISTS audit_logs (
           id BIGSERIAL PRIMARY KEY,
           user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
@@ -1292,6 +1293,7 @@ export async function getN8nHealthSummary() {
       COUNT(*) FILTER (WHERE status = 'processando' AND created_at < NOW() - INTERVAL '30 minutes')::text AS expired,
       MAX(created_at) FILTER (WHERE status = 'enviado' AND result_json IS NOT NULL) AS last_response
     FROM reprocess_jobs
+    WHERE source = 'reprocess'
   `);
   const [lastFailure] = await query<{
     created_at: unknown;
@@ -1399,17 +1401,19 @@ export async function recordPendingReprocess(record: {
   title: string;
   historicalDate?: string | null;
   userId: number;
+  source?: "reprocess" | "products";
 }) {
   await ensureDatabase();
   await query(
-    `INSERT INTO reprocess_jobs (request_id, sku, title, historical_date, user_id, status, result_json)
-    VALUES ($1, $2, $3, $4, $5, 'processando', NULL)`,
+    `INSERT INTO reprocess_jobs (request_id, sku, title, historical_date, user_id, status, result_json, source)
+    VALUES ($1, $2, $3, $4, $5, 'processando', NULL, $6)`,
     [
       record.requestId,
       record.sku,
       record.title,
       record.historicalDate || null,
       record.userId,
+      record.source || "reprocess",
     ],
   );
 }
@@ -1421,11 +1425,12 @@ export async function recordReprocess(record: {
   historicalDate?: string | null;
   userId: number;
   result?: unknown;
+  source?: "reprocess" | "products";
 }) {
   await ensureDatabase();
   await query(
-    `INSERT INTO reprocess_jobs (request_id, sku, title, historical_date, user_id, status, result_json)
-    VALUES ($1, $2, $3, $4, $5, 'enviado', $6::jsonb)`,
+    `INSERT INTO reprocess_jobs (request_id, sku, title, historical_date, user_id, status, result_json, source)
+    VALUES ($1, $2, $3, $4, $5, 'enviado', $6::jsonb, $7)`,
     [
       record.requestId,
       record.sku,
@@ -1433,6 +1438,7 @@ export async function recordReprocess(record: {
       record.historicalDate || null,
       record.userId,
       JSON.stringify(record.result || null),
+      record.source || "reprocess",
     ],
   );
 }
@@ -1516,7 +1522,9 @@ export async function listReprocesses(
       reprocess_jobs.historical_date, reprocess_jobs.status, reprocess_jobs.created_at,
       users.name AS requested_by, reprocess_jobs.result_json
     FROM reprocess_jobs INNER JOIN users ON users.id = reprocess_jobs.user_id
-    WHERE reprocess_jobs.status = 'enviado' AND reprocess_jobs.result_json IS NOT NULL
+    WHERE reprocess_jobs.status = 'enviado'
+      AND reprocess_jobs.result_json IS NOT NULL
+      AND reprocess_jobs.source = 'reprocess'
     ${userFilter} ORDER BY reprocess_jobs.id DESC LIMIT 500`,
     params,
   );
