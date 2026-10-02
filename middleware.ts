@@ -8,6 +8,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/api/auth") ||
     pathname === "/api/image-sync" ||
     pathname === "/api/shopify-products" ||
+    pathname === "/api/winthor-products" ||
     pathname === "/api/n8n/reprocess/callback";
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pitter-pathname", pathname);
