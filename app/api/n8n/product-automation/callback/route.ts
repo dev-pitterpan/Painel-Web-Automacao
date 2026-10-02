@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { completeReprocess, isCompleteReprocessResult, recordAudit } from "@/lib/auth";
+import {
+  completeReprocess,
+  isCompleteReprocessResult,
+  recordAudit,
+} from "@/lib/auth";
 
 function hasValidToken(request: NextRequest) {
   const expected = String(
@@ -8,7 +12,9 @@ function hasValidToken(request: NextRequest) {
       process.env.N8N_REPROCESS_TOKEN ||
       "",
   ).trim();
-  const received = String(request.headers.get("x-pitterpan-token") || "").trim();
+  const received = String(
+    request.headers.get("x-pitterpan-token") || "",
+  ).trim();
   if (!expected || !received) return false;
   const a = Buffer.from(expected);
   const b = Buffer.from(received);
@@ -17,14 +23,20 @@ function hasValidToken(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   if (!hasValidToken(request))
-    return NextResponse.json({ error: "Callback não autorizado." }, { status: 401 });
+    return NextResponse.json(
+      { error: "Callback não autorizado." },
+      { status: 401 },
+    );
 
   const body = await request.json().catch(() => null);
   const requestId = String(body?.request_id || body?.requestId || "").trim();
   const result = body?.resultado ?? body?.result ?? body?.data ?? body;
 
   if (!requestId)
-    return NextResponse.json({ error: "request_id obrigatório." }, { status: 400 });
+    return NextResponse.json(
+      { error: "request_id obrigatório." },
+      { status: 400 },
+    );
   if (!isCompleteReprocessResult(result))
     return NextResponse.json(
       { error: "Resultado ainda não concluído.", completed: false },

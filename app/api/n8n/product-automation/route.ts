@@ -23,8 +23,12 @@ export async function POST(req: NextRequest) {
     );
 
   const body = await req.json().catch(() => null);
-  const sku = String(body?.sku || "").trim().slice(0, 120);
-  const titulo = String(body?.titulo || "").trim().slice(0, 500);
+  const sku = String(body?.sku || "")
+    .trim()
+    .slice(0, 120);
+  const titulo = String(body?.titulo || "")
+    .trim()
+    .slice(0, 500);
   const shopifyProductId = String(body?.shopifyProductId || "")
     .trim()
     .slice(0, 180);
@@ -75,10 +79,15 @@ export async function POST(req: NextRequest) {
 
     const raw = await response.text();
     let parsed: any = null;
-    try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {
+      parsed = null;
+    }
 
     if (!response.ok || parsed?.ok === false) {
-      const detail = parsed?.error || parsed?.message || raw || `HTTP ${response.status}`;
+      const detail =
+        parsed?.error || parsed?.message || raw || `HTTP ${response.status}`;
       throw new Error(String(detail));
     }
 

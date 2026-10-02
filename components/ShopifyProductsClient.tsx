@@ -236,59 +236,64 @@ export function ShopifyProductsClient({
   } | null>(null);
   const refreshInProgress = useRef(false);
 
-  const load = useCallback(async (background = false) => {
-    if (background && refreshInProgress.current) return;
-    if (background) {
-      refreshInProgress.current = true;
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError("");
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        perPage: "50",
-        sort,
-        facets: "1",
-      });
-      if (query) params.set("q", query);
-      if (winthorOnly) params.set("winthorStatus", "FORA_DE_LINHA");
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.set(key, value);
-      });
-      const response = await fetch(`/api/shopify-products?${params}`, {
-        cache: "no-store",
-      });
-      const result = (await response.json()) as CatalogResponse;
-      if (!response.ok)
-        throw new Error(
-          result.error || "Não foi possível carregar o catálogo.",
-        );
-      result.products.forEach((product) => {
-        if (!product.sku || !product.imageUrl) return;
-        setCachedProductImage(
-          product.sku,
-          { url: product.imageUrl, alt: product.imageAlt || product.title },
-          product.title,
-        );
-      });
-      setData(result);
-      setLastRefreshAt(new Date().toISOString());
-      if (result.facets) setFacets(result.facets);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Erro ao carregar o catálogo.",
-      );
-    } finally {
+  const load = useCallback(
+    async (background = false) => {
+      if (background && refreshInProgress.current) return;
       if (background) {
-        refreshInProgress.current = false;
-        setRefreshing(false);
+        refreshInProgress.current = true;
+        setRefreshing(true);
       } else {
-        setLoading(false);
+        setLoading(true);
       }
-    }
-  }, [filters, page, query, sort, winthorOnly]);
+      setError("");
+      try {
+        const params = new URLSearchParams({
+          page: String(page),
+          perPage: "50",
+          sort,
+          facets: "1",
+        });
+        if (query) params.set("q", query);
+        if (winthorOnly) params.set("winthorStatus", "FORA_DE_LINHA");
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) params.set(key, value);
+        });
+        const response = await fetch(`/api/shopify-products?${params}`, {
+          cache: "no-store",
+        });
+        const result = (await response.json()) as CatalogResponse;
+        if (!response.ok)
+          throw new Error(
+            result.error || "Não foi possível carregar o catálogo.",
+          );
+        result.products.forEach((product) => {
+          if (!product.sku || !product.imageUrl) return;
+          setCachedProductImage(
+            product.sku,
+            { url: product.imageUrl, alt: product.imageAlt || product.title },
+            product.title,
+          );
+        });
+        setData(result);
+        setLastRefreshAt(new Date().toISOString());
+        if (result.facets) setFacets(result.facets);
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Erro ao carregar o catálogo.",
+        );
+      } finally {
+        if (background) {
+          refreshInProgress.current = false;
+          setRefreshing(false);
+        } else {
+          setLoading(false);
+        }
+      }
+    },
+    [filters, page, query, sort, winthorOnly],
+  );
   useEffect(() => void load(), [load]);
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -402,7 +407,10 @@ export function ShopifyProductsClient({
 
     const processProduct = async (product: ShopifyCatalogProduct) => {
       if (!product.sku)
-        return { ok: false as const, error: `${product.title}: produto sem SKU.` };
+        return {
+          ok: false as const,
+          error: `${product.title}: produto sem SKU.`,
+        };
 
       try {
         const response = await fetch("/api/n8n/product-automation", {
@@ -429,7 +437,8 @@ export function ShopifyProductsClient({
           const statusJson = await statusResponse.json().catch(() => null);
           if (!statusResponse.ok)
             throw new Error(
-              statusJson?.error || "Não foi possível consultar o status da automação.",
+              statusJson?.error ||
+                "Não foi possível consultar o status da automação.",
             );
           if (statusJson?.completed) return { ok: true as const };
         }
@@ -441,7 +450,9 @@ export function ShopifyProductsClient({
         return {
           ok: false as const,
           error: `${product.title}: ${
-            cause instanceof Error ? cause.message : "Falha ao iniciar automação."
+            cause instanceof Error
+              ? cause.message
+              : "Falha ao iniciar automação."
           }`,
         };
       }

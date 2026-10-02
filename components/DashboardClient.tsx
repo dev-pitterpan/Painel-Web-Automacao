@@ -1146,9 +1146,7 @@ export function DashboardClient({
               }
             : currentRow;
         setData((current) =>
-          current
-            ? { ...current, rows: current.rows.map(updateRow) }
-            : current,
+          current ? { ...current, rows: current.rows.map(updateRow) } : current,
         );
       },
     );

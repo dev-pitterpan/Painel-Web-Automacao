@@ -9,10 +9,7 @@ import {
 import type { HistoryRow } from "@/lib/types";
 
 type DockSide = "left" | "right" | "floating";
-type ProductUpdateHandler = (
-  row: HistoryRow,
-  product: UpdatedProduct,
-) => void;
+type ProductUpdateHandler = (row: HistoryRow, product: UpdatedProduct) => void;
 type ProductPanelContextValue = {
   openProduct: (
     row: HistoryRow,
@@ -40,8 +37,7 @@ export function ProductPanelProvider({ children }: { children: ReactNode }) {
     };
     releaseDockOnResize();
     desktopSnap.addEventListener("change", releaseDockOnResize);
-    return () =>
-      desktopSnap.removeEventListener("change", releaseDockOnResize);
+    return () => desktopSnap.removeEventListener("change", releaseDockOnResize);
   }, []);
   const openProduct = (
     productRow: HistoryRow,
@@ -62,8 +58,7 @@ export function ProductPanelProvider({ children }: { children: ReactNode }) {
     updatedRow: HistoryRow,
     product: UpdatedProduct,
   ) => {
-    const sourceTitle =
-      updatedRow.tituloDepois || updatedRow.tituloAntes || "";
+    const sourceTitle = updatedRow.tituloDepois || updatedRow.tituloAntes || "";
     setRow((current) =>
       current &&
       current.sku === updatedRow.sku &&
@@ -86,9 +81,11 @@ export function ProductPanelProvider({ children }: { children: ReactNode }) {
     <ProductPanelContext.Provider value={{ openProduct }}>
       <div
         className={shellClass}
-        style={{
-          "--product-panel-width": `${dockWidth}px`,
-        } as CSSProperties}
+        style={
+          {
+            "--product-panel-width": `${dockWidth}px`,
+          } as CSSProperties
+        }
       >
         {children}
         <ProductDetailsDrawer
@@ -109,6 +106,8 @@ export function ProductPanelProvider({ children }: { children: ReactNode }) {
 export function useProductPanel() {
   const context = useContext(ProductPanelContext);
   if (!context)
-    throw new Error("useProductPanel deve ser usado dentro de ProductPanelProvider.");
+    throw new Error(
+      "useProductPanel deve ser usado dentro de ProductPanelProvider.",
+    );
   return context;
 }
