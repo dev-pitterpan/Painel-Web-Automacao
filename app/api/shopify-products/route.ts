@@ -6,6 +6,7 @@ import {
   failShopifyCatalogSync,
   getCurrentUser,
   getShopifyCatalogFacets,
+  getShopifyCatalogProductDetails,
   listShopifyCatalogProducts,
   stageShopifyCatalogProducts,
   type ShopifyCatalogSyncProduct,
@@ -59,8 +60,19 @@ function productFromPayload(value: any): ShopifyCatalogSyncProduct {
           .map((item: unknown) => text(item, 160))
           .filter(Boolean)
       : [],
+    descriptionHtml: text(value?.descriptionHtml, 100000),
     imageUrl: text(value?.imageUrl, 2000),
     imageAlt: text(value?.imageAlt),
+    media: Array.isArray(value?.media)
+      ? value.media.slice(0, 250).flatMap((item: any) => {
+          const url = text(item?.url, 2000);
+          return url
+            ? [{ id: text(item?.id, 180), url, alt: text(item?.alt) }]
+            : [];
+        })
+      : [],
+    weight: Number(value?.weight || 0),
+    weightUnit: value?.weightUnit === "kg" ? "kg" : "g",
     sku: text(value?.sku || variants[0]?.sku, 160),
     variants,
     totalInventory: Number(value?.totalInventory || 0),
@@ -76,6 +88,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   try {
     const params = req.nextUrl.searchParams;
+    if (params.get("details") === "1") {
+      const product = await getShopifyCatalogProductDetails(
+        params.get("sku") || "",
+        params.get("title") || "",
+        params.get("compact") !== "1",
+      );
+      return product
+        ? NextResponse.json({ product })
+        : NextResponse.json(
+            { error: "Produto não encontrado no catálogo sincronizado." },
+            { status: 404 },
+          );
+    }
     const result = await listShopifyCatalogProducts({
       query: params.get("q") || "",
       status: params.get("status") || "",

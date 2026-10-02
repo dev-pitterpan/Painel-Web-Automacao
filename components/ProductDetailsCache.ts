@@ -26,7 +26,7 @@ export async function loadProductDetails(
   if (!force && pending) return pending;
 
   const request = fetch(
-    `/api/n8n/product-editor?sku=${encodeURIComponent(sku)}&title=${encodeURIComponent(title)}`,
+    `/api/shopify-products?details=1&sku=${encodeURIComponent(sku)}&title=${encodeURIComponent(title)}`,
     { cache: "no-store" },
   )
     .then(async (response) => {

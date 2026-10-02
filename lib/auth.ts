@@ -62,8 +62,12 @@ export type ShopifyCatalogProduct = {
   productType: string;
   tags: string[];
   collections: string[];
+  descriptionHtml: string;
   imageUrl: string;
   imageAlt: string;
+  media: Array<{ id: string; url: string; alt: string }>;
+  weight: number;
+  weightUnit: "g" | "kg";
   sku: string;
   variants: Array<{
     id: string;
@@ -204,8 +208,12 @@ async function ensureDatabase() {
           product_type TEXT NOT NULL DEFAULT '',
           tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
           collections_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          description_html TEXT NOT NULL DEFAULT '',
           image_url TEXT NOT NULL DEFAULT '',
           image_alt TEXT NOT NULL DEFAULT '',
+          media_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          weight DOUBLE PRECISION NOT NULL DEFAULT 0,
+          weight_unit TEXT NOT NULL DEFAULT 'g',
           primary_sku TEXT NOT NULL DEFAULT '',
           variants_json JSONB NOT NULL DEFAULT '[]'::jsonb,
           total_inventory INTEGER NOT NULL DEFAULT 0,
@@ -234,8 +242,12 @@ async function ensureDatabase() {
           product_type TEXT NOT NULL DEFAULT '',
           tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
           collections_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          description_html TEXT NOT NULL DEFAULT '',
           image_url TEXT NOT NULL DEFAULT '',
           image_alt TEXT NOT NULL DEFAULT '',
+          media_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+          weight DOUBLE PRECISION NOT NULL DEFAULT 0,
+          weight_unit TEXT NOT NULL DEFAULT 'g',
           primary_sku TEXT NOT NULL DEFAULT '',
           variants_json JSONB NOT NULL DEFAULT '[]'::jsonb,
           total_inventory INTEGER NOT NULL DEFAULT 0,
@@ -244,6 +256,14 @@ async function ensureDatabase() {
           shopify_updated_at TIMESTAMPTZ,
           PRIMARY KEY (batch_id, shopify_id)
         )`,
+        "ALTER TABLE shopify_catalog_products ADD COLUMN IF NOT EXISTS description_html TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE shopify_catalog_products ADD COLUMN IF NOT EXISTS media_json JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ALTER TABLE shopify_catalog_products ADD COLUMN IF NOT EXISTS weight DOUBLE PRECISION NOT NULL DEFAULT 0",
+        "ALTER TABLE shopify_catalog_products ADD COLUMN IF NOT EXISTS weight_unit TEXT NOT NULL DEFAULT 'g'",
+        "ALTER TABLE shopify_catalog_staging ADD COLUMN IF NOT EXISTS description_html TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE shopify_catalog_staging ADD COLUMN IF NOT EXISTS media_json JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ALTER TABLE shopify_catalog_staging ADD COLUMN IF NOT EXISTS weight DOUBLE PRECISION NOT NULL DEFAULT 0",
+        "ALTER TABLE shopify_catalog_staging ADD COLUMN IF NOT EXISTS weight_unit TEXT NOT NULL DEFAULT 'g'",
         `CREATE TABLE IF NOT EXISTS winthor_product_statuses (
           sku TEXT NOT NULL,
           description TEXT NOT NULL DEFAULT '',
@@ -797,8 +817,18 @@ function catalogProductFromRow(row: any): ShopifyCatalogProduct {
     collections: Array.isArray(row.collections_json)
       ? row.collections_json.map(String)
       : [],
+    descriptionHtml: String(row.description_html || ""),
     imageUrl: String(row.image_url || ""),
     imageAlt: String(row.image_alt || ""),
+    media: Array.isArray(row.media_json)
+      ? row.media_json.map((item: any) => ({
+          id: String(item?.id || ""),
+          url: String(item?.url || ""),
+          alt: String(item?.alt || ""),
+        }))
+      : [],
+    weight: Number(row.weight || 0),
+    weightUnit: row.weight_unit === "kg" ? "kg" : "g",
     sku: String(row.primary_sku || variants[0]?.sku || ""),
     variants,
     totalInventory: Number(row.total_inventory || 0),
@@ -918,6 +948,79 @@ export async function listShopifyCatalogProducts(input: {
   };
 }
 
+export async function getShopifyCatalogProductDetails(
+  sku: string,
+  titleHint = "",
+  includeOptions = true,
+) {
+  await ensureDatabase();
+  const normalizedSku = String(sku || "").trim();
+  if (!normalizedSku) return null;
+  const rows = await query<any>(
+    `SELECT p.* FROM shopify_catalog_products p
+     WHERE p.primary_sku = $1 OR EXISTS (
+       SELECT 1 FROM jsonb_array_elements(p.variants_json) variant
+       WHERE variant->>'sku' = $1
+     )
+     ORDER BY CASE WHEN LOWER(p.title) = LOWER($2) THEN 0 ELSE 1 END,
+       p.shopify_updated_at DESC NULLS LAST
+     LIMIT 1`,
+    [normalizedSku, String(titleHint || "").trim()],
+  );
+  if (!rows[0]) return null;
+  const product = catalogProductFromRow(rows[0]);
+  const [override] = await query<{
+    title: string;
+    description: string;
+    tags_json: unknown;
+    collections_json: unknown;
+    weight: number;
+    weight_unit: string;
+  }>(
+    `SELECT title, description, tags_json, collections_json, weight, weight_unit
+     FROM product_overrides_v2
+     WHERE sku = $1 AND source_title IN ($2, $3)
+     ORDER BY CASE WHEN source_title = $2 THEN 0 ELSE 1 END, updated_at DESC
+     LIMIT 1`,
+    [normalizedSku, String(titleHint || "").trim(), product.title],
+  );
+  const facets = includeOptions
+    ? await getShopifyCatalogFacets()
+    : { tags: [], collections: [] };
+  return {
+    id: product.shopifyId,
+    title: override?.title || product.title,
+    description: override ? override.description : product.descriptionHtml,
+    descriptionHtml: override ? override.description : product.descriptionHtml,
+    tags: override
+      ? Array.isArray(override.tags_json)
+        ? override.tags_json.map(String)
+        : []
+      : product.tags,
+    collections: override
+      ? Array.isArray(override.collections_json)
+        ? override.collections_json.map(String)
+        : []
+      : product.collections,
+    weight: override ? Number(override.weight || 0) : product.weight,
+    weightUnit:
+      (override?.weight_unit || product.weightUnit) === "kg" ? "kg" : "g",
+    images: product.media.length
+      ? product.media
+      : product.imageUrl
+        ? [
+            {
+              id: "",
+              url: product.imageUrl,
+              alt: product.imageAlt || product.title,
+            },
+          ]
+        : [],
+    availableTags: facets.tags,
+    availableCollections: facets.collections,
+  };
+}
+
 export async function syncWinthorProductStatuses(
   products: WinthorStatusProduct[],
   sourceFile: string,
@@ -1025,8 +1128,12 @@ function shopifyProductRecord(product: ShopifyCatalogSyncProduct) {
     product_type: product.productType,
     tags_json: product.tags,
     collections_json: product.collections,
+    description_html: product.descriptionHtml,
     image_url: product.imageUrl,
     image_alt: product.imageAlt,
+    media_json: product.media,
+    weight: product.weight,
+    weight_unit: product.weightUnit,
     primary_sku: product.sku,
     variants_json: product.variants,
     total_inventory: product.totalInventory,
@@ -1071,15 +1178,18 @@ export async function stageShopifyCatalogProducts(
   await query(
     `INSERT INTO shopify_catalog_staging
        (batch_id, shopify_id, title, handle, status, vendor, product_type,
-        tags_json, collections_json, image_url, image_alt, primary_sku,
-        variants_json, total_inventory, price_min, price_max, shopify_updated_at)
+        tags_json, collections_json, description_html, image_url, image_alt,
+        media_json, weight, weight_unit, primary_sku, variants_json,
+        total_inventory, price_min, price_max, shopify_updated_at)
      SELECT $1, shopify_id, title, handle, status, vendor, product_type,
-       tags_json, collections_json, image_url, image_alt, primary_sku,
-       variants_json, total_inventory, price_min, price_max, shopify_updated_at
+       tags_json, collections_json, description_html, image_url, image_alt,
+       media_json, weight, weight_unit, primary_sku, variants_json,
+       total_inventory, price_min, price_max, shopify_updated_at
      FROM jsonb_to_recordset($2::jsonb) AS incoming(
        shopify_id TEXT, title TEXT, handle TEXT, status TEXT, vendor TEXT,
        product_type TEXT, tags_json JSONB, collections_json JSONB,
-       image_url TEXT, image_alt TEXT, primary_sku TEXT, variants_json JSONB,
+       description_html TEXT, image_url TEXT, image_alt TEXT, media_json JSONB,
+       weight DOUBLE PRECISION, weight_unit TEXT, primary_sku TEXT, variants_json JSONB,
        total_inventory INTEGER, price_min DOUBLE PRECISION,
        price_max DOUBLE PRECISION, shopify_updated_at TIMESTAMPTZ
      )
@@ -1087,7 +1197,10 @@ export async function stageShopifyCatalogProducts(
        title=EXCLUDED.title, handle=EXCLUDED.handle, status=EXCLUDED.status,
        vendor=EXCLUDED.vendor, product_type=EXCLUDED.product_type,
        tags_json=EXCLUDED.tags_json, collections_json=EXCLUDED.collections_json,
+       description_html=EXCLUDED.description_html,
        image_url=EXCLUDED.image_url, image_alt=EXCLUDED.image_alt,
+       media_json=EXCLUDED.media_json, weight=EXCLUDED.weight,
+       weight_unit=EXCLUDED.weight_unit,
        primary_sku=EXCLUDED.primary_sku, variants_json=EXCLUDED.variants_json,
        total_inventory=EXCLUDED.total_inventory, price_min=EXCLUDED.price_min,
        price_max=EXCLUDED.price_max,
@@ -1123,17 +1236,22 @@ export async function completeShopifyCatalogSync(
   await query(
     `INSERT INTO shopify_catalog_products
        (shopify_id, title, handle, status, vendor, product_type, tags_json,
-        collections_json, image_url, image_alt, primary_sku, variants_json,
-        total_inventory, price_min, price_max, shopify_updated_at, synced_at)
+        collections_json, description_html, image_url, image_alt, media_json,
+        weight, weight_unit, primary_sku, variants_json, total_inventory,
+        price_min, price_max, shopify_updated_at, synced_at)
      SELECT shopify_id, title, handle, status, vendor, product_type, tags_json,
-       collections_json, image_url, image_alt, primary_sku, variants_json,
-       total_inventory, price_min, price_max, shopify_updated_at, NOW()
+       collections_json, description_html, image_url, image_alt, media_json,
+       weight, weight_unit, primary_sku, variants_json, total_inventory,
+       price_min, price_max, shopify_updated_at, NOW()
      FROM shopify_catalog_staging WHERE batch_id = $1
      ON CONFLICT (shopify_id) DO UPDATE SET
        title=EXCLUDED.title, handle=EXCLUDED.handle, status=EXCLUDED.status,
        vendor=EXCLUDED.vendor, product_type=EXCLUDED.product_type,
        tags_json=EXCLUDED.tags_json, collections_json=EXCLUDED.collections_json,
+       description_html=EXCLUDED.description_html,
        image_url=EXCLUDED.image_url, image_alt=EXCLUDED.image_alt,
+       media_json=EXCLUDED.media_json, weight=EXCLUDED.weight,
+       weight_unit=EXCLUDED.weight_unit,
        primary_sku=EXCLUDED.primary_sku, variants_json=EXCLUDED.variants_json,
        total_inventory=EXCLUDED.total_inventory, price_min=EXCLUDED.price_min,
        price_max=EXCLUDED.price_max, shopify_updated_at=EXCLUDED.shopify_updated_at,

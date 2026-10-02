@@ -139,55 +139,6 @@ async function callN8n(payload: Record<string, unknown>) {
   }
 }
 
-export async function GET(req: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user)
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (user.role !== "admin")
-    return NextResponse.json(
-      { error: "Apenas administradores podem editar produtos." },
-      { status: 403 },
-    );
-  const sku = cleanText(req.nextUrl.searchParams.get("sku"), 120);
-  const titleHint = cleanText(req.nextUrl.searchParams.get("title"), 255);
-  if (!sku)
-    return NextResponse.json({ error: "SKU obrigatório." }, { status: 400 });
-  const requestId = randomUUID();
-  try {
-    const result = await callN8n({
-      action: "lookup",
-      request_id: requestId,
-      sku,
-      title_hint: titleHint,
-      origem: "dashboard-pitter-pan",
-    });
-    return NextResponse.json(
-      { ok: true, requestId, product: result.product || result.data || result },
-      { headers: { "Cache-Control": "no-store" } },
-    );
-  } catch (error) {
-    await recordAudit({
-      userId: user.id,
-      action: "product_lookup_failed",
-      entity: "product",
-      details: {
-        requestId,
-        sku,
-        error: error instanceof Error ? error.message : "Falha desconhecida",
-      },
-    });
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error && error.name === "AbortError"
-            ? "O n8n demorou para responder."
-            : `Não foi possível consultar o Shopify: ${error instanceof Error ? error.message : "falha desconhecida"}`,
-      },
-      { status: 502 },
-    );
-  }
-}
-
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user)

@@ -29,7 +29,6 @@ import {
   useProductPanel,
 } from "@/components/ProductPanelProvider";
 import { setCachedProductImage } from "@/components/ProductThumbnail";
-import { loadProductDetails } from "@/components/ProductDetailsCache";
 import type { ShopifyCatalogProduct } from "@/lib/auth";
 import type { HistoryRow } from "@/lib/types";
 
@@ -305,34 +304,6 @@ export function ShopifyProductsClient({
     return () => window.clearInterval(timer);
   }, [load]);
   useEffect(() => setSelectedProducts({}), [filters, query, sort]);
-  useEffect(() => {
-    if (
-      page !== 1 ||
-      query ||
-      sort !== "updated" ||
-      Object.keys(filters).length > 0 ||
-      !data?.permissions?.canEditProducts ||
-      !data.products.length
-    )
-      return;
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      for (const product of data.products) {
-        if (cancelled) break;
-        if (!product.sku) continue;
-        try {
-          await loadProductDetails(product.sku, product.title);
-        } catch {
-          // Uma falha isolada não interrompe o pré-carregamento da página.
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
-      }
-    }, 1500);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [data, filters, page, query, sort]);
   const setFilter = (key: FilterKey, value: string) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);

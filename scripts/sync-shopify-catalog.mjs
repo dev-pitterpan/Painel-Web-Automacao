@@ -61,6 +61,7 @@ const bulkQuery = `{
         productType
         status
         tags
+        descriptionHtml
         updatedAt
         featuredImage { url altText }
         variants {
@@ -72,12 +73,29 @@ const bulkQuery = `{
               sku
               price
               inventoryQuantity
+              inventoryItem {
+                measurement {
+                  weight { value unit }
+                }
+              }
             }
           }
         }
         collections {
           edges {
             node { __typename id title }
+          }
+        }
+        media {
+          edges {
+            node {
+              __typename
+              ... on MediaImage {
+                id
+                alt
+                image { url altText }
+              }
+            }
           }
         }
       }
@@ -240,8 +258,12 @@ function emptyProduct(row) {
     productType: String(row.productType || ""),
     tags: (row.tags || []).map(String),
     collections: [],
+    descriptionHtml: String(row.descriptionHtml || ""),
     imageUrl: String(image.url || ""),
     imageAlt: String(image.altText || ""),
+    media: [],
+    weight: 0,
+    weightUnit: "g",
     sku: "",
     variants: [],
     totalInventory: 0,
@@ -261,6 +283,26 @@ function finishProduct(product) {
   product.priceMin = prices.length ? Math.min(...prices) : 0;
   product.priceMax = prices.length ? Math.max(...prices) : 0;
   product.collections = [...new Set(product.collections)];
+  const weightedVariant = product.variants.find(
+    (variant) => variant.weight && Number.isFinite(variant.weight.value),
+  );
+  if (weightedVariant) {
+    const { value, unit } = weightedVariant.weight;
+    if (unit === "KILOGRAMS") {
+      product.weight = value;
+      product.weightUnit = "kg";
+    } else {
+      const factor =
+        unit === "POUNDS" ? 453.59237 : unit === "OUNCES" ? 28.349523 : 1;
+      product.weight = value * factor;
+      product.weightUnit = "g";
+    }
+  }
+  if (product.media.length) {
+    product.imageUrl = product.media[0].url;
+    product.imageAlt = product.media[0].alt;
+  }
+  product.variants = product.variants.map(({ weight, ...variant }) => variant);
   return product;
 }
 
@@ -306,9 +348,16 @@ async function publishJsonl(downloadUrl, batchId) {
           sku: String(row.sku || ""),
           price: Number(row.price || 0),
           inventoryQuantity: Number(row.inventoryQuantity || 0),
+          weight: row.inventoryItem?.measurement?.weight || null,
         });
       } else if (row.__typename === "Collection" && row.title) {
         current.collections.push(String(row.title).trim());
+      } else if (row.__typename === "MediaImage" && row.image?.url) {
+        current.media.push({
+          id: String(row.id || ""),
+          url: String(row.image.url),
+          alt: String(row.alt || row.image.altText || ""),
+        });
       }
     }
   }

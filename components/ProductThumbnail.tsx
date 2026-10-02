@@ -45,7 +45,7 @@ async function loadImage(sku: string, title: string): Promise<ImageState> {
   if (pending) return pending;
 
   const request = fetch(
-    `/api/n8n/product-image?sku=${encodeURIComponent(sku)}&title=${encodeURIComponent(title)}`,
+    `/api/shopify-products?details=1&compact=1&sku=${encodeURIComponent(sku)}&title=${encodeURIComponent(title)}`,
     {
       cache: "force-cache",
     },
@@ -53,8 +53,11 @@ async function loadImage(sku: string, title: string): Promise<ImageState> {
     .then(async (response) => {
       if (!response.ok) return null;
       const body = await response.json().catch(() => ({}));
-      return body?.image?.url
-        ? { url: String(body.image.url), alt: String(body.image.alt || "") }
+      const image = Array.isArray(body?.product?.images)
+        ? body.product.images[0]
+        : null;
+      return image?.url
+        ? { url: String(image.url), alt: String(image.alt || "") }
         : null;
     })
     .catch(() => null)
