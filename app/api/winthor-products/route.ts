@@ -75,9 +75,13 @@ export async function POST(req: NextRequest) {
     );
   try {
     const body = await req.json();
-    if (!Array.isArray(body?.products) || body.products.length > 50_000)
+    if (
+      !Array.isArray(body?.products) ||
+      body.products.length === 0 ||
+      body.products.length > 50_000
+    )
       return NextResponse.json(
-        { error: "Envie uma lista com até 50.000 produtos." },
+        { error: "Envie uma lista não vazia com até 50.000 produtos." },
         { status: 400 },
       );
     const products: WinthorStatusProduct[] = body.products.map(
