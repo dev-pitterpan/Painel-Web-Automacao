@@ -6,12 +6,14 @@ import {
   getShopifyCatalogFacets,
   listShopifyCatalogProducts,
   upsertShopifyCatalogProducts,
-  type ShopifyCatalogProduct,
+  type ShopifyCatalogSyncProduct,
 } from "@/lib/auth";
 
 function validSyncToken(req: NextRequest) {
   const expected = String(
-    process.env.SHOPIFY_CATALOG_SYNC_TOKEN || process.env.N8N_REPROCESS_TOKEN || "",
+    process.env.SHOPIFY_CATALOG_SYNC_TOKEN ||
+      process.env.N8N_REPROCESS_TOKEN ||
+      "",
   ).trim();
   const received = String(
     req.headers.get("x-pitterpan-token") ||
@@ -25,10 +27,12 @@ function validSyncToken(req: NextRequest) {
 }
 
 function text(value: unknown, max = 500) {
-  return String(value ?? "").trim().slice(0, max);
+  return String(value ?? "")
+    .trim()
+    .slice(0, max);
 }
 
-function productFromPayload(value: any): Omit<ShopifyCatalogProduct, "syncedAt"> {
+function productFromPayload(value: any): ShopifyCatalogSyncProduct {
   const variants = Array.isArray(value?.variants)
     ? value.variants.slice(0, 250).map((variant: any) => ({
         id: text(variant?.id, 160),
@@ -45,9 +49,13 @@ function productFromPayload(value: any): Omit<ShopifyCatalogProduct, "syncedAt">
     status: text(value?.status || "DRAFT", 30).toUpperCase(),
     vendor: text(value?.vendor),
     productType: text(value?.productType),
-    tags: Array.isArray(value?.tags) ? value.tags.map((item: unknown) => text(item, 160)).filter(Boolean) : [],
+    tags: Array.isArray(value?.tags)
+      ? value.tags.map((item: unknown) => text(item, 160)).filter(Boolean)
+      : [],
     collections: Array.isArray(value?.collections)
-      ? value.collections.map((item: unknown) => text(item, 160)).filter(Boolean)
+      ? value.collections
+          .map((item: unknown) => text(item, 160))
+          .filter(Boolean)
       : [],
     imageUrl: text(value?.imageUrl, 2000),
     imageAlt: text(value?.imageAlt),
@@ -62,7 +70,8 @@ function productFromPayload(value: any): Omit<ShopifyCatalogProduct, "syncedAt">
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   try {
     const params = req.nextUrl.searchParams;
     const result = await listShopifyCatalogProducts({
@@ -72,11 +81,16 @@ export async function GET(req: NextRequest) {
       tag: params.get("tag") || "",
       collection: params.get("collection") || "",
       productType: params.get("productType") || "",
+      winthorStatus: params.get("winthorStatus") || "",
       page: Number(params.get("page") || 1),
       perPage: Number(params.get("perPage") || 50),
-      sort: (params.get("sort") || "updated") as "updated" | "title" | "title_desc" | "inventory",
+      sort: (params.get("sort") || "updated") as
+        "updated" | "title" | "title_desc" | "inventory",
     });
-    const facets = params.get("facets") === "1" ? await getShopifyCatalogFacets() : undefined;
+    const facets =
+      params.get("facets") === "1"
+        ? await getShopifyCatalogFacets()
+        : undefined;
     return NextResponse.json({
       ...result,
       facets,
@@ -84,7 +98,10 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Erro ao carregar produtos." },
+      {
+        error:
+          error instanceof Error ? error.message : "Erro ao carregar produtos.",
+      },
       { status: 500 },
     );
   }
@@ -92,25 +109,35 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (!validSyncToken(req))
-    return NextResponse.json({ error: "Token de sincronização inválido." }, { status: 401 });
+    return NextResponse.json(
+      { error: "Token de sincronização inválido." },
+      { status: 401 },
+    );
   try {
     const body = await req.json();
     const action = text(body?.action || "upsert", 20);
     if (action === "delete") {
       const shopifyId = text(body?.shopifyId || body?.id, 180);
-      if (!shopifyId) return NextResponse.json({ error: "ID obrigatório." }, { status: 400 });
+      if (!shopifyId)
+        return NextResponse.json({ error: "ID obrigatório." }, { status: 400 });
       await deleteShopifyCatalogProduct(shopifyId);
       return NextResponse.json({ ok: true, deleted: 1 });
     }
-    const products = (Array.isArray(body?.products) ? body.products : [body?.product])
+    const products = (
+      Array.isArray(body?.products) ? body.products : [body?.product]
+    )
       .filter(Boolean)
       .slice(0, 250)
       .map(productFromPayload)
-      .filter((product: Omit<ShopifyCatalogProduct, "syncedAt">) =>
-        product.shopifyId && product.title,
+      .filter(
+        (product: ShopifyCatalogSyncProduct) =>
+          product.shopifyId && product.title,
       );
     if (!products.length)
-      return NextResponse.json({ error: "Nenhum produto válido recebido." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Nenhum produto válido recebido." },
+        { status: 400 },
+      );
     await upsertShopifyCatalogProducts(products);
     return NextResponse.json({
       ok: true,
@@ -120,7 +147,12 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Erro ao sincronizar catálogo." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Erro ao sincronizar catálogo.",
+      },
       { status: 500 },
     );
   }

@@ -44,6 +44,11 @@ import {
 
 type DrawerStep = "details" | "edit";
 type SuccessPhase = "hidden" | "visible" | "leaving";
+type WinthorProductStatus = {
+  status: "ATIVO" | "FORA_DE_LINHA" | "PENDENTE";
+  description: string;
+  syncedAt: string;
+};
 type EditForm = {
   title: string;
   description: string;
@@ -142,7 +147,10 @@ function ChoicePicker({
         <div className="choice-picker-label">
           <span>{label}</span>
           {actionLabel && (
-            <button type="button" onClick={() => setOpen((current) => !current)}>
+            <button
+              type="button"
+              onClick={() => setOpen((current) => !current)}
+            >
               {actionLabel}
             </button>
           )}
@@ -410,9 +418,7 @@ export function ProductDetailsDrawer({
     minWidth: DOCK_MIN_WIDTH,
     maxWidth: DOCK_MAX_WIDTH,
   });
-  const [snapPreview, setSnapPreview] = useState<"left" | "right" | null>(
-    null,
-  );
+  const [snapPreview, setSnapPreview] = useState<"left" | "right" | null>(null);
   const windowRef = useRef<HTMLElement>(null);
   const wasOpen = useRef(false);
   const previousDockSide = useRef(dockSide);
@@ -437,6 +443,8 @@ export function ProductDetailsDrawer({
   );
   const [mediaDropIndex, setMediaDropIndex] = useState<number | null>(null);
   const [successPhase, setSuccessPhase] = useState<SuccessPhase>("hidden");
+  const [winthorStatus, setWinthorStatus] =
+    useState<WinthorProductStatus | null>(null);
   const successTimers = useRef<number[]>([]);
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
@@ -457,6 +465,33 @@ export function ProductDetailsDrawer({
   }, [row]);
 
   const activeRow = historyIndex >= 0 ? history[historyIndex] : row;
+
+  useEffect(() => {
+    if (!activeRow?.sku) {
+      setWinthorStatus(null);
+      return;
+    }
+    const controller = new AbortController();
+    setWinthorStatus(null);
+    void fetch(
+      `/api/winthor-products?sku=${encodeURIComponent(activeRow.sku)}`,
+      { cache: "no-store", signal: controller.signal },
+    )
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        return (await response.json()) as WinthorProductStatus;
+      })
+      .then(setWinthorStatus)
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setWinthorStatus({
+            status: "PENDENTE",
+            description: "",
+            syncedAt: "",
+          });
+      });
+    return () => controller.abort();
+  }, [activeRow?.sku]);
 
   useEffect(() => {
     if (!activeRow) return;
@@ -597,8 +632,7 @@ export function ProductDetailsDrawer({
       if (clamped !== current) applyDockWidth(clamped);
     };
     clampToRange();
-    const shell =
-      windowRef.current?.closest<HTMLElement>(".app-shell") ?? null;
+    const shell = windowRef.current?.closest<HTMLElement>(".app-shell") ?? null;
     const sidebar = shell?.querySelector<HTMLElement>(".sidebar") ?? null;
     const observer =
       shell && typeof ResizeObserver !== "undefined"
@@ -669,7 +703,10 @@ export function ProductDetailsDrawer({
       );
       if (distance < 4) return;
       const bounds = windowRef.current?.getBoundingClientRect();
-      setPosition({ x: bounds?.left ?? position.x, y: bounds?.top ?? position.y });
+      setPosition({
+        x: bounds?.left ?? position.x,
+        y: bounds?.top ?? position.y,
+      });
       dockedDragStart.current = false;
       onDockSideChange?.("floating");
     }
@@ -736,10 +773,7 @@ export function ProductDetailsDrawer({
       minWidth,
       maxWidth: Math.max(
         minWidth,
-        Math.min(
-          DOCK_MAX_WIDTH,
-          workspaceWidth - DOCK_MIN_CONTENT_WIDTH,
-        ),
+        Math.min(DOCK_MAX_WIDTH, workspaceWidth - DOCK_MIN_CONTENT_WIDTH),
       ),
     };
   }
@@ -757,10 +791,7 @@ export function ProductDetailsDrawer({
         ? resizeStart.current.x - event.clientX
         : event.clientX - resizeStart.current.x;
     applyDockWidth(
-      Math.min(
-        maxWidth,
-        Math.max(minWidth, resizeStart.current.width + delta),
-      ),
+      Math.min(maxWidth, Math.max(minWidth, resizeStart.current.width + delta)),
     );
   }
   function stopResizing(event: React.PointerEvent<HTMLDivElement>) {
@@ -1058,7 +1089,11 @@ export function ProductDetailsDrawer({
         role="dialog"
         aria-modal="false"
         aria-labelledby="product-drawer-title"
-        style={dockSide === "floating" ? { left: position.x, top: position.y } : undefined}
+        style={
+          dockSide === "floating"
+            ? { left: position.x, top: position.y }
+            : undefined
+        }
       >
         {dockSide !== "floating" && (
           <div
@@ -1167,6 +1202,19 @@ export function ProductDetailsDrawer({
           <span className={failed ? "drawer-status is-error" : "drawer-status"}>
             {failed ? <CircleAlert size={14} /> : <CheckCircle2 size={14} />}
             {failed ? "Erro" : "Sincronizado"}
+          </span>
+          <span
+            className={`drawer-winthor-status is-${(winthorStatus?.status || "PENDENTE").toLowerCase()}`}
+            title={winthorStatus?.description || "Status no WinThor"}
+          >
+            <small>Status WinThor</small>
+            <strong>
+              {winthorStatus?.status === "FORA_DE_LINHA"
+                ? "Fora de linha"
+                : winthorStatus?.status === "ATIVO"
+                  ? "Ativo"
+                  : "Aguardando sincronização"}
+            </strong>
           </span>
         </div>
         <div className="product-drawer-scroll">

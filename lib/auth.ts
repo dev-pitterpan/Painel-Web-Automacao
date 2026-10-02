@@ -77,7 +77,18 @@ export type ShopifyCatalogProduct = {
   priceMax: number;
   shopifyUpdatedAt: string;
   syncedAt: string;
+  winthorStatus: "ATIVO" | "FORA_DE_LINHA" | "PENDENTE";
+  winthorDescription: string;
+  winthorSyncedAt: string;
 };
+export type WinthorStatusProduct = {
+  sku: string;
+  description: string;
+};
+export type ShopifyCatalogSyncProduct = Omit<
+  ShopifyCatalogProduct,
+  "syncedAt" | "winthorStatus" | "winthorDescription" | "winthorSyncedAt"
+>;
 
 type UserRecord = Omit<AuthUser, "createdAt" | "avatarUrl"> & {
   password_hash: string;
@@ -202,6 +213,21 @@ async function ensureDatabase() {
           shopify_updated_at TIMESTAMPTZ,
           synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`,
+        `CREATE TABLE IF NOT EXISTS winthor_product_statuses (
+          sku TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'FORA_DE_LINHA',
+          batch_id TEXT NOT NULL,
+          synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (batch_id, sku)
+        )`,
+        `CREATE TABLE IF NOT EXISTS winthor_sync_runs (
+          id BIGSERIAL PRIMARY KEY,
+          batch_id TEXT NOT NULL UNIQUE,
+          source_file TEXT NOT NULL DEFAULT '',
+          item_count INTEGER NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`,
         `CREATE TABLE IF NOT EXISTS image_sync_jobs (
           id BIGSERIAL PRIMARY KEY,
           batch_id TEXT NOT NULL,
@@ -223,6 +249,8 @@ async function ensureDatabase() {
         "CREATE INDEX IF NOT EXISTS idx_shopify_catalog_title ON shopify_catalog_products(title)",
         "CREATE INDEX IF NOT EXISTS idx_shopify_catalog_sku ON shopify_catalog_products(primary_sku)",
         "CREATE INDEX IF NOT EXISTS idx_shopify_catalog_updated ON shopify_catalog_products(shopify_updated_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_winthor_status_synced ON winthor_product_statuses(synced_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_winthor_status_sku ON winthor_product_statuses(sku)",
       ];
       for (const statement of schema) await query(statement);
 
@@ -746,6 +774,11 @@ function catalogProductFromRow(row: any): ShopifyCatalogProduct {
     priceMax: Number(row.price_max || 0),
     shopifyUpdatedAt: iso(row.shopify_updated_at),
     syncedAt: iso(row.synced_at),
+    winthorStatus: ["ATIVO", "FORA_DE_LINHA"].includes(row.winthor_status)
+      ? row.winthor_status
+      : "PENDENTE",
+    winthorDescription: String(row.winthor_description || ""),
+    winthorSyncedAt: iso(row.winthor_synced_at),
   };
 }
 
@@ -756,6 +789,7 @@ export async function listShopifyCatalogProducts(input: {
   tag?: string;
   collection?: string;
   productType?: string;
+  winthorStatus?: string;
   page?: number;
   perPage?: number;
   sort?: "updated" | "title" | "title_desc" | "inventory";
@@ -764,20 +798,24 @@ export async function listShopifyCatalogProducts(input: {
   const page = Math.max(1, Math.trunc(input.page || 1));
   const perPage = Math.min(100, Math.max(10, Math.trunc(input.perPage || 50)));
   const search = String(input.query || "").trim();
-  const status = String(input.status || "").trim().toUpperCase();
+  const status = String(input.status || "")
+    .trim()
+    .toUpperCase();
   const where: string[] = [];
   const params: unknown[] = [];
   if (search) {
     params.push(`%${search}%`);
-    where.push(`(title ILIKE $${params.length} OR primary_sku ILIKE $${params.length} OR vendor ILIKE $${params.length} OR variants_json::text ILIKE $${params.length})`);
+    where.push(
+      `(p.title ILIKE $${params.length} OR p.primary_sku ILIKE $${params.length} OR p.vendor ILIKE $${params.length} OR p.variants_json::text ILIKE $${params.length})`,
+    );
   }
   if (["ACTIVE", "DRAFT", "ARCHIVED"].includes(status)) {
     params.push(status);
-    where.push(`status = $${params.length}`);
+    where.push(`p.status = $${params.length}`);
   }
   const exactFilters: Array<[string, string]> = [
-    ["vendor", String(input.vendor || "").trim()],
-    ["product_type", String(input.productType || "").trim()],
+    ["p.vendor", String(input.vendor || "").trim()],
+    ["p.product_type", String(input.productType || "").trim()],
   ];
   for (const [column, value] of exactFilters) {
     if (!value) continue;
@@ -785,29 +823,56 @@ export async function listShopifyCatalogProducts(input: {
     where.push(`${column} = $${params.length}`);
   }
   for (const [column, value] of [
-    ["tags_json", String(input.tag || "").trim()],
-    ["collections_json", String(input.collection || "").trim()],
+    ["p.tags_json", String(input.tag || "").trim()],
+    ["p.collections_json", String(input.collection || "").trim()],
   ]) {
     if (!value) continue;
     params.push(JSON.stringify([value]));
     where.push(`${column} @> $${params.length}::jsonb`);
   }
+  const winthorStatus = String(input.winthorStatus || "")
+    .trim()
+    .toUpperCase();
+  if (winthorStatus === "FORA_DE_LINHA") where.push("w.sku IS NOT NULL");
+  if (winthorStatus === "ATIVO")
+    where.push("w.sku IS NULL AND EXISTS (SELECT 1 FROM winthor_sync_runs)");
   const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const order =
     input.sort === "title"
-      ? "title ASC"
+      ? "p.title ASC"
       : input.sort === "title_desc"
-        ? "title DESC"
-      : input.sort === "inventory"
-        ? "total_inventory DESC, title ASC"
-        : "shopify_updated_at DESC NULLS LAST, title ASC";
+        ? "p.title DESC"
+        : input.sort === "inventory"
+          ? "p.total_inventory DESC, p.title ASC"
+          : "p.shopify_updated_at DESC NULLS LAST, p.title ASC";
   const countRows = await query<{ total: number }>(
-    `SELECT COUNT(*)::int AS total FROM shopify_catalog_products ${clause}`,
+    `SELECT COUNT(*)::int AS total
+     FROM shopify_catalog_products p
+     LEFT JOIN winthor_product_statuses w
+       ON w.sku = p.primary_sku
+      AND w.batch_id = (
+        SELECT batch_id FROM winthor_sync_runs ORDER BY created_at DESC LIMIT 1
+      )
+     ${clause}`,
     params,
   );
   const listParams = [...params, perPage, (page - 1) * perPage];
   const rows = await query<any>(
-    `SELECT * FROM shopify_catalog_products ${clause}
+    `SELECT p.*,
+       CASE
+         WHEN NOT EXISTS (SELECT 1 FROM winthor_sync_runs) THEN 'PENDENTE'
+         WHEN w.sku IS NOT NULL THEN 'FORA_DE_LINHA'
+         ELSE 'ATIVO'
+       END AS winthor_status,
+       COALESCE(w.description, '') AS winthor_description,
+       w.synced_at AS winthor_synced_at
+     FROM shopify_catalog_products p
+     LEFT JOIN winthor_product_statuses w
+       ON w.sku = p.primary_sku
+      AND w.batch_id = (
+        SELECT batch_id FROM winthor_sync_runs ORDER BY created_at DESC LIMIT 1
+      )
+     ${clause}
      ORDER BY ${order} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     listParams,
   );
@@ -821,21 +886,105 @@ export async function listShopifyCatalogProducts(input: {
   };
 }
 
+export async function syncWinthorProductStatuses(
+  products: WinthorStatusProduct[],
+  sourceFile: string,
+) {
+  await ensureDatabase();
+  const normalized = [
+    ...new Map(
+      products
+        .map((product) => ({
+          sku: String(product.sku || "").trim(),
+          description: String(product.description || "")
+            .trim()
+            .slice(0, 500),
+        }))
+        .filter((product) => product.sku)
+        .map((product) => [product.sku, product]),
+    ).values(),
+  ];
+  if (!normalized.length)
+    throw new Error("A sincronização não contém produtos válidos.");
+  const batchId = randomBytes(16).toString("hex");
+  await query(
+    `INSERT INTO winthor_product_statuses
+       (sku, description, status, batch_id, synced_at)
+     SELECT sku, description, 'FORA_DE_LINHA', $2, NOW()
+     FROM jsonb_to_recordset($1::jsonb) AS incoming(sku TEXT, description TEXT)
+     ON CONFLICT (batch_id, sku) DO NOTHING`,
+    [JSON.stringify(normalized), batchId],
+  );
+  await query(
+    `INSERT INTO winthor_sync_runs (batch_id, source_file, item_count)
+     VALUES ($1, $2, $3)`,
+    [batchId, sourceFile.slice(0, 500), normalized.length],
+  );
+  await query("DELETE FROM winthor_product_statuses WHERE batch_id <> $1", [
+    batchId,
+  ]);
+  return { batchId, synchronized: normalized.length };
+}
+
+export async function getWinthorProductStatus(sku: string) {
+  await ensureDatabase();
+  const rows = await query<any>(
+    `SELECT w.sku, w.description, w.synced_at,
+       EXISTS (SELECT 1 FROM winthor_sync_runs) AS has_sync
+     FROM (SELECT 1) seed
+     LEFT JOIN winthor_product_statuses w
+       ON w.sku = $1
+      AND w.batch_id = (
+        SELECT batch_id FROM winthor_sync_runs ORDER BY created_at DESC LIMIT 1
+      )
+     LIMIT 1`,
+    [String(sku || "").trim()],
+  );
+  const row = rows[0] || {};
+  return {
+    status: !row.has_sync
+      ? ("PENDENTE" as const)
+      : row.sku
+        ? ("FORA_DE_LINHA" as const)
+        : ("ATIVO" as const),
+    description: String(row.description || ""),
+    syncedAt: iso(row.synced_at),
+  };
+}
+
 export async function getShopifyCatalogFacets() {
   await ensureDatabase();
-  const [vendors, productTypes, statuses, tags, collections] = await Promise.all([
-    query<{ value: string }>("SELECT DISTINCT vendor AS value FROM shopify_catalog_products WHERE vendor <> '' ORDER BY value"),
-    query<{ value: string }>("SELECT DISTINCT product_type AS value FROM shopify_catalog_products WHERE product_type <> '' ORDER BY value"),
-    query<{ value: string }>("SELECT DISTINCT status AS value FROM shopify_catalog_products WHERE status <> '' ORDER BY value"),
-    query<{ value: string }>("SELECT DISTINCT jsonb_array_elements_text(tags_json) AS value FROM shopify_catalog_products ORDER BY value"),
-    query<{ value: string }>("SELECT DISTINCT jsonb_array_elements_text(collections_json) AS value FROM shopify_catalog_products ORDER BY value"),
-  ]);
-  const values = (rows: Array<{ value: string }>) => rows.map((row) => String(row.value)).filter(Boolean);
-  return { vendors: values(vendors), productTypes: values(productTypes), statuses: values(statuses), tags: values(tags), collections: values(collections) };
+  const [vendors, productTypes, statuses, tags, collections] =
+    await Promise.all([
+      query<{ value: string }>(
+        "SELECT DISTINCT vendor AS value FROM shopify_catalog_products WHERE vendor <> '' ORDER BY value",
+      ),
+      query<{ value: string }>(
+        "SELECT DISTINCT product_type AS value FROM shopify_catalog_products WHERE product_type <> '' ORDER BY value",
+      ),
+      query<{ value: string }>(
+        "SELECT DISTINCT status AS value FROM shopify_catalog_products WHERE status <> '' ORDER BY value",
+      ),
+      query<{ value: string }>(
+        "SELECT DISTINCT jsonb_array_elements_text(tags_json) AS value FROM shopify_catalog_products ORDER BY value",
+      ),
+      query<{ value: string }>(
+        "SELECT DISTINCT jsonb_array_elements_text(collections_json) AS value FROM shopify_catalog_products ORDER BY value",
+      ),
+    ]);
+  const values = (rows: Array<{ value: string }>) =>
+    rows.map((row) => String(row.value)).filter(Boolean);
+  return {
+    vendors: values(vendors),
+    productTypes: values(productTypes),
+    statuses: values(statuses),
+    tags: values(tags),
+    collections: values(collections),
+  };
 }
 
 export async function upsertShopifyCatalogProducts(
-  products: Omit<ShopifyCatalogProduct, "syncedAt">[],
+  products: ShopifyCatalogSyncProduct[],
 ) {
   await ensureDatabase();
   for (const product of products) {
@@ -885,7 +1034,10 @@ export async function deleteShopifyCatalogProduct(shopifyId: string) {
 
 export async function archiveShopifyCatalogProducts(shopifyIds: string[]) {
   await ensureDatabase();
-  const ids = [...new Set(shopifyIds.map(String).filter(Boolean))].slice(0, 250);
+  const ids = [...new Set(shopifyIds.map(String).filter(Boolean))].slice(
+    0,
+    250,
+  );
   if (!ids.length) return;
   await query(
     `UPDATE shopify_catalog_products
@@ -897,7 +1049,10 @@ export async function archiveShopifyCatalogProducts(shopifyIds: string[]) {
 
 export async function deleteShopifyCatalogProducts(shopifyIds: string[]) {
   await ensureDatabase();
-  const ids = [...new Set(shopifyIds.map(String).filter(Boolean))].slice(0, 250);
+  const ids = [...new Set(shopifyIds.map(String).filter(Boolean))].slice(
+    0,
+    250,
+  );
   if (!ids.length) return;
   await query(
     "DELETE FROM shopify_catalog_products WHERE shopify_id = ANY($1::text[])",

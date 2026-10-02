@@ -61,6 +61,11 @@ const statusLabel: Record<string, string> = {
   DRAFT: "Rascunho",
   ARCHIVED: "Arquivado",
 };
+const winthorStatusLabel: Record<string, string> = {
+  ATIVO: "Ativo",
+  FORA_DE_LINHA: "Fora de linha",
+  PENDENTE: "Aguardando sincronização",
+};
 
 function toHistoryRow(product: ShopifyCatalogProduct): HistoryRow {
   return {
@@ -197,7 +202,11 @@ function FilterPicker({
   );
 }
 
-export function ShopifyProductsClient() {
+export function ShopifyProductsClient({
+  winthorOnly = false,
+}: {
+  winthorOnly?: boolean;
+}) {
   const { openProduct } = useProductPanel();
   const [data, setData] = useState<CatalogResponse | null>(null);
   const [facets, setFacets] = useState<Facets>();
@@ -235,6 +244,7 @@ export function ShopifyProductsClient() {
         facets: "1",
       });
       if (query) params.set("q", query);
+      if (winthorOnly) params.set("winthorStatus", "FORA_DE_LINHA");
       Object.entries(filters).forEach(([key, value]) => {
         if (value) params.set(key, value);
       });
@@ -263,7 +273,7 @@ export function ShopifyProductsClient() {
     } finally {
       setLoading(false);
     }
-  }, [filters, page, query, sort]);
+  }, [filters, page, query, sort, winthorOnly]);
   useEffect(() => void load(), [load]);
   useEffect(() => setSelectedProducts({}), [filters, query, sort]);
   useEffect(() => {
@@ -484,9 +494,13 @@ export function ShopifyProductsClient() {
     <>
       <div className="page-head dashboard-title-row">
         <div>
-          <h1 className="page-title">Produtos</h1>
+          <h1 className="page-title">
+            {winthorOnly ? "Produtos fora de linha" : "Produtos"}
+          </h1>
           <div className="page-sub">
-            Todos os produtos sincronizados do Shopify.
+            {winthorOnly
+              ? "Produtos marcados como fora de linha na última sincronização do WinThor."
+              : "Todos os produtos sincronizados do Shopify."}
           </div>
         </div>
       </div>
@@ -729,7 +743,8 @@ export function ShopifyProductsClient() {
                       ) : null}
                     </button>
                   </th>
-                  <th>Status</th>
+                  <th>Status Shopify</th>
+                  <th>Status WinThor</th>
                   <th>Estoque</th>
                   <th>SKU</th>
                   <th>Tipo de produto</th>
@@ -783,6 +798,18 @@ export function ShopifyProductsClient() {
                         className={`shopify-status shopify-status-${product.status.toLowerCase()}`}
                       >
                         {statusLabel[product.status] || product.status}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={`winthor-status winthor-status-${product.winthorStatus.toLowerCase()}`}
+                        title={
+                          product.winthorDescription ||
+                          winthorStatusLabel[product.winthorStatus]
+                        }
+                      >
+                        {winthorStatusLabel[product.winthorStatus] ||
+                          product.winthorStatus}
                       </span>
                     </td>
                     <td

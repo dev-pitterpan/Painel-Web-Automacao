@@ -126,39 +126,73 @@ export function Sidebar({ user }: { user: AuthUser }) {
           </div>
         </div>
         <nav className="nav">
-          {navigationItems.map(([label, href, Icon]) => label === "Produtos" ? (
-            <div className={`nav-products-group ${productsOpen ? "is-open" : ""}`} key={href}>
-              <button
-                type="button"
-                className={`nav-products-trigger ${pathname.startsWith("/produtos") ? "is-active" : ""}`}
-                data-tooltip={collapsed ? label : undefined}
-                onClick={() => setProductsOpen((value) => !value)}
-                aria-expanded={productsOpen}
+          {navigationItems.map(([label, href, Icon]) =>
+            label === "Produtos" ? (
+              <div
+                className={`nav-products-group ${productsOpen ? "is-open" : ""}`}
+                key={href}
               >
-                <Icon size={17} strokeWidth={2} />
+                <button
+                  type="button"
+                  className={`nav-products-trigger ${pathname.startsWith("/produtos") ? "is-active" : ""}`}
+                  data-tooltip={collapsed ? label : undefined}
+                  onClick={() => setProductsOpen((value) => !value)}
+                  aria-expanded={productsOpen}
+                >
+                  <Icon size={17} strokeWidth={2} />
+                  <span>{label}</span>
+                  <ChevronRight className="nav-products-chevron" size={15} />
+                </button>
+                {productsOpen && (
+                  <div className="nav-products-flyout">
+                    <strong>Produtos</strong>
+                    <Link
+                      href="/produtos"
+                      className={
+                        pathname === "/produtos" ? "is-active" : undefined
+                      }
+                      onClick={() => setProductsOpen(false)}
+                    >
+                      Todos os produtos
+                    </Link>
+                    <Link
+                      href="/produtos/processados"
+                      className={
+                        pathname.startsWith("/produtos/processados")
+                          ? "is-active"
+                          : undefined
+                      }
+                      onClick={() => setProductsOpen(false)}
+                    >
+                      Produtos processados
+                    </Link>
+                    <Link
+                      href="/produtos/fora-de-linha"
+                      className={
+                        pathname.startsWith("/produtos/fora-de-linha")
+                          ? "is-active"
+                          : undefined
+                      }
+                      onClick={() => setProductsOpen(false)}
+                    >
+                      Fora de linha
+                    </Link>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link
+                key={href}
+                href={href}
+                className={pathname === href ? "is-active" : undefined}
+                data-tooltip={collapsed ? label : undefined}
+                onClick={() => setMobileOpen(false)}
+              >
+                {Icon && <Icon size={17} strokeWidth={2} />}
                 <span>{label}</span>
-                <ChevronRight className="nav-products-chevron" size={15} />
-              </button>
-              {productsOpen && (
-                <div className="nav-products-flyout">
-                  <strong>Produtos</strong>
-                  <Link href="/produtos" className={pathname === "/produtos" ? "is-active" : undefined} onClick={() => setProductsOpen(false)}>Todos os produtos</Link>
-                  <Link href="/produtos/processados" className={pathname.startsWith("/produtos/processados") ? "is-active" : undefined} onClick={() => setProductsOpen(false)}>Produtos processados</Link>
-                </div>
-              )}
-            </div>
-          ) : (
-            <Link
-              key={href}
-              href={href}
-              className={pathname === href ? "is-active" : undefined}
-              data-tooltip={collapsed ? label : undefined}
-              onClick={() => setMobileOpen(false)}
-            >
-              {Icon && <Icon size={17} strokeWidth={2} />}
-              <span>{label}</span>
-            </Link>
-          ))}
+              </Link>
+            ),
+          )}
         </nav>
         <div className="sidebar-user">
           <Link
@@ -209,29 +243,81 @@ export function Sidebar({ user }: { user: AuthUser }) {
                 <small>Automação de e-commerce</small>
               </span>
             </div>
-            {navigationItems.map(([label, href, Icon]) => label === "Produtos" ? (
-              <div className="mobile-products-group" key={href}>
-                <button className={pathname.startsWith("/produtos") ? "is-active" : undefined} type="button" onClick={() => setProductsOpen((value) => !value)} aria-expanded={productsOpen}>
+            {navigationItems.map(([label, href, Icon]) =>
+              label === "Produtos" ? (
+                <div className="mobile-products-group" key={href}>
+                  <button
+                    className={
+                      pathname.startsWith("/produtos") ? "is-active" : undefined
+                    }
+                    type="button"
+                    onClick={() => setProductsOpen((value) => !value)}
+                    aria-expanded={productsOpen}
+                  >
+                    <Icon size={18} strokeWidth={2} />
+                    <span>{label}</span>
+                    <ChevronRight
+                      className={productsOpen ? "is-open" : ""}
+                      size={16}
+                    />
+                  </button>
+                  {productsOpen && (
+                    <div className="mobile-products-links">
+                      <Link
+                        href="/produtos"
+                        className={
+                          pathname === "/produtos" ? "is-active" : undefined
+                        }
+                        onClick={() => {
+                          setMobileOpen(false);
+                          setProductsOpen(false);
+                        }}
+                      >
+                        Todos os produtos
+                      </Link>
+                      <Link
+                        href="/produtos/processados"
+                        className={
+                          pathname.startsWith("/produtos/processados")
+                            ? "is-active"
+                            : undefined
+                        }
+                        onClick={() => {
+                          setMobileOpen(false);
+                          setProductsOpen(false);
+                        }}
+                      >
+                        Produtos processados
+                      </Link>
+                      <Link
+                        href="/produtos/fora-de-linha"
+                        className={
+                          pathname.startsWith("/produtos/fora-de-linha")
+                            ? "is-active"
+                            : undefined
+                        }
+                        onClick={() => {
+                          setMobileOpen(false);
+                          setProductsOpen(false);
+                        }}
+                      >
+                        Fora de linha
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  key={href}
+                  href={href}
+                  className={pathname === href ? "is-active" : undefined}
+                  onClick={() => setMobileOpen(false)}
+                >
                   <Icon size={18} strokeWidth={2} />
                   <span>{label}</span>
-                  <ChevronRight className={productsOpen ? "is-open" : ""} size={16} />
-                </button>
-                {productsOpen && <div className="mobile-products-links">
-                  <Link href="/produtos" className={pathname === "/produtos" ? "is-active" : undefined} onClick={() => { setMobileOpen(false); setProductsOpen(false); }}>Todos os produtos</Link>
-                  <Link href="/produtos/processados" className={pathname.startsWith("/produtos/processados") ? "is-active" : undefined} onClick={() => { setMobileOpen(false); setProductsOpen(false); }}>Produtos processados</Link>
-                </div>}
-              </div>
-            ) : (
-              <Link
-                key={href}
-                href={href}
-                className={pathname === href ? "is-active" : undefined}
-                onClick={() => setMobileOpen(false)}
-              >
-                <Icon size={18} strokeWidth={2} />
-                <span>{label}</span>
-              </Link>
-            ))}
+                </Link>
+              ),
+            )}
           </nav>
           <button
             className="mobile-menu-backdrop"

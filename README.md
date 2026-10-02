@@ -3,6 +3,7 @@
 Dashboard em Node.js/Next.js conectado ao Google Sheets e preparado para integração com n8n.
 
 ## Recursos
+
 - Dashboard com total processado, sucesso, erros, taxa de sucesso e tempo economizado.
 - Cards de títulos, tags, coleções e descrições alteradas.
 - Gráfico diário.
@@ -14,9 +15,11 @@ Dashboard em Node.js/Next.js conectado ao Google Sheets e preparado para integra
 - Endpoint pronto para reprocessamento via n8n.
 
 ## Colunas esperadas na planilha
+
 Data/Hora, SKU, Marca, Título Antes, Título Depois, Tags Antes, Tags Depois, Coleções Antes, Coleções Depois, Título Alterado?, Tags Alteradas?, Coleções Alteradas?, Descrição Gerada?, Status
 
 ## Como rodar
+
 1. `npm install`
 2. Copie `.env.example` para `.env.local`
 3. Configure as credenciais da Google Service Account.
@@ -25,11 +28,14 @@ Data/Hora, SKU, Marca, Título Antes, Título Depois, Tags Antes, Tags Depois, C
 6. Abra `http://localhost:3000`
 
 ## n8n
+
 Configure:
+
 - `N8N_REPROCESS_WEBHOOK_URL`
 - `N8N_REPROCESS_TOKEN` (opcional)
 
 O dashboard enviará:
+
 ```json
 {
   "sku": "12345",
@@ -39,6 +45,7 @@ O dashboard enviará:
 ```
 
 ## Próximas etapas
+
 - login;
 - detalhes do produto;
 - reprocessamento real via n8n;
@@ -47,6 +54,30 @@ O dashboard enviará:
 - painel de exclusão;
 - visão de filas/workers.
 
+## Status de produtos no WinThor
+
+O dashboard mantém o status do WinThor separado do status do Shopify:
+
+- códigos presentes na exportação são marcados como **Fora de linha**;
+- após uma sincronização válida, os demais códigos são exibidos como **Ativo**;
+- antes da primeira sincronização, o status aparece como **Aguardando sincronização**.
+
+Configure no ambiente do dashboard `WINTHOR_SYNC_TOKEN` (ou reutilize
+`N8N_REPROCESS_TOKEN`). No computador que gera o arquivo, configure:
+
+```powershell
+$env:WINTHOR_DASHBOARD_URL = "https://seu-dashboard.vercel.app"
+$env:WINTHOR_SYNC_TOKEN = "o-mesmo-token-do-dashboard"
+```
+
+Depois da exportação do WinThor, execute:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\sync-winthor-status.ps1
+```
+
+O script valida o arquivo e o cabeçalho `Código | Descrição` antes de enviar.
+Uma exportação vazia ou inválida não altera os status existentes.
 
 ---
 
