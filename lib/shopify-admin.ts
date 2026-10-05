@@ -238,6 +238,41 @@ export async function getShopifyProductSalesChannels(productId: string) {
     .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
 }
 
+export async function getShopifyProductSalesChannelCounts(
+  productIds: string[],
+) {
+  const ids = [...new Set(productIds.filter(Boolean))].slice(0, 250);
+  if (!ids.length) return new Map<string, number>();
+  const data = await shopifyGraphql<{
+    nodes: Array<{
+      id: string;
+      resourcePublicationsCount?: { count: number } | null;
+    } | null>;
+  }>(
+    `query DashboardProductSalesChannelCounts($ids: [ID!]!) {
+      nodes(ids: $ids) {
+        ... on Product {
+          id
+          resourcePublicationsCount(onlyPublished: true) { count }
+        }
+      }
+    }`,
+    { ids },
+  );
+  return new Map(
+    data.nodes.flatMap((node) =>
+      node
+        ? [
+            [
+              node.id,
+              Number(node.resourcePublicationsCount?.count || 0),
+            ] as const,
+          ]
+        : [],
+    ),
+  );
+}
+
 export async function updateShopifyProductSalesChannels(
   productId: string,
   changes: ShopifyPublicationChange[],

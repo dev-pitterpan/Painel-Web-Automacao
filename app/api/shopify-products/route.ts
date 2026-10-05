@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth";
 import {
   fetchShopifyProduct,
+  getShopifyProductSalesChannelCounts,
   getShopifyProductSalesChannels,
   shopifyProductToCatalog,
 } from "@/lib/shopify-admin";
@@ -158,6 +159,17 @@ export async function GET(req: NextRequest) {
       sort: (params.get("sort") || "updated") as
         "updated" | "title" | "title_desc" | "inventory",
     });
+    try {
+      const salesChannelCounts = await getShopifyProductSalesChannelCounts(
+        result.products.map((product) => product.shopifyId),
+      );
+      result.products = result.products.map((product) => ({
+        ...product,
+        salesChannelsCount: salesChannelCounts.get(product.shopifyId) ?? 0,
+      }));
+    } catch {
+      // Mantém a listagem disponível se a consulta complementar falhar.
+    }
     const facets =
       params.get("facets") === "1"
         ? await getShopifyCatalogFacets()

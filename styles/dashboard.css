@@ -715,6 +715,11 @@
   color: #111827;
   font-size: 10.5px;
 }
+.shopify-products-table .catalog-sales-channels-column {
+  min-width: 105px;
+  text-align: center;
+  white-space: nowrap;
+}
 .shopify-products-table tbody tr {
   cursor: pointer;
 }

@@ -831,6 +831,9 @@ export function ShopifyProductsClient({
                   <th>SKU</th>
                   <th>Tipo de produto</th>
                   <th>Fabricante</th>
+                  <th className="catalog-sales-channels-column">
+                    Canais de venda
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -921,6 +924,9 @@ export function ShopifyProductsClient({
                     <td>{product.sku || "-"}</td>
                     <td>{product.productType || "-"}</td>
                     <td>{product.vendor || "-"}</td>
+                    <td className="catalog-sales-channels-column">
+                      {product.salesChannelsCount ?? "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>

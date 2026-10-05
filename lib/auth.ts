@@ -60,6 +60,7 @@ export type ShopifyCatalogProduct = {
   status: string;
   vendor: string;
   productType: string;
+  salesChannelsCount?: number;
   tags: string[];
   collections: string[];
   descriptionHtml: string;
