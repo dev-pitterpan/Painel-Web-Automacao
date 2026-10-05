@@ -541,6 +541,9 @@ export function ProductDetailsDrawer({
   const [media, setMedia] = useState<ProductMedia[]>([]);
   const [originalMedia, setOriginalMedia] = useState<ProductMedia[]>([]);
   const [mediaSlideIndex, setMediaSlideIndex] = useState(0);
+  const [imagePreviewIndex, setImagePreviewIndex] = useState<number | null>(
+    null,
+  );
   const [mediaLoading, setMediaLoading] = useState(false);
   const [barcode, setBarcode] = useState("");
   const [mediaDragging, setMediaDragging] = useState(false);
@@ -622,6 +625,7 @@ export function ProductDetailsDrawer({
     setOriginal(initial);
     setMedia(cachedMedia);
     setOriginalMedia(cachedMedia);
+    setImagePreviewIndex(null);
     setAvailableTags([]);
     setAvailableCollections([]);
     setBarcode("");
@@ -674,11 +678,17 @@ export function ProductDetailsDrawer({
 
   useEffect(() => {
     if (!row) return;
-    const close = (event: KeyboardEvent) =>
-      event.key === "Escape" && !saving && onClose();
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || saving) return;
+      if (imagePreviewIndex !== null) {
+        setImagePreviewIndex(null);
+        return;
+      }
+      onClose();
+    };
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
-  }, [row, onClose, saving]);
+  }, [row, onClose, saving, imagePreviewIndex]);
 
   useEffect(
     () => () => {
@@ -730,7 +740,27 @@ export function ProductDetailsDrawer({
     setMediaSlideIndex((current) =>
       visibleMedia.length ? Math.min(current, visibleMedia.length - 1) : 0,
     );
+    setImagePreviewIndex((current) =>
+      current === null || !visibleMedia.length
+        ? null
+        : Math.min(current, visibleMedia.length - 1),
+    );
   }, [visibleMedia.length]);
+  useEffect(() => {
+    if (imagePreviewIndex === null || visibleMedia.length < 2) return;
+    const navigatePreview = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      setImagePreviewIndex((current) => {
+        if (current === null) return null;
+        if (event.key === "ArrowLeft")
+          return current === 0 ? visibleMedia.length - 1 : current - 1;
+        return current === visibleMedia.length - 1 ? 0 : current + 1;
+      });
+    };
+    document.addEventListener("keydown", navigatePreview);
+    return () => document.removeEventListener("keydown", navigatePreview);
+  }, [imagePreviewIndex, visibleMedia.length]);
   useEffect(() => {
     dockWidthRef.current = dockWidth;
   }, [dockWidth]);
@@ -1413,6 +1443,16 @@ export function ProductDetailsDrawer({
                         <img
                           src={visibleMedia[mediaSlideIndex].url}
                           alt={visibleMedia[mediaSlideIndex].alt || title}
+                          role="button"
+                          tabIndex={0}
+                          title="Ampliar imagem"
+                          onClick={() => setImagePreviewIndex(mediaSlideIndex)}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ")
+                              return;
+                            event.preventDefault();
+                            setImagePreviewIndex(mediaSlideIndex);
+                          }}
                         />
                         {visibleMedia.length > 1 && (
                           <>
@@ -1654,7 +1694,30 @@ export function ProductDetailsDrawer({
                           <GripVertical size={16} />
                         </i>
                       )}
-                      <img src={item.url} alt={item.alt || form.title} />
+                      <img
+                        src={item.url}
+                        alt={item.alt || form.title}
+                        role={item.isDeleted ? undefined : "button"}
+                        tabIndex={item.isDeleted ? -1 : 0}
+                        title={item.isDeleted ? undefined : "Ampliar imagem"}
+                        onClick={() => {
+                          if (item.isDeleted) return;
+                          const visibleIndex = visibleMedia.indexOf(item);
+                          if (visibleIndex >= 0)
+                            setImagePreviewIndex(visibleIndex);
+                        }}
+                        onKeyDown={(event) => {
+                          if (
+                            item.isDeleted ||
+                            (event.key !== "Enter" && event.key !== " ")
+                          )
+                            return;
+                          event.preventDefault();
+                          const visibleIndex = visibleMedia.indexOf(item);
+                          if (visibleIndex >= 0)
+                            setImagePreviewIndex(visibleIndex);
+                        }}
+                      />
                       {media.findIndex((mediaItem) => !mediaItem.isDeleted) ===
                         index && <span>Principal</span>}
                       {item.isDeleted && <em>{"Ser\u00e1 exclu\u00edda"}</em>}
@@ -1805,6 +1868,68 @@ export function ProductDetailsDrawer({
           />
         )}
       </aside>
+      {imagePreviewIndex !== null && visibleMedia[imagePreviewIndex] && (
+        <div
+          className="product-image-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Visualização ampliada da imagem do produto"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget)
+              setImagePreviewIndex(null);
+          }}
+        >
+          <button
+            className="product-image-lightbox-close"
+            type="button"
+            onClick={() => setImagePreviewIndex(null)}
+            aria-label="Fechar imagem ampliada"
+          >
+            <X size={22} />
+          </button>
+          {visibleMedia.length > 1 && (
+            <button
+              className="product-image-lightbox-nav is-previous"
+              type="button"
+              onClick={() =>
+                setImagePreviewIndex((current) =>
+                  current === null || current === 0
+                    ? visibleMedia.length - 1
+                    : current - 1,
+                )
+              }
+              aria-label="Imagem anterior"
+            >
+              <ArrowLeft size={24} />
+            </button>
+          )}
+          <img
+            src={visibleMedia[imagePreviewIndex].url}
+            alt={visibleMedia[imagePreviewIndex].alt || title}
+          />
+          {visibleMedia.length > 1 && (
+            <>
+              <button
+                className="product-image-lightbox-nav is-next"
+                type="button"
+                onClick={() =>
+                  setImagePreviewIndex((current) =>
+                    current === null || current === visibleMedia.length - 1
+                      ? 0
+                      : current + 1,
+                  )
+                }
+                aria-label="Próxima imagem"
+              >
+                <ArrowRight size={24} />
+              </button>
+              <span className="product-image-lightbox-count">
+                {imagePreviewIndex + 1} / {visibleMedia.length}
+              </span>
+            </>
+          )}
+        </div>
+      )}
     </>
   );
 }
