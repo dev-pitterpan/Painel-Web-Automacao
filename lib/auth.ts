@@ -1005,18 +1005,25 @@ export async function getShopifyCatalogProductsBySkus(skus: string[]) {
   if (!normalizedSkus.length)
     return new Map<
       string,
-      { title: string; vendor: string; tags: string[]; collections: string[] }
+      {
+        title: string;
+        vendor: string;
+        productType: string;
+        tags: string[];
+        collections: string[];
+      }
     >();
 
   const rows = await query<{
     primary_sku: string;
     title: string;
     vendor: string;
+    product_type: string;
     tags_json: unknown;
     collections_json: unknown;
     variants_json: unknown;
   }>(
-    `SELECT p.primary_sku, p.title, p.vendor, p.tags_json,
+    `SELECT p.primary_sku, p.title, p.vendor, p.product_type, p.tags_json,
        p.collections_json, p.variants_json
      FROM shopify_catalog_products p
      WHERE p.primary_sku = ANY($1::text[])
@@ -1028,12 +1035,19 @@ export async function getShopifyCatalogProductsBySkus(skus: string[]) {
   );
   const bySku = new Map<
     string,
-    { title: string; vendor: string; tags: string[]; collections: string[] }
+    {
+      title: string;
+      vendor: string;
+      productType: string;
+      tags: string[];
+      collections: string[];
+    }
   >();
   rows.forEach((row) => {
     const product = {
       title: String(row.title || ""),
       vendor: String(row.vendor || ""),
+      productType: String(row.product_type || ""),
       tags: Array.isArray(row.tags_json) ? row.tags_json.map(String) : [],
       collections: Array.isArray(row.collections_json)
         ? row.collections_json.map(String)

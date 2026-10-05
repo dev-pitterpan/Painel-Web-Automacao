@@ -20,6 +20,7 @@ import {
 import {
   AlertCircle,
   Box,
+  Check,
   CheckCircle2,
   Clock3,
   Columns3,
@@ -129,6 +130,131 @@ const Badge = ({ status }: { status: string }) => (
       : "Sucesso"}
   </span>
 );
+
+type ProcessedFilterKey =
+  "vendor" | "tag" | "status" | "productType" | "collection";
+type ProcessedFacets = Record<ProcessedFilterKey, string[]>;
+const PROCESSED_FILTER_LABELS: Record<ProcessedFilterKey, string> = {
+  vendor: "Fabricante",
+  tag: "Tag",
+  status: "Status",
+  productType: "Tipo de produto",
+  collection: "Coleção",
+};
+
+function ProcessedFilterPicker({
+  facets,
+  filters,
+  onChange,
+}: {
+  facets: ProcessedFacets;
+  filters: Partial<Record<ProcessedFilterKey, string>>;
+  onChange: (key: ProcessedFilterKey, value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<ProcessedFilterKey | null>(null);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!ref.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setKind(null);
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+
+  const visible = kind
+    ? facets[kind].filter((value) =>
+        value
+          .toLocaleLowerCase("pt-BR")
+          .includes(search.toLocaleLowerCase("pt-BR")),
+      )
+    : [];
+
+  return (
+    <div className="catalog-filter-picker" ref={ref}>
+      <button
+        className="catalog-add-filter"
+        type="button"
+        onClick={() => {
+          setOpen((value) => !value);
+          setKind(null);
+          setSearch("");
+        }}
+      >
+        <Plus size={14} /> Adicionar filtro
+      </button>
+      {open && (
+        <div className="catalog-filter-popover">
+          {!kind ? (
+            (Object.keys(PROCESSED_FILTER_LABELS) as ProcessedFilterKey[]).map(
+              (key) => (
+                <button type="button" key={key} onClick={() => setKind(key)}>
+                  {PROCESSED_FILTER_LABELS[key]}
+                  <ChevronRight size={14} />
+                </button>
+              ),
+            )
+          ) : (
+            <>
+              <div className="catalog-filter-popover-head">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKind(null);
+                    setSearch("");
+                  }}
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <strong>{PROCESSED_FILTER_LABELS[kind]}</strong>
+              </div>
+              <label className="catalog-filter-option-search">
+                <Search size={14} />
+                <input
+                  autoFocus
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder={`Pesquisar ${PROCESSED_FILTER_LABELS[kind].toLowerCase()}`}
+                />
+              </label>
+              <div className="catalog-filter-options">
+                {visible.map((value) => (
+                  <button
+                    type="button"
+                    key={value}
+                    onClick={() => {
+                      onChange(kind, value);
+                      setOpen(false);
+                      setKind(null);
+                    }}
+                  >
+                    <span
+                      className={`catalog-filter-checkbox ${filters[kind] === value ? "is-checked" : ""}`}
+                    >
+                      {filters[kind] === value && <Check size={12} />}
+                    </span>
+                    {value}
+                  </button>
+                ))}
+                {!visible.length && (
+                  <span className="processed-filter-empty">
+                    Nenhuma opção disponível.
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const Metric = ({
   label,
@@ -352,6 +478,9 @@ export function DashboardClient({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [productsPage, setProductsPage] = useState(1);
   const [productsSort, setProductsSort] = useState<"recent" | "az">("recent");
+  const [processedFilters, setProcessedFilters] = useState<
+    Partial<Record<ProcessedFilterKey, string>>
+  >({});
   const automationHealthRef = useRef<
     "unknown" | "operational" | "warning" | "error"
   >("unknown");
@@ -513,8 +642,77 @@ export function DashboardClient({
         previousRate === null ? null : errorRate - previousRate,
     };
   }, [data, errorOverviewRows]);
-  const displayedRows = useMemo(() => {
+  const processedFacets = useMemo<ProcessedFacets>(() => {
     const rows = data?.rows || [];
+    const unique = (values: string[]) =>
+      [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }),
+      );
+    const split = (value: string) =>
+      String(value || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    return {
+      vendor: unique(rows.map((row) => row.marca)),
+      tag: unique(
+        rows.flatMap((row) => split(row.tagsDepois || row.tagsAntes)),
+      ),
+      status: unique(
+        rows.map((row) =>
+          row.status.toLocaleLowerCase("pt-BR").startsWith("erro")
+            ? "Erro"
+            : "Sucesso",
+        ),
+      ),
+      productType: unique(rows.map((row) => row.tipoProduto || "")),
+      collection: unique(
+        rows.flatMap((row) => split(row.colecoesDepois || row.colecoesAntes)),
+      ),
+    };
+  }, [data]);
+  const displayedRows = useMemo(() => {
+    const includesListValue = (source: string, expected: string) =>
+      String(source || "")
+        .split(",")
+        .some(
+          (item) =>
+            item.trim().toLocaleLowerCase("pt-BR") ===
+            expected.toLocaleLowerCase("pt-BR"),
+        );
+    const rows = (data?.rows || []).filter((row) => {
+      if (mode !== "products") return true;
+      if (processedFilters.vendor && row.marca !== processedFilters.vendor)
+        return false;
+      if (
+        processedFilters.tag &&
+        !includesListValue(
+          row.tagsDepois || row.tagsAntes,
+          processedFilters.tag,
+        )
+      )
+        return false;
+      if (
+        processedFilters.collection &&
+        !includesListValue(
+          row.colecoesDepois || row.colecoesAntes,
+          processedFilters.collection,
+        )
+      )
+        return false;
+      if (
+        processedFilters.productType &&
+        row.tipoProduto !== processedFilters.productType
+      )
+        return false;
+      if (processedFilters.status) {
+        const status = row.status.toLocaleLowerCase("pt-BR").startsWith("erro")
+          ? "Erro"
+          : "Sucesso";
+        if (status !== processedFilters.status) return false;
+      }
+      return true;
+    });
     if (mode !== "products" || productsSort === "recent") return rows;
     return [...rows].sort((a, b) =>
       String(a.tituloDepois || a.tituloAntes || "").localeCompare(
@@ -523,7 +721,7 @@ export function DashboardClient({
         { sensitivity: "base", numeric: true },
       ),
     );
-  }, [data, mode, productsSort]);
+  }, [data, mode, processedFilters, productsSort]);
   const visibleRows = useMemo(
     () =>
       displayedRows.slice(
@@ -1290,29 +1488,17 @@ export function DashboardClient({
                 onChange={(event) => setQ(event.target.value)}
               />
             </label>
-            <label className="processed-brand-picker">
-              <Plus size={14} aria-hidden="true" />
-              <select
-                value={marca}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setMarca(value);
-                  setProductsPage(1);
-                  setAppliedFilters((current) => ({
-                    ...current,
-                    marca: value,
-                  }));
-                }}
-                aria-label="Filtrar por marca"
-              >
-                <option value="">Adicionar filtro</option>
-                {data.brands.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <ProcessedFilterPicker
+              facets={processedFacets}
+              filters={processedFilters}
+              onChange={(key, value) => {
+                setProcessedFilters((current) => ({
+                  ...current,
+                  [key]: value,
+                }));
+                setProductsPage(1);
+              }}
+            />
             <button
               className="catalog-columns-button"
               type="button"
@@ -1455,6 +1641,34 @@ export function DashboardClient({
           </>
         )}
       </form>
+
+      {mode === "products" && Object.keys(processedFilters).length > 0 && (
+        <div className="catalog-filter-chips processed-filter-chips">
+          {(
+            Object.entries(processedFilters) as Array<
+              [ProcessedFilterKey, string]
+            >
+          ).map(([key, value]) => (
+            <span key={key}>
+              <b>{PROCESSED_FILTER_LABELS[key]}:</b> {value}
+              <button
+                type="button"
+                onClick={() => {
+                  setProcessedFilters((current) => {
+                    const next = { ...current };
+                    delete next[key];
+                    return next;
+                  });
+                  setProductsPage(1);
+                }}
+                aria-label={`Remover filtro ${PROCESSED_FILTER_LABELS[key]}`}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       {mode === "dashboard" && data.rows.length === 0 && (
         <section

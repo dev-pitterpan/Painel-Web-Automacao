@@ -2,6 +2,7 @@ export type HistoryRow = {
   dataHora: string;
   sku: string;
   marca: string;
+  tipoProduto?: string;
   tituloAntes: string;
   tituloDepois: string;
   tagsAntes: string;

@@ -7508,6 +7508,19 @@ tbody tr:hover {
   margin: 0 0 9px;
   background: #fff;
 }
+.processed-filter-chips {
+  margin: -2px 0 9px;
+  padding: 8px 10px;
+  border: 1px solid #dfe3e8;
+  border-radius: 10px;
+  background: #fff;
+}
+.processed-filter-empty {
+  display: block;
+  padding: 12px 9px;
+  color: #667085;
+  font-size: 11px;
+}
 .processed-status-picker,
 .processed-brand-picker {
   position: relative;

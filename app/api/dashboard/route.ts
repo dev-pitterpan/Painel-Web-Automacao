@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
           tagsDepois: catalogProduct.tags.join(", "),
           colecoesDepois: catalogProduct.collections.join(", "),
           marca: catalogProduct.vendor || row.marca,
+          tipoProduto: catalogProduct.productType,
         };
       if (!override) return row;
       return {
