@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
+import sharp from "sharp";
 import {
   enqueueProductImageDeletions,
   enqueueProductImageReorder,
@@ -28,20 +29,46 @@ function cleanList(value: unknown) {
   ].slice(0, 250);
 }
 
-function cleanImages(value: unknown) {
+const PRODUCT_IMAGE_SIZE = 1000;
+const PRODUCT_IMAGE_JPEG_QUALITY = 90;
+
+async function normalizeProductImage(value: unknown) {
+  const source = cleanText(value, 14_000_000);
+  const match = /^data:image\/[a-z0-9.+-]+;base64,([a-z0-9+/=]+)$/i.exec(
+    source,
+  );
+  if (!match) throw new Error("Uma das imagens enviadas é inválida.");
+  const input = Buffer.from(match[1], "base64");
+  if (!input.length || input.byteLength > 10 * 1024 * 1024)
+    throw new Error("Use arquivos de imagem de até 10 MB.");
+  try {
+    const output = await sharp(input, { animated: false })
+      .rotate()
+      .resize(PRODUCT_IMAGE_SIZE, PRODUCT_IMAGE_SIZE, {
+        fit: "contain",
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      })
+      .flatten({ background: "#ffffff" })
+      .jpeg({ quality: PRODUCT_IMAGE_JPEG_QUALITY, mozjpeg: true })
+      .toBuffer();
+    return `data:image/jpeg;base64,${output.toString("base64")}`;
+  } catch {
+    throw new Error("Uma das imagens não pôde ser convertida para JPG.");
+  }
+}
+
+async function cleanImages(value: unknown) {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, 5).map((item) => {
-    const source = cleanText(item?.source, 1_500_000);
-    const alt = cleanText(item?.alt, 500);
-    const position = Number(item?.position);
-    if (!/^data:image\/jpeg;base64,[a-z0-9+/=]+$/i.test(source))
-      throw new Error(
-        "As imagens devem ser convertidas para JPG antes do envio.",
-      );
-    if (!Number.isInteger(position) || position < 0 || position > 99)
-      throw new Error("A posição de uma das imagens é inválida.");
-    return { source, alt, position };
-  });
+  return Promise.all(
+    value.slice(0, 5).map(async (item) => {
+      const source = await normalizeProductImage(item?.source);
+      const alt = cleanText(item?.alt, 500);
+      const position = Number(item?.position);
+      if (!Number.isInteger(position) || position < 0 || position > 99)
+        throw new Error("A posição de uma das imagens é inválida.");
+      return { source, alt, position };
+    }),
+  );
 }
 
 function cleanMediaIds(value: unknown) {
@@ -124,7 +151,7 @@ export async function POST(req: NextRequest) {
   const imageReorder = cleanImageReorder(body?.imageReorder);
   let images: Array<{ source: string; alt: string; position: number }> = [];
   try {
-    images = cleanImages(body?.images);
+    images = await cleanImages(body?.images);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Imagem inválida." },
