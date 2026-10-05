@@ -7590,6 +7590,28 @@ tbody tr:hover {
 .processed-products-workspace .products-panel-controls .catalog-reset-sort {
   flex: 0 0 auto;
 }
+.processed-products-workspace:has(.catalog-bulk-menu[open]) {
+  overflow: visible;
+}
+.processed-products-workspace .shopify-products-selectionbar {
+  z-index: auto;
+}
+.processed-products-workspace .catalog-bulk-menu {
+  z-index: auto;
+}
+.processed-products-workspace .catalog-bulk-menu[open] {
+  z-index: 1000;
+}
+.processed-products-workspace .catalog-bulk-menu[open] > div {
+  z-index: 1001;
+  isolation: isolate;
+  background: #fff;
+  box-shadow: 0 16px 38px rgba(20, 35, 60, 0.24);
+}
+.processed-products-workspace .shopify-products-table {
+  position: relative;
+  z-index: 0;
+}
 .processed-products-workspace .shopify-product-main {
   min-width: 280px;
 }
