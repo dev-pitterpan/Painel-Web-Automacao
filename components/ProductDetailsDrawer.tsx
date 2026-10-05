@@ -84,6 +84,8 @@ type ProductMedia = {
 const DOCK_MIN_WIDTH = 320;
 const DOCK_MAX_WIDTH = 760;
 const DOCK_MIN_CONTENT_WIDTH = 480;
+const PRODUCT_IMAGE_SIZE = 1000;
+const PRODUCT_IMAGE_JPEG_QUALITY = 0.9;
 
 function splitChoices(value: string) {
   return value
@@ -993,11 +995,8 @@ export function ProductDetailsDrawer({
     try {
       const additions = await Promise.all(
         files.slice(0, available).map(async (file) => {
-          if (
-            !/^image\/(png|jpeg|webp)$/.test(file.type) ||
-            file.size > 10 * 1024 * 1024
-          )
-            throw new Error("Use imagens PNG, JPG ou WebP de até 10 MB.");
+          if (!file.type.startsWith("image/") || file.size > 10 * 1024 * 1024)
+            throw new Error("Use um arquivo de imagem de até 10 MB.");
           const source = URL.createObjectURL(file);
           try {
             const image = new Image();
@@ -1006,19 +1005,33 @@ export function ProductDetailsDrawer({
               image.onerror = () => reject(new Error("Imagem inválida."));
               image.src = source;
             });
+            if (!image.naturalWidth || !image.naturalHeight)
+              throw new Error("Imagem inválida.");
             const scale = Math.min(
-              1,
-              1600 / Math.max(image.naturalWidth, image.naturalHeight),
+              PRODUCT_IMAGE_SIZE / image.naturalWidth,
+              PRODUCT_IMAGE_SIZE / image.naturalHeight,
             );
+            const width = Math.max(1, Math.round(image.naturalWidth * scale));
+            const height = Math.max(1, Math.round(image.naturalHeight * scale));
             const canvas = document.createElement("canvas");
-            canvas.width = Math.round(image.naturalWidth * scale);
-            canvas.height = Math.round(image.naturalHeight * scale);
+            canvas.width = PRODUCT_IMAGE_SIZE;
+            canvas.height = PRODUCT_IMAGE_SIZE;
             const context = canvas.getContext("2d");
             if (!context)
               throw new Error("Não foi possível processar a imagem.");
-            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            context.fillStyle = "#ffffff";
+            context.fillRect(0, 0, PRODUCT_IMAGE_SIZE, PRODUCT_IMAGE_SIZE);
+            context.imageSmoothingEnabled = true;
+            context.imageSmoothingQuality = "high";
+            context.drawImage(
+              image,
+              Math.round((PRODUCT_IMAGE_SIZE - width) / 2),
+              Math.round((PRODUCT_IMAGE_SIZE - height) / 2),
+              width,
+              height,
+            );
             return {
-              url: canvas.toDataURL("image/jpeg", 0.84),
+              url: canvas.toDataURL("image/jpeg", PRODUCT_IMAGE_JPEG_QUALITY),
               alt: form!.title,
               isNew: true,
             } satisfies ProductMedia;
@@ -1534,8 +1547,9 @@ export function ProductDetailsDrawer({
                   <div>
                     <strong>Mídias</strong>
                     <small>
-                      Arraste as mídias para reordenar. Para adicionar, clique
-                      no +, solte uma imagem ou use Ctrl + V.
+                      Arraste para reordenar. Novas imagens são convertidas para
+                      JPG em 1000 × 1000 px. Para adicionar, clique no +, solte
+                      uma imagem ou use Ctrl + V.
                     </small>
                   </div>
                   <input
@@ -1543,7 +1557,7 @@ export function ProductDetailsDrawer({
                     type="file"
                     hidden
                     multiple
-                    accept="image/png,image/jpeg,image/webp"
+                    accept="image/*"
                     onChange={addMedia}
                   />
                 </div>

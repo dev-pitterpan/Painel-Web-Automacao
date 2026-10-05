@@ -34,8 +34,10 @@ function cleanImages(value: unknown) {
     const source = cleanText(item?.source, 1_500_000);
     const alt = cleanText(item?.alt, 500);
     const position = Number(item?.position);
-    if (!/^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(source))
-      throw new Error("Uma das imagens enviadas é inválida.");
+    if (!/^data:image\/jpeg;base64,[a-z0-9+/=]+$/i.test(source))
+      throw new Error(
+        "As imagens devem ser convertidas para JPG antes do envio.",
+      );
     if (!Number.isInteger(position) || position < 0 || position > 99)
       throw new Error("A posição de uma das imagens é inválida.");
     return { source, alt, position };
