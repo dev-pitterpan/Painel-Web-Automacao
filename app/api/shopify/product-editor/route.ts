@@ -14,6 +14,7 @@ import {
 import {
   shopifyProductToCatalog,
   updateShopifyProduct,
+  updateShopifyProductSalesChannels,
 } from "@/lib/shopify-admin";
 
 function cleanText(value: unknown, max: number) {
@@ -127,6 +128,17 @@ function cleanImageReorder(value: unknown) {
   });
 }
 
+function cleanPublicationChanges(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 100).flatMap((item) => {
+    const publicationId = cleanText(item?.publicationId, 200);
+    return /^gid:\/\/shopify\/Publication\/\d+$/.test(publicationId) &&
+      typeof item?.published === "boolean"
+      ? [{ publicationId, published: item.published }]
+      : [];
+  });
+}
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user)
@@ -149,6 +161,7 @@ export async function POST(req: NextRequest) {
   const deleteImagePositions = cleanImagePositions(body?.deleteImagePositions);
   const mediaMoves = cleanMediaMoves(body?.mediaMoves);
   const imageReorder = cleanImageReorder(body?.imageReorder);
+  const publicationChanges = cleanPublicationChanges(body?.publicationChanges);
   let images: Array<{ source: string; alt: string; position: number }> = [];
   try {
     images = await cleanImages(body?.images);
@@ -189,6 +202,12 @@ export async function POST(req: NextRequest) {
       deleteMediaIds,
       mediaMoves,
     });
+    const salesChannels = publicationChanges.length
+      ? await updateShopifyProductSalesChannels(
+          catalogProduct.id,
+          publicationChanges,
+        )
+      : undefined;
     const synchronizedProduct = shopifyProductToCatalog(updatedProduct);
     await upsertShopifyCatalogProducts([synchronizedProduct]);
     await upsertProductOverride(user, {
@@ -248,6 +267,7 @@ export async function POST(req: NextRequest) {
           "weight",
           ...(images.length ? ["images"] : []),
           ...(deleteMediaIds.length ? ["deleted_images"] : []),
+          ...(publicationChanges.length ? ["sales_channels"] : []),
         ],
       },
     });
@@ -270,6 +290,7 @@ export async function POST(req: NextRequest) {
         weight: synchronizedProduct.weight,
         weightUnit: synchronizedProduct.weightUnit,
         images: synchronizedProduct.media,
+        ...(salesChannels ? { salesChannels } : {}),
       },
     });
   } catch (error) {

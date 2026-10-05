@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth";
 import {
   fetchShopifyProduct,
+  getShopifyProductSalesChannels,
   shopifyProductToCatalog,
 } from "@/lib/shopify-admin";
 
@@ -114,6 +115,27 @@ export async function GET(req: NextRequest) {
           }
         } catch {
           // Mantém os detalhes locais disponíveis se a consulta pontual falhar.
+        }
+      }
+      if (product) {
+        try {
+          const salesChannels = await getShopifyProductSalesChannels(
+            product.id,
+          );
+          product = {
+            ...product,
+            salesChannels,
+            salesChannelsError: "",
+          } as typeof product;
+        } catch (channelError) {
+          product = {
+            ...product,
+            salesChannels: [],
+            salesChannelsError:
+              channelError instanceof Error
+                ? channelError.message
+                : "Não foi possível consultar os canais de venda.",
+          } as typeof product;
         }
       }
       return product

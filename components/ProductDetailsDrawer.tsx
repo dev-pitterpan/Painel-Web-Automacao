@@ -31,6 +31,7 @@ import {
   Search,
   Scale,
   ShoppingBag,
+  Store,
   Tag,
   Code2,
   Underline,
@@ -77,6 +78,11 @@ type ProductMedia = {
   isNew?: boolean;
   isDeleted?: boolean;
   originalPosition?: number;
+};
+type SalesChannel = {
+  id: string;
+  name: string;
+  published: boolean;
 };
 
 /* Limites do painel ancorado (apenas desktop, via ProductPanelProvider).
@@ -546,6 +552,11 @@ export function ProductDetailsDrawer({
   );
   const [mediaLoading, setMediaLoading] = useState(false);
   const [barcode, setBarcode] = useState("");
+  const [salesChannels, setSalesChannels] = useState<SalesChannel[]>([]);
+  const [originalSalesChannels, setOriginalSalesChannels] = useState<
+    SalesChannel[]
+  >([]);
+  const [salesChannelsError, setSalesChannelsError] = useState("");
   const [mediaDragging, setMediaDragging] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [availableCollections, setAvailableCollections] = useState<string[]>(
@@ -629,6 +640,9 @@ export function ProductDetailsDrawer({
     setAvailableTags([]);
     setAvailableCollections([]);
     setBarcode("");
+    setSalesChannels([]);
+    setOriginalSalesChannels([]);
+    setSalesChannelsError("");
     setMediaSlideIndex(0);
     setMessage("");
     setError("");
@@ -732,6 +746,12 @@ export function ProductDetailsDrawer({
   const deletedMediaCount = media.filter(
     (item) => item.isDeleted && item.id,
   ).length;
+  const salesChannelChanges = salesChannels.filter((channel) => {
+    const initial = originalSalesChannels.find(
+      (item) => item.id === channel.id,
+    );
+    return initial && initial.published !== channel.published;
+  });
   const visibleMedia = useMemo(
     () => media.filter((item) => !item.isDeleted && item.url),
     [media],
@@ -821,6 +841,7 @@ export function ProductDetailsDrawer({
     changedFields +
     newMediaCount +
     deletedMediaCount +
+    salesChannelChanges.length +
     (mediaOrderChanged ? 1 : 0);
 
   if (!row || !activeRow || !form || !original) return null;
@@ -999,6 +1020,18 @@ export function ProductDetailsDrawer({
           : [],
       );
       setBarcode(String(product.barcode || ""));
+      const loadedSalesChannels = Array.isArray(product.salesChannels)
+        ? product.salesChannels
+            .map((item: any) => ({
+              id: String(item?.id || ""),
+              name: String(item?.name || "Canal de venda"),
+              published: item?.published === true,
+            }))
+            .filter((item: SalesChannel) => item.id)
+        : [];
+      setSalesChannels(loadedSalesChannels);
+      setOriginalSalesChannels(loadedSalesChannels);
+      setSalesChannelsError(String(product.salesChannelsError || ""));
       const loadedMedia = productMedia
         .map((item: any, index: number) => ({
           id: String(item?.id || ""),
@@ -1176,6 +1209,10 @@ export function ProductDetailsDrawer({
             .map(({ position }) => position),
           mediaMoves,
           imageReorder,
+          publicationChanges: salesChannelChanges.map((channel) => ({
+            publicationId: channel.id,
+            published: channel.published,
+          })),
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -1184,6 +1221,12 @@ export function ProductDetailsDrawer({
       invalidateProductDetails(activeRow!.sku, currentTitle(activeRow!));
       onProductUpdated?.(activeRow!, body.product);
       setOriginal(form!);
+      const returnedSalesChannels = Array.isArray(body.product?.salesChannels)
+        ? body.product.salesChannels
+        : salesChannels;
+      setSalesChannels(returnedSalesChannels);
+      setOriginalSalesChannels(returnedSalesChannels);
+      setSalesChannelsError("");
       const returnedMedia = body.product?.images;
       if (Array.isArray(returnedMedia) && returnedMedia.length) {
         const savedMedia = returnedMedia
@@ -1543,6 +1586,42 @@ export function ProductDetailsDrawer({
                     {activeRow.descricaoGerada ? "Gerada" : "Não gerada"}
                   </span>
                 </section>
+                <section className="product-sales-channels-summary">
+                  <div className="product-sales-channels-heading">
+                    <span>
+                      <Store size={17} />
+                    </span>
+                    <div>
+                      <strong>Canais de venda</strong>
+                      <small>
+                        {
+                          salesChannels.filter((channel) => channel.published)
+                            .length
+                        }{" "}
+                        de {salesChannels.length} canais publicados
+                      </small>
+                    </div>
+                  </div>
+                  {salesChannelsError ? (
+                    <p className="product-sales-channels-error">
+                      Canais indisponíveis. Autorize read_publications no app da
+                      Shopify.
+                    </p>
+                  ) : salesChannels.length ? (
+                    <div className="product-sales-channel-tags">
+                      {salesChannels
+                        .filter((channel) => channel.published)
+                        .map((channel) => (
+                          <span key={channel.id}>{channel.name}</span>
+                        ))}
+                      {!salesChannels.some((channel) => channel.published) && (
+                        <em>Não publicado em nenhum canal</em>
+                      )}
+                    </div>
+                  ) : (
+                    <p>Nenhum canal de venda disponível.</p>
+                  )}
+                </section>
               </div>
             </>
           )}
@@ -1794,6 +1873,52 @@ export function ProductDetailsDrawer({
                 options={availableCollections}
                 onChange={(value) => update("collections", value)}
               />
+              <section className="product-edit-card product-sales-channels-editor">
+                <span className="product-edit-card-icon">
+                  <Store size={18} />
+                </span>
+                <div className="product-sales-channels-content">
+                  <div>
+                    <strong>Canais de venda</strong>
+                    <small>
+                      Escolha onde este produto ficará disponível para venda.
+                    </small>
+                  </div>
+                  {salesChannelsError ? (
+                    <p className="product-sales-channels-error">
+                      Autorize read_publications e write_publications no app da
+                      Shopify para gerenciar os canais.
+                    </p>
+                  ) : salesChannels.length ? (
+                    <div className="product-sales-channel-list">
+                      {salesChannels.map((channel) => (
+                        <label key={channel.id}>
+                          <span>{channel.name}</span>
+                          <input
+                            type="checkbox"
+                            checked={channel.published}
+                            onChange={(event) =>
+                              setSalesChannels((current) =>
+                                current.map((item) =>
+                                  item.id === channel.id
+                                    ? {
+                                        ...item,
+                                        published: event.target.checked,
+                                      }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                          <i aria-hidden="true" />
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>Nenhum canal de venda disponível.</p>
+                  )}
+                </div>
+              </section>
               <ChoicePicker
                 label="Tags"
                 icon={<Tag size={18} />}
@@ -1842,6 +1967,7 @@ export function ProductDetailsDrawer({
               onClick={() => {
                 setForm(original);
                 setMedia(originalMedia);
+                setSalesChannels(originalSalesChannels);
                 setStep("details");
               }}
             >

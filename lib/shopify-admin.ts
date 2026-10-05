@@ -56,6 +56,17 @@ export type ShopifyProductUpdateInput = {
   mediaMoves: Array<{ id: string; newPosition: number }>;
 };
 
+export type ShopifySalesChannel = {
+  id: string;
+  name: string;
+  published: boolean;
+};
+
+export type ShopifyPublicationChange = {
+  publicationId: string;
+  published: boolean;
+};
+
 const PRODUCT_FIELDS = `
   id title handle vendor productType status tags descriptionHtml updatedAt
   featuredImage { url altText }
@@ -185,6 +196,97 @@ export async function fetchShopifyProduct(productId: string) {
     { id: productId },
   );
   return data.product;
+}
+
+export async function getShopifyProductSalesChannels(productId: string) {
+  const data = await shopifyGraphql<{
+    publications: { nodes: Array<{ id: string; name: string }> };
+    product: {
+      resourcePublicationsV2: {
+        nodes: Array<{
+          isPublished: boolean;
+          publication: { id: string };
+        }>;
+      };
+    } | null;
+  }>(
+    `query DashboardProductSalesChannels($id: ID!) {
+      publications(first: 100, catalogType: APP) {
+        nodes { id name }
+      }
+      product(id: $id) {
+        resourcePublicationsV2(first: 100, onlyPublished: false, catalogType: APP) {
+          nodes { isPublished publication { id } }
+        }
+      }
+    }`,
+    { id: productId },
+  );
+  if (!data.product) throw new Error("Produto não encontrado na Shopify.");
+  const published = new Map(
+    data.product.resourcePublicationsV2.nodes.map((node) => [
+      node.publication.id,
+      node.isPublished,
+    ]),
+  );
+  return data.publications.nodes
+    .map((publication) => ({
+      id: publication.id,
+      name: publication.name || "Canal de venda",
+      published: published.get(publication.id) === true,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+}
+
+export async function updateShopifyProductSalesChannels(
+  productId: string,
+  changes: ShopifyPublicationChange[],
+) {
+  const publish = changes
+    .filter((change) => change.published)
+    .map((change) => ({ publicationId: change.publicationId }));
+  const unpublish = changes
+    .filter((change) => !change.published)
+    .map((change) => ({ publicationId: change.publicationId }));
+  if (publish.length) {
+    const result = await shopifyGraphql<{
+      publishablePublish: { userErrors: GraphqlError[] };
+    }>(
+      `mutation DashboardPublishProduct($id: ID!, $input: [PublicationInput!]!) {
+        publishablePublish(id: $id, input: $input) {
+          userErrors { field message }
+        }
+      }`,
+      { id: productId, input: publish },
+    );
+    if (result.publishablePublish.userErrors?.length)
+      throw new Error(
+        errorMessage(
+          result.publishablePublish.userErrors,
+          "Não foi possível publicar o produto nos canais selecionados.",
+        ),
+      );
+  }
+  if (unpublish.length) {
+    const result = await shopifyGraphql<{
+      publishableUnpublish: { userErrors: GraphqlError[] };
+    }>(
+      `mutation DashboardUnpublishProductChannels($id: ID!, $input: [PublicationInput!]!) {
+        publishableUnpublish(id: $id, input: $input) {
+          userErrors { field message }
+        }
+      }`,
+      { id: productId, input: unpublish },
+    );
+    if (result.publishableUnpublish.userErrors?.length)
+      throw new Error(
+        errorMessage(
+          result.publishableUnpublish.userErrors,
+          "Não foi possível remover o produto dos canais selecionados.",
+        ),
+      );
+  }
+  return getShopifyProductSalesChannels(productId);
 }
 
 function weightForDashboard(product: ShopifyProductNode) {
