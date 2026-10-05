@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
       if (catalogProduct)
         return {
           ...row,
+          shopifyId: catalogProduct.shopifyId,
           tituloDepois: catalogProduct.title || row.tituloDepois,
           tagsDepois: catalogProduct.tags.join(", "),
           colecoesDepois: catalogProduct.collections.join(", "),

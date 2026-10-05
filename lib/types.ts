@@ -1,6 +1,7 @@
 export type HistoryRow = {
   dataHora: string;
   sku: string;
+  shopifyId?: string;
   marca: string;
   tipoProduto?: string;
   tituloAntes: string;

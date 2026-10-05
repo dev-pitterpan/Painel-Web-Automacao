@@ -1007,6 +1007,7 @@ export async function getShopifyCatalogProductsBySkus(skus: string[]) {
       string,
       {
         title: string;
+        shopifyId: string;
         vendor: string;
         productType: string;
         tags: string[];
@@ -1016,6 +1017,7 @@ export async function getShopifyCatalogProductsBySkus(skus: string[]) {
 
   const rows = await query<{
     primary_sku: string;
+    shopify_id: string;
     title: string;
     vendor: string;
     product_type: string;
@@ -1023,7 +1025,7 @@ export async function getShopifyCatalogProductsBySkus(skus: string[]) {
     collections_json: unknown;
     variants_json: unknown;
   }>(
-    `SELECT p.primary_sku, p.title, p.vendor, p.product_type, p.tags_json,
+    `SELECT p.shopify_id, p.primary_sku, p.title, p.vendor, p.product_type, p.tags_json,
        p.collections_json, p.variants_json
      FROM shopify_catalog_products p
      WHERE p.primary_sku = ANY($1::text[])
@@ -1037,6 +1039,7 @@ export async function getShopifyCatalogProductsBySkus(skus: string[]) {
     string,
     {
       title: string;
+      shopifyId: string;
       vendor: string;
       productType: string;
       tags: string[];
@@ -1046,6 +1049,7 @@ export async function getShopifyCatalogProductsBySkus(skus: string[]) {
   rows.forEach((row) => {
     const product = {
       title: String(row.title || ""),
+      shopifyId: String(row.shopify_id || ""),
       vendor: String(row.vendor || ""),
       productType: String(row.product_type || ""),
       tags: Array.isArray(row.tags_json) ? row.tags_json.map(String) : [],

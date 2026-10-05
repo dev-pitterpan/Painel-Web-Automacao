@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import {
   AlertCircle,
+  Archive,
   Box,
   Check,
   CheckCircle2,
@@ -26,12 +27,15 @@ import {
   Columns3,
   FileText,
   FolderOpen,
+  EyeOff,
   LoaderCircle,
   ListChecks,
+  MoreHorizontal,
   Plus,
   ShieldCheck,
   Search,
   Tags,
+  Trash2,
   RefreshCw,
   RotateCcw,
   ChevronLeft,
@@ -134,6 +138,7 @@ const Badge = ({ status }: { status: string }) => (
 type ProcessedFilterKey =
   "vendor" | "tag" | "status" | "productType" | "collection";
 type ProcessedFacets = Record<ProcessedFilterKey, string[]>;
+type ProductBulkAction = "archive" | "unpublish" | "delete";
 const PROCESSED_FILTER_LABELS: Record<ProcessedFilterKey, string> = {
   vendor: "Fabricante",
   tag: "Tag",
@@ -470,6 +475,8 @@ export function DashboardClient({
     [],
   );
   const [batchReprocessing, setBatchReprocessing] = useState(false);
+  const [productBulkAction, setProductBulkAction] =
+    useState<ProductBulkAction | null>(null);
   const [toast, setToast] = useState<{
     tone: "success" | "error";
     message: string;
@@ -1211,6 +1218,69 @@ export function DashboardClient({
         ? `Lote concluído: ${successes} com sucesso e ${failures} com falha.`
         : `Lote concluído: ${successes} produto${successes === 1 ? "" : "s"} reprocessado${successes === 1 ? "" : "s"} com sucesso.`,
     );
+  }
+
+  async function runProductBulkAction(action: ProductBulkAction) {
+    if (productBulkAction || batchReprocessing) return;
+    const selectedRows = (data?.rows || []).filter((row) =>
+      selectedReprocessKeys.includes(reprocessKey(row)),
+    );
+    const products = selectedRows
+      .filter((row) => row.shopifyId)
+      .map((row) => ({
+        shopifyId: row.shopifyId,
+        sku: row.sku,
+        title: row.tituloDepois || row.tituloAntes,
+      }));
+    if (!products.length) {
+      addNotification(
+        "error",
+        "Os produtos selecionados não possuem vínculo válido com a Shopify.",
+      );
+      return;
+    }
+
+    const count = products.length;
+    const plural = count === 1 ? "produto" : "produtos";
+    if (action === "delete") {
+      const confirmation = window.prompt(
+        `A exclusão de ${count} ${plural} é permanente no Shopify. Digite EXCLUIR para continuar.`,
+      );
+      if (confirmation !== "EXCLUIR") return;
+    } else {
+      const message =
+        action === "archive"
+          ? `Arquivar ${count} ${plural} no Shopify?`
+          : `Remover ${count} ${plural} de todos os canais de venda?`;
+      if (!window.confirm(message)) return;
+    }
+
+    setProductBulkAction(action);
+    try {
+      const response = await fetch("/api/shopify/product-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, products }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.ok)
+        throw new Error(result?.error || "Não foi possível concluir a ação.");
+      setSelectedReprocessKeys([]);
+      addNotification(
+        "success",
+        result.message || `${count} ${plural} atualizado com sucesso.`,
+      );
+      await load(true);
+    } catch (cause) {
+      addNotification(
+        "error",
+        cause instanceof Error
+          ? cause.message
+          : "Não foi possível concluir a ação.",
+      );
+    } finally {
+      setProductBulkAction(null);
+    }
   }
 
   if (loading || loadingExiting) {
@@ -2139,6 +2209,54 @@ export function DashboardClient({
                   >
                     <RefreshCw size={16} />
                   </button>
+                  <details className="catalog-bulk-menu">
+                    <summary aria-label="Mais ações">
+                      <MoreHorizontal size={18} />
+                    </summary>
+                    <div>
+                      <button
+                        type="button"
+                        disabled={
+                          !selectedReprocessKeys.length ||
+                          Boolean(productBulkAction)
+                        }
+                        onClick={() => runProductBulkAction("archive")}
+                      >
+                        <Archive size={15} />
+                        {productBulkAction === "archive"
+                          ? "Arquivando produtos..."
+                          : "Arquivar produtos"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          !selectedReprocessKeys.length ||
+                          Boolean(productBulkAction)
+                        }
+                        onClick={() => runProductBulkAction("unpublish")}
+                      >
+                        <EyeOff size={15} />
+                        {productBulkAction === "unpublish"
+                          ? "Removendo dos canais..."
+                          : "Remover produtos das listas"}
+                      </button>
+                      <button
+                        className="is-danger"
+                        type="button"
+                        disabled={
+                          !selectedReprocessKeys.length ||
+                          Boolean(productBulkAction)
+                        }
+                        onClick={() => runProductBulkAction("delete")}
+                      >
+                        <Trash2 size={15} />
+                        {productBulkAction === "delete"
+                          ? "Excluindo produtos..."
+                          : "Excluir produtos"}
+                      </button>
+                      <hr />
+                    </div>
+                  </details>
                 </div>
               ) : (
                 <div className="metric-note">{data.rows.length} registros</div>
