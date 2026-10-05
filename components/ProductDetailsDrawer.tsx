@@ -347,6 +347,24 @@ function HtmlDescriptionEditor({
     refreshActiveFormats();
   };
 
+  const normalizeDoubleClickSelection = () => {
+    window.requestAnimationFrame(() => {
+      const editor = editorRef.current;
+      const selection = window.getSelection();
+      if (
+        !editor ||
+        !selection?.anchorNode ||
+        !editor.contains(selection.anchorNode)
+      )
+        return;
+      if (document.queryCommandState("bold")) {
+        document.execCommand("bold");
+        onChange(editor.innerHTML);
+      }
+      setActiveFormats((current) => ({ ...current, bold: false }));
+    });
+  };
+
   return (
     <div className="html-description-editor">
       <div className="html-editor-toolbar" aria-label="Formatação da descrição">
@@ -428,6 +446,7 @@ function HtmlDescriptionEditor({
           onKeyDown={handleEditorShortcut}
           onKeyUp={refreshActiveFormats}
           onMouseUp={refreshActiveFormats}
+          onDoubleClick={normalizeDoubleClickSelection}
           onBlur={(event) => onChange(event.currentTarget.innerHTML)}
         />
       )}
