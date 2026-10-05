@@ -7502,6 +7502,113 @@ tbody tr:hover {
     grid-column: auto;
   }
 }
+
+/* Produtos processados seguem a mesma composição visual do catálogo Shopify. */
+.processed-products-commandbar {
+  margin: 0 0 9px;
+  background: #fff;
+}
+.processed-status-picker,
+.processed-brand-picker {
+  position: relative;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+}
+.processed-status-picker select,
+.processed-brand-picker select {
+  height: 100%;
+  min-height: 40px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.processed-status-picker select {
+  min-width: 78px;
+  padding: 0 10px;
+}
+.processed-brand-picker {
+  gap: 4px;
+  padding-left: 10px;
+  color: #4c5d75;
+  white-space: nowrap;
+}
+.processed-brand-picker select {
+  max-width: 190px;
+  padding: 0 8px 0 0;
+  color: #4c5d75;
+}
+.processed-products-workspace.products-list {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid #dfe3e8;
+  border-radius: 13px;
+  box-shadow: 0 2px 8px rgba(20, 35, 60, 0.04);
+}
+.processed-products-workspace .panel-head {
+  min-height: 46px;
+  padding: 4px 10px 8px 13px;
+  border-bottom: 1px solid #edf0f4;
+}
+.processed-products-workspace .shopify-products-table {
+  max-height: calc(100vh - 300px);
+}
+.processed-products-workspace .shopify-products-table table {
+  min-width: 1040px;
+}
+.processed-products-workspace .shopify-products-pagination {
+  margin: 8px;
+}
+.processed-products-workspace .products-panel-controls {
+  flex-wrap: nowrap;
+}
+.processed-products-workspace .products-panel-controls .notification-button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.processed-products-workspace .products-panel-controls .catalog-reset-sort {
+  flex: 0 0 auto;
+}
+.processed-products-workspace .shopify-product-main {
+  min-width: 280px;
+}
+
+@media (max-width: 720px) {
+  .processed-products-commandbar {
+    flex-wrap: wrap;
+  }
+  .processed-products-commandbar .shopify-command-search {
+    order: 3;
+    flex-basis: 100%;
+    border-top: 1px solid #edf0f4;
+  }
+  .processed-brand-picker {
+    margin-left: auto;
+  }
+  .processed-brand-picker select {
+    max-width: 145px;
+  }
+  .processed-products-workspace .panel-head {
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .processed-products-workspace .table-panel-actions,
+  .processed-products-workspace .products-panel-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .processed-products-workspace .batch-reprocess-btn {
+    margin-left: 0;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .metric-card,
   button {

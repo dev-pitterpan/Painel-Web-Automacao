@@ -22,10 +22,12 @@ import {
   Box,
   CheckCircle2,
   Clock3,
+  Columns3,
   FileText,
   FolderOpen,
   LoaderCircle,
   ListChecks,
+  Plus,
   ShieldCheck,
   Search,
   Tags,
@@ -1249,138 +1251,209 @@ export function DashboardClient({
       )}
 
       <form
-        className={`dashboard-topbar dashboard-topbar-${mode}`}
+        className={
+          mode === "products"
+            ? "shopify-products-commandbar processed-products-commandbar"
+            : `dashboard-topbar dashboard-topbar-${mode}`
+        }
         onSubmit={(event) => {
           event.preventDefault();
           applyFilters();
         }}
       >
-        <div className="topbar-search">
-          <Search size={18} aria-hidden="true" />
-          <input
-            placeholder="Buscar produtos, SKUs ou marcas..."
-            value={q}
-            onChange={(event) => setQ(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              setAppliedFilters((current) => ({ ...current, q }));
-            }}
-          />
-        </div>
-        {mode !== "products" && (
-          <select
-            className="topbar-period"
-            value={mode === "dashboard" ? month : days}
-            onChange={(event) =>
-              mode === "dashboard"
-                ? setMonth(event.target.value)
-                : setDays(event.target.value)
-            }
-            aria-label={
-              mode === "dashboard" ? "Período do dashboard" : "Período"
-            }
-          >
-            {mode === "dashboard" ? (
-              monthOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))
-            ) : (
-              <>
-                <option value="7">7 dias</option>
-                <option value="30">30 dias</option>
-                <option value="90">90 dias</option>
-                <option value="3650">Tudo</option>
-              </>
+        {mode === "products" ? (
+          <>
+            <label className="processed-status-picker">
+              <select
+                value={statusFilter}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setStatusFilter(value);
+                  setProductsPage(1);
+                  setAppliedFilters((current) => ({
+                    ...current,
+                    statusFilter: value,
+                  }));
+                }}
+                aria-label="Status do processamento"
+              >
+                <option value="">Todos</option>
+                <option value="sucesso">Sucesso</option>
+                <option value="erro">Erro</option>
+              </select>
+            </label>
+            <label className="shopify-command-search">
+              <Search size={17} aria-hidden="true" />
+              <input
+                placeholder="Pesquisar e filtrar"
+                value={q}
+                onChange={(event) => setQ(event.target.value)}
+              />
+            </label>
+            <label className="processed-brand-picker">
+              <Plus size={14} aria-hidden="true" />
+              <select
+                value={marca}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setMarca(value);
+                  setProductsPage(1);
+                  setAppliedFilters((current) => ({
+                    ...current,
+                    marca: value,
+                  }));
+                }}
+                aria-label="Filtrar por marca"
+              >
+                <option value="">Adicionar filtro</option>
+                {data.brands.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="catalog-columns-button"
+              type="button"
+              aria-label="Colunas"
+            >
+              <Columns3 size={17} />
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="topbar-search">
+              <Search size={18} aria-hidden="true" />
+              <input
+                placeholder="Buscar produtos, SKUs ou marcas..."
+                value={q}
+                onChange={(event) => setQ(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  setAppliedFilters((current) => ({ ...current, q }));
+                }}
+              />
+            </div>
+            <select
+              className="topbar-period"
+              value={mode === "dashboard" ? month : days}
+              onChange={(event) =>
+                mode === "dashboard"
+                  ? setMonth(event.target.value)
+                  : setDays(event.target.value)
+              }
+              aria-label={
+                mode === "dashboard" ? "Período do dashboard" : "Período"
+              }
+            >
+              {mode === "dashboard" ? (
+                monthOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="7">7 dias</option>
+                  <option value="30">30 dias</option>
+                  <option value="90">90 dias</option>
+                  <option value="3650">Tudo</option>
+                </>
+              )}
+            </select>
+            {mode === "dashboard" && (
+              <select
+                className="topbar-compare"
+                value={compareMonth}
+                onChange={(event) => setCompareMonth(event.target.value)}
+                disabled={month === "all"}
+                aria-label="Mês usado na comparação"
+              >
+                <option value="">Comparar: mês anterior</option>
+                {monthOptions
+                  .filter(
+                    (option) =>
+                      option.value !== "all" && option.value !== month,
+                  )
+                  .map((option) => (
+                    <option key={option.value} value={option.value}>
+                      Comparar com {option.label}
+                    </option>
+                  ))}
+              </select>
             )}
-          </select>
-        )}
-        {mode === "dashboard" && (
-          <select
-            className="topbar-compare"
-            value={compareMonth}
-            onChange={(event) => setCompareMonth(event.target.value)}
-            disabled={month === "all"}
-            aria-label="Mês usado na comparação"
-          >
-            <option value="">Comparar: mês anterior</option>
-            {monthOptions
-              .filter(
-                (option) => option.value !== "all" && option.value !== month,
-              )
-              .map((option) => (
-                <option key={option.value} value={option.value}>
-                  Comparar com {option.label}
+            <select
+              className="topbar-brand"
+              value={marca}
+              onChange={(event) => setMarca(event.target.value)}
+              aria-label="Marca"
+            >
+              <option value="">Todas as marcas</option>
+              {data.brands.map((item) => (
+                <option key={item} value={item}>
+                  {item}
                 </option>
               ))}
-          </select>
+            </select>
+            <button className="topbar-submit" type="submit">
+              Aplicar
+            </button>
+            {hasActiveFilters && (
+              <button
+                className="topbar-reset"
+                type="button"
+                onClick={resetFilters}
+              >
+                <RotateCcw size={14} />
+                Resetar
+              </button>
+            )}
+            {mode === "dashboard" && data.source && (
+              <div className="topbar-sheet">
+                <span className="sheets-icon">
+                  <img src="/icons/google-sheets.png" alt="" />
+                </span>
+                <span>
+                  <strong>Google Sheets</strong>
+                  <small>
+                    <i />
+                    Conectado
+                  </small>
+                </span>
+              </div>
+            )}
+            {mode === "dashboard" && data.source && (
+              <div className="topbar-sync">
+                <RefreshCw size={16} />
+                <span>
+                  Última sincronização
+                  <strong>
+                    {new Date(data.source.lastSyncedAt).toLocaleString("pt-BR")}
+                  </strong>
+                </span>
+              </div>
+            )}
+            <div className="head-actions topbar-actions">
+              <NotificationCenter
+                notifications={notifications}
+                open={notificationsOpen}
+                onOpenChange={setNotificationsOpen}
+                onClear={() => setNotifications([])}
+                onRemove={(id) =>
+                  setNotifications((current) =>
+                    current.filter((notification) => notification.id !== id),
+                  )
+                }
+              />
+              <button className="btn" type="button" onClick={() => load(true)}>
+                <RefreshCw size={16} />
+                <span>Atualizar</span>
+              </button>
+            </div>
+          </>
         )}
-        <select
-          className="topbar-brand"
-          value={marca}
-          onChange={(event) => setMarca(event.target.value)}
-          aria-label="Marca"
-        >
-          <option value="">Todas as marcas</option>
-          {data.brands.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-        <button className="topbar-submit" type="submit">
-          Aplicar
-        </button>
-        {hasActiveFilters && (
-          <button className="topbar-reset" type="button" onClick={resetFilters}>
-            <RotateCcw size={14} />
-            Resetar
-          </button>
-        )}
-        {mode === "dashboard" && data.source && (
-          <div className="topbar-sheet">
-            <span className="sheets-icon">
-              <img src="/icons/google-sheets.png" alt="" />
-            </span>
-            <span>
-              <strong>Google Sheets</strong>
-              <small>
-                <i />
-                Conectado
-              </small>
-            </span>
-          </div>
-        )}
-        {mode === "dashboard" && data.source && (
-          <div className="topbar-sync">
-            <RefreshCw size={16} />
-            <span>
-              Última sincronização
-              <strong>
-                {new Date(data.source.lastSyncedAt).toLocaleString("pt-BR")}
-              </strong>
-            </span>
-          </div>
-        )}
-        <div className="head-actions topbar-actions">
-          <NotificationCenter
-            notifications={notifications}
-            open={notificationsOpen}
-            onOpenChange={setNotificationsOpen}
-            onClear={() => setNotifications([])}
-            onRemove={(id) =>
-              setNotifications((current) =>
-                current.filter((notification) => notification.id !== id),
-              )
-            }
-          />
-          <button className="btn" type="button" onClick={() => load(true)}>
-            <RefreshCw size={16} />
-            <span>Atualizar</span>
-          </button>
-        </div>
       </form>
 
       {mode === "dashboard" && data.rows.length === 0 && (
@@ -1806,7 +1879,9 @@ export function DashboardClient({
               {mode === "errors"
                 ? "Últimos erros"
                 : mode === "products"
-                  ? "Produtos do catálogo"
+                  ? selectedReprocessKeys.length
+                    ? `${selectedReprocessKeys.length} ${selectedReprocessKeys.length === 1 ? "produto selecionado" : "produtos selecionados"}`
+                    : `${displayedRows.length.toLocaleString("pt-BR")} produtos`
                   : "Últimos processamentos"}
             </div>
 
@@ -1828,7 +1903,28 @@ export function DashboardClient({
                       <option value="az">A–Z</option>
                     </select>
                   </label>
-                  <div className="metric-note">{data.rows.length} produtos</div>
+                  <NotificationCenter
+                    notifications={notifications}
+                    open={notificationsOpen}
+                    onOpenChange={setNotificationsOpen}
+                    onClear={() => setNotifications([])}
+                    onRemove={(id) =>
+                      setNotifications((current) =>
+                        current.filter(
+                          (notification) => notification.id !== id,
+                        ),
+                      )
+                    }
+                  />
+                  <button
+                    className="catalog-reset-sort"
+                    type="button"
+                    onClick={() => load(true)}
+                    aria-label="Atualizar produtos processados"
+                    title="Atualizar produtos processados"
+                  >
+                    <RefreshCw size={16} />
+                  </button>
                 </div>
               ) : (
                 <div className="metric-note">{data.rows.length} registros</div>
@@ -1903,15 +1999,26 @@ export function DashboardClient({
                         />
                       </th>
                     )}
-                    <th className="product-image-column">Imagem</th>
-                    <th>
-                      {mode === "products" ? "Última atualização" : "Data/Hora"}
-                    </th>
-                    <th>SKU</th>
-                    <th>Produto</th>
-                    <th>Marca</th>
-                    <th>Status</th>
-                    <th>Alterações</th>
+                    {mode === "products" ? (
+                      <>
+                        <th>Produto</th>
+                        <th>Status</th>
+                        <th>Última atualização</th>
+                        <th>SKU</th>
+                        <th>Marca</th>
+                        <th>Alterações</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="product-image-column">Imagem</th>
+                        <th>Data/Hora</th>
+                        <th>SKU</th>
+                        <th>Produto</th>
+                        <th>Marca</th>
+                        <th>Status</th>
+                        <th>Alterações</th>
+                      </>
+                    )}
                     {showActions && <th>Ação</th>}
                   </tr>
                 </thead>
@@ -1961,31 +2068,57 @@ export function DashboardClient({
                           />
                         </td>
                       )}
-                      <td className="product-image-cell">
-                        <ProductThumbnail
-                          sku={row.sku}
-                          title={row.tituloDepois || row.tituloAntes}
-                        />
-                      </td>
-                      <td>{row.dataHora}</td>
-
-                      <td>
-                        <strong>{row.sku}</strong>
-                      </td>
-
-                      <td>
-                        <strong>
-                          {row.tituloDepois ||
-                            row.tituloAntes ||
-                            "Produto sem título"}
-                        </strong>
-                      </td>
-
-                      <td>{row.marca || "—"}</td>
-
-                      <td>
-                        <Badge status={row.status} />
-                      </td>
+                      {mode === "products" ? (
+                        <>
+                          <td>
+                            <div className="shopify-product-main">
+                              <span className="shopify-product-image">
+                                <ProductThumbnail
+                                  sku={row.sku}
+                                  title={row.tituloDepois || row.tituloAntes}
+                                />
+                              </span>
+                              <strong>
+                                {row.tituloDepois ||
+                                  row.tituloAntes ||
+                                  "Produto sem título"}
+                              </strong>
+                            </div>
+                          </td>
+                          <td>
+                            <Badge status={row.status} />
+                          </td>
+                          <td>{row.dataHora}</td>
+                          <td>
+                            <strong>{row.sku}</strong>
+                          </td>
+                          <td>{row.marca || "—"}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="product-image-cell">
+                            <ProductThumbnail
+                              sku={row.sku}
+                              title={row.tituloDepois || row.tituloAntes}
+                            />
+                          </td>
+                          <td>{row.dataHora}</td>
+                          <td>
+                            <strong>{row.sku}</strong>
+                          </td>
+                          <td>
+                            <strong>
+                              {row.tituloDepois ||
+                                row.tituloAntes ||
+                                "Produto sem título"}
+                            </strong>
+                          </td>
+                          <td>{row.marca || "—"}</td>
+                          <td>
+                            <Badge status={row.status} />
+                          </td>
+                        </>
+                      )}
 
                       <td>
                         <div className="change-tags">
