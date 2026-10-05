@@ -519,7 +519,10 @@ export function ProductDetailsDrawer({
     setMediaSlideIndex(0);
     setMessage("");
     setError("");
-  }, [activeRow]);
+    // Atualizações do produto recriam a linha no provider. A identidade abaixo
+    // evita apagar descrição e mídia quando a mesma linha acabou de ser salva.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRow?.sku, activeRow?.dataHora]);
 
   useEffect(() => {
     if (!activeRow || !canEdit) return;
