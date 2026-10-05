@@ -25,29 +25,34 @@ export async function GET(req: NextRequest) {
       getProductOverrides(),
       getShopifyCatalogProductsBySkus(sheet.rows.map((row) => row.sku)),
     ]);
-    const rows = sheet.rows.map((row) => {
-      const catalogProduct = catalogBySku.get(String(row.sku || "").trim());
-      const override = overrides.get(
-        productIdentityKey(row.sku, row.tituloDepois || row.tituloAntes),
-      );
-      if (catalogProduct)
+    const catalogOnly = params.get("catalog") === "1";
+    const rows = sheet.rows
+      .filter(
+        (row) => !catalogOnly || catalogBySku.has(String(row.sku || "").trim()),
+      )
+      .map((row) => {
+        const catalogProduct = catalogBySku.get(String(row.sku || "").trim());
+        const override = overrides.get(
+          productIdentityKey(row.sku, row.tituloDepois || row.tituloAntes),
+        );
+        if (catalogProduct)
+          return {
+            ...row,
+            shopifyId: catalogProduct.shopifyId,
+            tituloDepois: catalogProduct.title || row.tituloDepois,
+            tagsDepois: catalogProduct.tags.join(", "),
+            colecoesDepois: catalogProduct.collections.join(", "),
+            marca: catalogProduct.vendor || row.marca,
+            tipoProduto: catalogProduct.productType,
+          };
+        if (!override) return row;
         return {
           ...row,
-          shopifyId: catalogProduct.shopifyId,
-          tituloDepois: catalogProduct.title || row.tituloDepois,
-          tagsDepois: catalogProduct.tags.join(", "),
-          colecoesDepois: catalogProduct.collections.join(", "),
-          marca: catalogProduct.vendor || row.marca,
-          tipoProduto: catalogProduct.productType,
+          tituloDepois: override.title || row.tituloDepois,
+          tagsDepois: override.tags.join(", "),
+          colecoesDepois: override.collections.join(", "),
         };
-      if (!override) return row;
-      return {
-        ...row,
-        tituloDepois: override.title || row.tituloDepois,
-        tagsDepois: override.tags.join(", "),
-        colecoesDepois: override.collections.join(", "),
-      };
-    });
+      });
     const dashboard = buildDashboard(rows, {
       q: (params.get("q") || "").slice(0, 120),
       marca: (params.get("marca") || "").slice(0, 120),
@@ -56,7 +61,7 @@ export async function GET(req: NextRequest) {
       month: (params.get("month") || "").slice(0, 7),
       compareMonth: (params.get("compareMonth") || "").slice(0, 7),
       quality: (params.get("quality") || "").slice(0, 40),
-      catalog: params.get("catalog") === "1",
+      catalog: catalogOnly,
       timeSettings: settings,
     });
     return NextResponse.json({
