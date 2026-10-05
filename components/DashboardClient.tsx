@@ -19,7 +19,6 @@ import {
 } from "recharts";
 import {
   AlertCircle,
-  Bell,
   Box,
   CheckCircle2,
   Clock3,
@@ -43,6 +42,10 @@ import {
   useProductPanel,
 } from "@/components/ProductPanelProvider";
 import { ProductThumbnail } from "@/components/ProductThumbnail";
+import {
+  NotificationCenter,
+  type NotificationItem,
+} from "@/components/NotificationCenter";
 
 const colors = [
   "#233b8f",
@@ -277,13 +280,6 @@ function buildTimeSeries(rows: HistoryRow[], grouping: TimeGrouping) {
 
 type ApiError = {
   error?: string;
-};
-
-type NotificationItem = {
-  id: string;
-  tone: "success" | "error";
-  message: string;
-  createdAt: string;
 };
 
 type AppliedFilters = {
@@ -1369,65 +1365,17 @@ export function DashboardClient({
           </div>
         )}
         <div className="head-actions topbar-actions">
-          <div className="notification-center">
-            <button
-              className="notification-button"
-              type="button"
-              onClick={() => setNotificationsOpen((value) => !value)}
-              aria-label="Abrir notificações"
-              aria-expanded={notificationsOpen}
-            >
-              <Bell size={17} />
-              {notifications.length > 0 && (
-                <span className="notification-count">
-                  {notifications.length > 9 ? "9+" : notifications.length}
-                </span>
-              )}
-            </button>
-            {notificationsOpen && (
-              <div className="notification-panel">
-                <div className="notification-panel-head">
-                  <strong>Notificações</strong>
-                  <button type="button" onClick={() => setNotifications([])}>
-                    Limpar
-                  </button>
-                </div>
-                {notifications.length === 0 ? (
-                  <p className="notification-empty">Nenhum evento recente.</p>
-                ) : (
-                  notifications.map((item) => (
-                    <div
-                      className={`notification-item notification-item-${item.tone}`}
-                      key={item.id}
-                    >
-                      {item.tone === "success" ? (
-                        <CheckCircle2 size={16} />
-                      ) : (
-                        <AlertCircle size={16} />
-                      )}
-                      <span>
-                        {item.message}
-                        <small>{item.createdAt}</small>
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="Remover notificação"
-                        onClick={() =>
-                          setNotifications((current) =>
-                            current.filter(
-                              (notification) => notification.id !== item.id,
-                            ),
-                          )
-                        }
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
+          <NotificationCenter
+            notifications={notifications}
+            open={notificationsOpen}
+            onOpenChange={setNotificationsOpen}
+            onClear={() => setNotifications([])}
+            onRemove={(id) =>
+              setNotifications((current) =>
+                current.filter((notification) => notification.id !== id),
+              )
+            }
+          />
           <button className="btn" type="button" onClick={() => load(true)}>
             <RefreshCw size={16} />
             <span>Atualizar</span>
@@ -1845,9 +1793,15 @@ export function DashboardClient({
 
       {!(mode === "dashboard" && data.rows.length === 0) && (
         <section
-          className={`panel ${mode === "dashboard" ? "latest-processings" : mode === "products" ? "products-list" : ""}`}
+          className={`${mode === "products" ? "shopify-products-workspace processed-products-workspace" : "panel"} ${mode === "dashboard" ? "latest-processings" : mode === "products" ? "products-list" : ""}`}
         >
-          <div className="panel-head">
+          <div
+            className={
+              mode === "products"
+                ? "panel-head shopify-products-selectionbar"
+                : "panel-head"
+            }
+          >
             <div className="panel-title">
               {mode === "errors"
                 ? "Últimos erros"
@@ -1918,7 +1872,11 @@ export function DashboardClient({
               </span>
             </div>
           ) : (
-            <div className="table-wrap">
+            <div
+              className={
+                mode === "products" ? "shopify-products-table" : "table-wrap"
+              }
+            >
               <table>
                 <thead>
                   <tr>
@@ -2131,7 +2089,7 @@ export function DashboardClient({
             </div>
           )}
           {mode === "products" && data.rows.length > 0 && (
-            <div className="products-pagination">
+            <div className="shopify-products-pagination">
               <span>
                 Exibindo{" "}
                 {((productsPage - 1) * PRODUCTS_PER_PAGE + 1).toLocaleString(

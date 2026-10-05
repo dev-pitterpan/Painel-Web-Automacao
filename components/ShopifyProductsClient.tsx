@@ -3,8 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
-  ArrowDown,
-  ArrowUp,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -31,6 +29,10 @@ import {
 import { setCachedProductImage } from "@/components/ProductThumbnail";
 import type { ShopifyCatalogProduct } from "@/lib/auth";
 import type { HistoryRow } from "@/lib/types";
+import {
+  NotificationCenter,
+  type NotificationItem,
+} from "@/components/NotificationCenter";
 
 type Facets = {
   vendors: string[];
@@ -221,9 +223,7 @@ export function ShopifyProductsClient({
   const [filters, setFilters] = useState<Partial<Record<FilterKey, string>>>(
     {},
   );
-  const [sort, setSort] = useState<"updated" | "title" | "title_desc">(
-    "updated",
-  );
+  const [sort, setSort] = useState<"updated" | "title">("updated");
   const [page, setPage] = useState(1);
   const [selectedProducts, setSelectedProducts] = useState<
     Record<string, ShopifyCatalogProduct>
@@ -236,10 +236,32 @@ export function ShopifyProductsClient({
     tone: "success" | "error";
     text: string;
   } | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const refreshInProgress = useRef(false);
 
+  const addNotification = useCallback(
+    (tone: NotificationItem["tone"], message: string) => {
+      setNotifications((current) =>
+        [
+          {
+            id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            tone,
+            message,
+            createdAt: new Date().toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          },
+          ...current,
+        ].slice(0, 20),
+      );
+    },
+    [],
+  );
+
   const load = useCallback(
-    async (background = false) => {
+    async (background = false, notify = false) => {
       if (background && refreshInProgress.current) return;
       if (background) {
         refreshInProgress.current = true;
@@ -279,12 +301,15 @@ export function ShopifyProductsClient({
         setData(result);
         setLastRefreshAt(new Date().toISOString());
         if (result.facets) setFacets(result.facets);
+        if (notify)
+          addNotification("success", "Catálogo atualizado com sucesso.");
       } catch (cause) {
-        setError(
+        const message =
           cause instanceof Error
             ? cause.message
-            : "Erro ao carregar o catálogo.",
-        );
+            : "Erro ao carregar o catálogo.";
+        setError(message);
+        if (notify) addNotification("error", message);
       } finally {
         if (background) {
           refreshInProgress.current = false;
@@ -294,7 +319,7 @@ export function ShopifyProductsClient({
         }
       }
     },
-    [filters, page, query, sort, winthorOnly],
+    [addNotification, filters, page, query, sort, winthorOnly],
   );
   useEffect(() => void load(), [load]);
   useEffect(() => {
@@ -340,10 +365,6 @@ export function ShopifyProductsClient({
       Boolean(data?.permissions?.canEditProducts),
       (_, updated) => updateProduct(product.shopifyId, updated),
     );
-  const toggleProductSort = () => {
-    setSort((current) => (current === "title" ? "title_desc" : "title"));
-    setPage(1);
-  };
   const selectedIds = Object.keys(selectedProducts);
   const selectedProductsList = Object.values(selectedProducts);
   const visibleIds = data?.products.map((product) => product.shopifyId) || [];
@@ -450,19 +471,23 @@ export function ShopifyProductsClient({
 
     if (!failures) {
       setSelectedProducts({});
+      const message = `${successes} ${
+        successes === 1 ? "produto processado" : "produtos processados"
+      } pela automação em lotes de até 5.`;
       setAutomationMessage({
         tone: "success",
-        text: `${successes} ${
-          successes === 1 ? "produto processado" : "produtos processados"
-        } pela automação em lotes de até 5.`,
+        text: message,
       });
+      addNotification("success", message);
     } else {
+      const message = `Automação concluída para ${successes}; ${failures} ${
+        failures === 1 ? "produto falhou" : "produtos falharam"
+      }. ${failureMessages.join(" ")}`;
       setAutomationMessage({
         tone: "error",
-        text: `Automação concluída para ${successes}; ${failures} ${
-          failures === 1 ? "produto falhou" : "produtos falharam"
-        }. ${failureMessages.join(" ")}`,
+        text: message,
       });
+      addNotification("error", message);
     }
   };
 
@@ -505,21 +530,25 @@ export function ShopifyProductsClient({
         throw new Error(result?.error || "Não foi possível concluir a ação.");
 
       setSelectedProducts({});
+      const message =
+        result.message ||
+        `${count} ${plural} ${count === 1 ? "foi atualizado" : "foram atualizados"} no Shopify.`;
       setAutomationMessage({
         tone: "success",
-        text:
-          result.message ||
-          `${count} ${plural} ${count === 1 ? "foi atualizado" : "foram atualizados"} no Shopify.`,
+        text: message,
       });
+      addNotification("success", message);
       await load();
     } catch (cause) {
+      const message =
+        cause instanceof Error
+          ? cause.message
+          : "Não foi possível concluir a ação.";
       setAutomationMessage({
         tone: "error",
-        text:
-          cause instanceof Error
-            ? cause.message
-            : "Não foi possível concluir a ação.",
+        text: message,
       });
+      addNotification("error", message);
     } finally {
       setBulkActionRunning(null);
     }
@@ -652,24 +681,34 @@ export function ShopifyProductsClient({
             <span>{(data?.total || 0).toLocaleString("pt-BR")} produtos</span>
           )}
           <div className="shopify-products-table-actions">
-            {sort !== "updated" && (
-              <button
-                className="catalog-reset-sort"
-                type="button"
-                onClick={() => {
-                  setSort("updated");
+            <label className="catalog-sort-select">
+              <span>Ordenar por</span>
+              <select
+                value={sort}
+                onChange={(event) => {
+                  setSort(event.target.value === "title" ? "title" : "updated");
                   setPage(1);
                 }}
-                title="Voltar para última alteração"
-                aria-label="Voltar para ordenação por última alteração"
               >
-                <RefreshCcw size={16} />
-              </button>
-            )}
+                <option value="updated">Mais recentes</option>
+                <option value="title">A–Z</option>
+              </select>
+            </label>
+            <NotificationCenter
+              notifications={notifications}
+              open={notificationsOpen}
+              onOpenChange={setNotificationsOpen}
+              onClear={() => setNotifications([])}
+              onRemove={(id) =>
+                setNotifications((current) =>
+                  current.filter((notification) => notification.id !== id),
+                )
+              }
+            />
             <button
               className="catalog-reset-sort"
               type="button"
-              onClick={() => void load(true)}
+              onClick={() => void load(true, true)}
               disabled={loading || refreshing}
               title={
                 lastRefreshAt
@@ -785,25 +824,7 @@ export function ShopifyProductsClient({
                       aria-label="Selecionar todos os produtos desta página"
                     />
                   </th>
-                  <th>
-                    <button
-                      className={`catalog-sort-heading ${sort !== "updated" ? "is-active" : ""}`}
-                      type="button"
-                      onClick={toggleProductSort}
-                      title={
-                        sort === "title"
-                          ? "Ordenar de Z a A"
-                          : "Ordenar de A a Z"
-                      }
-                    >
-                      Produto
-                      {sort === "title" ? (
-                        <ArrowUp size={13} />
-                      ) : sort === "title_desc" ? (
-                        <ArrowDown size={13} />
-                      ) : null}
-                    </button>
-                  </th>
+                  <th>Produto</th>
                   <th>Status Shopify</th>
                   <th>Status WinThor</th>
                   <th>Estoque</th>
