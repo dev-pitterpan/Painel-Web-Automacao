@@ -7508,6 +7508,16 @@ tbody tr:hover {
   margin: 0 0 9px;
   background: #fff;
 }
+.processed-products-commandbar:has(.catalog-filter-popover) {
+  z-index: 4001;
+}
+.processed-products-commandbar
+  .catalog-filter-picker:has(.catalog-filter-popover) {
+  z-index: 4002;
+}
+.processed-products-commandbar .catalog-filter-popover {
+  z-index: 4003;
+}
 .processed-filter-chips {
   margin: -2px 0 9px;
   padding: 8px 10px;
