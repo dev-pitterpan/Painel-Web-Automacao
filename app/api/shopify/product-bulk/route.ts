@@ -9,11 +9,19 @@ import {
 import {
   archiveShopifyProduct,
   deleteShopifyProduct,
+  getShopifySalesChannels,
   shopifyProductToCatalog,
   unpublishShopifyProduct,
+  updateShopifyProductSalesChannels,
 } from "@/lib/shopify-admin";
 
-const actions = ["archive", "unpublish", "delete"] as const;
+const actions = [
+  "archive",
+  "unpublish",
+  "delete",
+  "publish_channels",
+  "unpublish_channels",
+] as const;
 type BulkAction = (typeof actions)[number];
 
 function text(value: unknown, max: number) {
@@ -42,6 +50,36 @@ function cleanProducts(value: unknown) {
   ];
 }
 
+function cleanPublicationIds(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .map((item) => text(item, 200))
+        .filter((item) => /^gid:\/\/shopify\/Publication\/\d+$/.test(item)),
+    ),
+  ].slice(0, 100);
+}
+
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user)
+    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  try {
+    return NextResponse.json({ channels: await getShopifySalesChannels() });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar os canais de venda.",
+      },
+      { status: 502 },
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user)
@@ -55,11 +93,17 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const action = text(body?.action, 30) as BulkAction;
   const products = cleanProducts(body?.products);
+  const publicationIds = cleanPublicationIds(body?.publicationIds);
   if (!actions.includes(action))
     return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
   if (!products.length)
     return NextResponse.json(
       { error: "Nenhum produto válido foi selecionado." },
+      { status: 400 },
+    );
+  if (action.endsWith("_channels") && !publicationIds.length)
+    return NextResponse.json(
+      { error: "Selecione ao menos um canal de venda." },
       { status: 400 },
     );
 
@@ -79,6 +123,17 @@ export async function POST(req: NextRequest) {
             ]);
           } else if (action === "unpublish") {
             await unpublishShopifyProduct(product.shopify_id);
+          } else if (
+            action === "publish_channels" ||
+            action === "unpublish_channels"
+          ) {
+            await updateShopifyProductSalesChannels(
+              product.shopify_id,
+              publicationIds.map((publicationId) => ({
+                publicationId,
+                published: action === "publish_channels",
+              })),
+            );
           } else {
             await deleteShopifyProduct(product.shopify_id);
           }
@@ -133,6 +188,14 @@ export async function POST(req: NextRequest) {
         products.length === 1
           ? "1 produto excluído com sucesso."
           : `${products.length} produtos excluídos com sucesso.`,
+      publish_channels:
+        products.length === 1
+          ? "1 produto incluído nos canais selecionados."
+          : `${products.length} produtos incluídos nos canais selecionados.`,
+      unpublish_channels:
+        products.length === 1
+          ? "1 produto removido dos canais selecionados."
+          : `${products.length} produtos removidos dos canais selecionados.`,
     }[action];
     return NextResponse.json({
       ok: true,

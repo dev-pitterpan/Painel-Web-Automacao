@@ -16,6 +16,7 @@ import {
   Plus,
   RefreshCcw,
   Search,
+  Store,
   Tag,
   Trash2,
   Workflow,
@@ -53,6 +54,8 @@ type CatalogResponse = {
 };
 type FilterKey = "vendor" | "tag" | "status" | "productType" | "collection";
 type BulkAction = "archive" | "unpublish" | "delete";
+type ChannelBulkAction = "publish" | "unpublish";
+type SalesChannel = { id: string; name: string };
 const filterLabels: Record<FilterKey, string> = {
   vendor: "Fabricante",
   tag: "Tag",
@@ -238,6 +241,14 @@ export function ShopifyProductsClient({
   } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [channelBulkAction, setChannelBulkAction] =
+    useState<ChannelBulkAction | null>(null);
+  const [salesChannels, setSalesChannels] = useState<SalesChannel[]>([]);
+  const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([]);
+  const [channelSearch, setChannelSearch] = useState("");
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [channelsSaving, setChannelsSaving] = useState(false);
+  const [channelsError, setChannelsError] = useState("");
   const refreshInProgress = useRef(false);
 
   const addNotification = useCallback(
@@ -554,6 +565,91 @@ export function ShopifyProductsClient({
     }
   };
 
+  const openChannelBulkModal = async (action: ChannelBulkAction) => {
+    if (!selectedIds.length || channelsSaving) return;
+    setChannelBulkAction(action);
+    setSelectedChannelIds([]);
+    setChannelSearch("");
+    setChannelsError("");
+    setChannelsLoading(true);
+    try {
+      const response = await fetch("/api/shopify/product-bulk", {
+        cache: "no-store",
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok)
+        throw new Error(
+          result?.error || "Não foi possível carregar os canais de venda.",
+        );
+      setSalesChannels(Array.isArray(result?.channels) ? result.channels : []);
+    } catch (cause) {
+      setChannelsError(
+        cause instanceof Error
+          ? cause.message
+          : "Não foi possível carregar os canais de venda.",
+      );
+    } finally {
+      setChannelsLoading(false);
+    }
+  };
+
+  const runChannelBulkAction = async () => {
+    if (
+      !channelBulkAction ||
+      !selectedChannelIds.length ||
+      channelsSaving ||
+      !selectedProductsList.length
+    )
+      return;
+    setChannelsSaving(true);
+    setChannelsError("");
+    try {
+      const response = await fetch("/api/shopify/product-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action:
+            channelBulkAction === "publish"
+              ? "publish_channels"
+              : "unpublish_channels",
+          publicationIds: selectedChannelIds,
+          products: selectedProductsList.map((product) => ({
+            shopifyId: product.shopifyId,
+            sku: product.sku,
+            title: product.title,
+          })),
+        }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.ok)
+        throw new Error(result?.error || "Não foi possível concluir a ação.");
+      setChannelBulkAction(null);
+      setSelectedProducts({});
+      setAutomationMessage({ tone: "success", text: result.message });
+      addNotification("success", result.message);
+      await load();
+    } catch (cause) {
+      setChannelsError(
+        cause instanceof Error
+          ? cause.message
+          : "Não foi possível concluir a ação.",
+      );
+    } finally {
+      setChannelsSaving(false);
+    }
+  };
+
+  const visibleSalesChannels = salesChannels.filter((channel) =>
+    channel.name
+      .toLocaleLowerCase("pt-BR")
+      .includes(channelSearch.toLocaleLowerCase("pt-BR")),
+  );
+  const allVisibleChannelsSelected =
+    visibleSalesChannels.length > 0 &&
+    visibleSalesChannels.every((channel) =>
+      selectedChannelIds.includes(channel.id),
+    );
+
   return (
     <>
       <div className="page-head dashboard-title-row">
@@ -741,6 +837,23 @@ export function ShopifyProductsClient({
                 <button
                   type="button"
                   disabled={!selectedIds.length || Boolean(bulkActionRunning)}
+                  onClick={() => void openChannelBulkModal("publish")}
+                >
+                  <Store size={15} />
+                  Incluir nos canais de vendas
+                </button>
+                <button
+                  type="button"
+                  disabled={!selectedIds.length || Boolean(bulkActionRunning)}
+                  onClick={() => void openChannelBulkModal("unpublish")}
+                >
+                  <EyeOff size={15} />
+                  Excluir dos canais de vendas
+                </button>
+                <hr />
+                <button
+                  type="button"
+                  disabled={!selectedIds.length || Boolean(bulkActionRunning)}
                   onClick={() => runBulkAction("unpublish")}
                 >
                   <EyeOff size={15} />
@@ -759,7 +872,6 @@ export function ShopifyProductsClient({
                     ? "Excluindo produtos..."
                     : "Excluir produtos"}
                 </button>
-                <hr />
               </div>
             </details>
           </div>
@@ -958,6 +1070,119 @@ export function ShopifyProductsClient({
           </div>
         )}
       </section>
+      {channelBulkAction && (
+        <div
+          className="sales-channel-bulk-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sales-channel-bulk-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !channelsSaving)
+              setChannelBulkAction(null);
+          }}
+        >
+          <section className="sales-channel-bulk-modal">
+            <header>
+              <h2 id="sales-channel-bulk-title">
+                {channelBulkAction === "publish" ? "Incluir" : "Excluir"}{" "}
+                {selectedIds.length}{" "}
+                {selectedIds.length === 1 ? "produto" : "produtos"} nos canais
+                de vendas
+              </h2>
+              <button
+                type="button"
+                disabled={channelsSaving}
+                onClick={() => setChannelBulkAction(null)}
+                aria-label="Fechar"
+              >
+                <X size={19} />
+              </button>
+            </header>
+            <label className="sales-channel-bulk-search">
+              <Search size={17} />
+              <input
+                value={channelSearch}
+                onChange={(event) => setChannelSearch(event.target.value)}
+                placeholder="Pesquisar"
+                autoFocus
+              />
+            </label>
+            {channelsError && (
+              <p className="sales-channel-bulk-error">{channelsError}</p>
+            )}
+            {channelsLoading ? (
+              <div className="sales-channel-bulk-loading">
+                <LoaderCircle className="spin" size={22} />
+                Carregando canais...
+              </div>
+            ) : (
+              <div className="sales-channel-bulk-list">
+                <label className="is-all">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleChannelsSelected}
+                    onChange={() =>
+                      setSelectedChannelIds((current) => {
+                        const visibleIds = visibleSalesChannels.map(
+                          (channel) => channel.id,
+                        );
+                        return allVisibleChannelsSelected
+                          ? current.filter((id) => !visibleIds.includes(id))
+                          : [...new Set([...current, ...visibleIds])];
+                      })
+                    }
+                  />
+                  <span>Canal de vendas</span>
+                </label>
+                {visibleSalesChannels.map((channel) => (
+                  <label key={channel.id}>
+                    <input
+                      type="checkbox"
+                      checked={selectedChannelIds.includes(channel.id)}
+                      onChange={() =>
+                        setSelectedChannelIds((current) =>
+                          current.includes(channel.id)
+                            ? current.filter((id) => id !== channel.id)
+                            : [...current, channel.id],
+                        )
+                      }
+                    />
+                    <Store size={17} />
+                    <span>{channel.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <footer>
+              <button
+                className="btn"
+                type="button"
+                disabled={channelsSaving}
+                onClick={() => setChannelBulkAction(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn btn-primary"
+                type="button"
+                disabled={
+                  channelsLoading ||
+                  channelsSaving ||
+                  !selectedChannelIds.length
+                }
+                onClick={() => void runChannelBulkAction()}
+              >
+                {channelsSaving && <LoaderCircle className="spin" size={15} />}
+                {channelsSaving
+                  ? "Salvando..."
+                  : channelBulkAction === "publish"
+                    ? "Incluir produtos"
+                    : "Excluir produtos"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </>
   );
 }

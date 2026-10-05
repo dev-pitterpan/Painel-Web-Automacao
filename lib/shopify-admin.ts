@@ -238,6 +238,20 @@ export async function getShopifyProductSalesChannels(productId: string) {
     .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
 }
 
+export async function getShopifySalesChannels() {
+  const data = await shopifyGraphql<{
+    publications: { nodes: Array<{ id: string; name: string }> };
+  }>(`query DashboardSalesChannels {
+    publications(first: 100, catalogType: APP) { nodes { id name } }
+  }`);
+  return data.publications.nodes
+    .map((publication) => ({
+      id: publication.id,
+      name: publication.name || "Canal de venda",
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+}
+
 export async function getShopifyProductSalesChannelCounts(
   productIds: string[],
 ) {
