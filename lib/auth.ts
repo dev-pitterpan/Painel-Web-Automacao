@@ -73,6 +73,7 @@ export type ShopifyCatalogProduct = {
     id: string;
     title: string;
     sku: string;
+    barcode: string;
     price: string;
     inventoryQuantity: number;
   }>;
@@ -969,6 +970,12 @@ export async function getShopifyCatalogProductDetails(
   );
   if (!rows[0]) return null;
   const product = catalogProductFromRow(rows[0]);
+  const matchedVariant = product.variants.find(
+    (variant) => String(variant?.sku || "").trim() === normalizedSku,
+  );
+  const barcodeSynced = product.variants.some((variant) =>
+    Object.prototype.hasOwnProperty.call(variant, "barcode"),
+  );
   const facets = includeOptions
     ? await getShopifyCatalogFacets()
     : { tags: [], collections: [] };
@@ -981,6 +988,8 @@ export async function getShopifyCatalogProductDetails(
     collections: product.collections,
     weight: product.weight,
     weightUnit: product.weightUnit,
+    barcode: String(matchedVariant?.barcode || ""),
+    barcodeSynced,
     images: product.media.length
       ? product.media
       : product.imageUrl

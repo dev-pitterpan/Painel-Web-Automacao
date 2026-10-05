@@ -4031,7 +4031,7 @@ tbody tr:hover {
   top: 69px;
   z-index: 19;
   display: grid;
-  grid-template-columns: repeat(3, 1fr) auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
   gap: 10px;
   padding: 16px 22px;
   background: #fff;
@@ -8207,7 +8207,7 @@ tbody tr:hover {
 .is-editing-product .product-drawer-meta {
   position: relative;
   top: auto;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
   gap: 0;
   padding: 7px 16px;
   border-bottom: 1px solid #c9dcfb;
@@ -8693,7 +8693,7 @@ tbody tr:hover {
   }
 }
 
-/* Painel estreito: a faixa de metadados do editor não cabe em 3 colunas. */
+/* Painel estreito: a faixa de metadados do editor não cabe em 4 colunas. */
 @container product-panel (max-width: 640px) {
   .is-editing-product .product-drawer-meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));

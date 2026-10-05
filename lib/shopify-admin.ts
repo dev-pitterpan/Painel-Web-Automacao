@@ -6,6 +6,7 @@ type ShopifyVariantNode = {
   id: string;
   title: string;
   sku: string;
+  barcode: string;
   price: string;
   inventoryQuantity: number;
   inventoryItem?: {
@@ -60,7 +61,7 @@ const PRODUCT_FIELDS = `
   featuredImage { url altText }
   variants(first: 250) {
     nodes {
-      id title sku price inventoryQuantity
+      id title sku barcode price inventoryQuantity
       inventoryItem { id measurement { weight { value unit } } }
     }
   }
@@ -212,6 +213,7 @@ export function shopifyProductToCatalog(
     id: variant.id,
     title: variant.title || "",
     sku: variant.sku || "",
+    barcode: variant.barcode || "",
     price: String(variant.price || "0"),
     inventoryQuantity: Number(variant.inventoryQuantity || 0),
   }));

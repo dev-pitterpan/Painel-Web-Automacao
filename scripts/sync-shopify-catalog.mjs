@@ -71,6 +71,7 @@ const bulkQuery = `{
               id
               title
               sku
+              barcode
               price
               inventoryQuantity
               inventoryItem {
@@ -346,6 +347,7 @@ async function publishJsonl(downloadUrl, batchId) {
           id: String(row.id || ""),
           title: String(row.title || ""),
           sku: String(row.sku || ""),
+          barcode: String(row.barcode || ""),
           price: Number(row.price || 0),
           inventoryQuantity: Number(row.inventoryQuantity || 0),
           weight: row.inventoryItem?.measurement?.weight || null,

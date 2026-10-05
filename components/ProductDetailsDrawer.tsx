@@ -9,6 +9,7 @@ import type {
 import {
   ArrowLeft,
   ArrowRight,
+  Barcode,
   Bold,
   Check,
   CheckCircle2,
@@ -541,6 +542,7 @@ export function ProductDetailsDrawer({
   const [originalMedia, setOriginalMedia] = useState<ProductMedia[]>([]);
   const [mediaSlideIndex, setMediaSlideIndex] = useState(0);
   const [mediaLoading, setMediaLoading] = useState(false);
+  const [barcode, setBarcode] = useState("");
   const [mediaDragging, setMediaDragging] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [availableCollections, setAvailableCollections] = useState<string[]>(
@@ -622,6 +624,7 @@ export function ProductDetailsDrawer({
     setOriginalMedia(cachedMedia);
     setAvailableTags([]);
     setAvailableCollections([]);
+    setBarcode("");
     setMediaSlideIndex(0);
     setMessage("");
     setError("");
@@ -965,6 +968,7 @@ export function ProductDetailsDrawer({
           ? product.availableCollections.map(String)
           : [],
       );
+      setBarcode(String(product.barcode || ""));
       const loadedMedia = productMedia
         .map((item: any, index: number) => ({
           id: String(item?.id || ""),
@@ -1301,6 +1305,17 @@ export function ProductDetailsDrawer({
             <span>
               <small>SKU</small>
               <strong>{activeRow.sku || "—"}</strong>
+            </span>
+          </span>
+          <span className="product-meta-item">
+            {step === "edit" && (
+              <i>
+                <Barcode size={18} />
+              </i>
+            )}
+            <span>
+              <small>Código de barras</small>
+              <strong>{barcode || "—"}</strong>
             </span>
           </span>
           <span className="product-meta-item">

@@ -9,8 +9,13 @@ import {
   getShopifyCatalogProductDetails,
   listShopifyCatalogProducts,
   stageShopifyCatalogProducts,
+  upsertShopifyCatalogProducts,
   type ShopifyCatalogSyncProduct,
 } from "@/lib/auth";
+import {
+  fetchShopifyProduct,
+  shopifyProductToCatalog,
+} from "@/lib/shopify-admin";
 
 function validSyncToken(req: NextRequest) {
   const expected = String(process.env.SHOPIFY_CATALOG_SYNC_TOKEN || "").trim();
@@ -37,6 +42,7 @@ function productFromPayload(value: any): ShopifyCatalogSyncProduct {
         id: text(variant?.id, 160),
         title: text(variant?.title),
         sku: text(variant?.sku, 160),
+        barcode: text(variant?.barcode, 160),
         price: Number(variant?.price || 0),
         inventoryQuantity: Number(variant?.inventoryQuantity || 0),
       }))
@@ -85,11 +91,31 @@ export async function GET(req: NextRequest) {
   try {
     const params = req.nextUrl.searchParams;
     if (params.get("details") === "1") {
-      const product = await getShopifyCatalogProductDetails(
+      let product = await getShopifyCatalogProductDetails(
         params.get("sku") || "",
         params.get("title") || "",
         params.get("compact") !== "1",
       );
+      if (product && !product.barcodeSynced) {
+        try {
+          const liveProduct = await fetchShopifyProduct(product.id);
+          if (liveProduct) {
+            const synchronizedProduct = shopifyProductToCatalog(liveProduct);
+            await upsertShopifyCatalogProducts([synchronizedProduct]);
+            const requestedSku = String(params.get("sku") || "").trim();
+            const variant = synchronizedProduct.variants.find(
+              (item) => item.sku === requestedSku,
+            );
+            product = {
+              ...product,
+              barcode: variant?.barcode || "",
+              barcodeSynced: true,
+            };
+          }
+        } catch {
+          // Mantém os detalhes locais disponíveis se a consulta pontual falhar.
+        }
+      }
       return product
         ? NextResponse.json({ product })
         : NextResponse.json(
