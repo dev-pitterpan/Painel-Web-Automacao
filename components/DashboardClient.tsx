@@ -2235,10 +2235,6 @@ export function DashboardClient({
                         }
                         onClick={() => runProductBulkAction("unpublish")}
                       >
-                        <EyeOff size={15} />
-                        {productBulkAction === "unpublish"
-                          ? "Removendo dos canais..."
-                          : "Remover produtos das listas"}
                       </button>
                       <button
                         className="is-danger"

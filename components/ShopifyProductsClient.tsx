@@ -856,10 +856,6 @@ export function ShopifyProductsClient({
                   disabled={!selectedIds.length || Boolean(bulkActionRunning)}
                   onClick={() => runBulkAction("unpublish")}
                 >
-                  <EyeOff size={15} />
-                  {bulkActionRunning === "unpublish"
-                    ? "Removendo dos canais..."
-                    : "Remover produtos das listas"}
                 </button>
                 <button
                   className="is-danger"
