@@ -1,6 +1,6 @@
 # Pitter Pan Festas — Dashboard Shopify V1
 
-Dashboard em Node.js/Next.js conectado ao Google Sheets e preparado para integração com n8n.
+Dashboard em Node.js/Next.js conectado ao Google Sheets, Shopify Admin API e às automações mantidas no n8n.
 
 ## Recursos
 
@@ -10,6 +10,8 @@ Dashboard em Node.js/Next.js conectado ao Google Sheets e preparado para integra
 - Distribuição por marca.
 - Página de Produtos.
 - Página de Erros.
+- Catálogo Shopify sincronizado diariamente e atualizado em tempo real por webhooks.
+- Edição de produtos, imagens e ações em massa diretamente pela Shopify Admin API.
 - Filtros por busca, marca e período.
 - Botão de atualização manual.
 - Endpoint pronto para reprocessamento via n8n.
@@ -42,6 +44,43 @@ O dashboard enviará:
   "titulo": "Produto",
   "origem": "dashboard-pitter-pan"
 }
+```
+
+O n8n continua responsável somente pelas automações de processamento e
+reprocessamento. Edição, arquivamento, despublicação e exclusão de produtos não
+dependem mais dele.
+
+## Shopify Admin API
+
+Configure no aplicativo e na Vercel:
+
+```env
+SHOPIFY_STORE_DOMAIN=sua-loja.myshopify.com
+SHOPIFY_API_VERSION=2026-07
+SHOPIFY_CLIENT_ID=
+SHOPIFY_CLIENT_SECRET=
+SHOPIFY_CATALOG_API_URL=https://seu-dashboard.vercel.app/api/shopify-products
+SHOPIFY_CATALOG_SYNC_TOKEN=
+SHOPIFY_WEBHOOK_BASE_URL=https://seu-dashboard.vercel.app
+```
+
+Escopos usados pelas operações diretas:
+
+```text
+read_products,write_products,read_inventory,write_inventory,
+read_files,write_files,read_publications,write_publications
+```
+
+Depois do deploy, registre os eventos de criação, atualização e exclusão:
+
+```bash
+npm run shopify:webhooks
+```
+
+A sincronização completa diária continua disponível como reconciliação:
+
+```bash
+npm run shopify:sync
 ```
 
 ## Próximas etapas

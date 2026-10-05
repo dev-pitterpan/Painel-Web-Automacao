@@ -969,42 +969,18 @@ export async function getShopifyCatalogProductDetails(
   );
   if (!rows[0]) return null;
   const product = catalogProductFromRow(rows[0]);
-  const [override] = await query<{
-    title: string;
-    description: string;
-    tags_json: unknown;
-    collections_json: unknown;
-    weight: number;
-    weight_unit: string;
-  }>(
-    `SELECT title, description, tags_json, collections_json, weight, weight_unit
-     FROM product_overrides_v2
-     WHERE sku = $1 AND source_title IN ($2, $3)
-     ORDER BY CASE WHEN source_title = $2 THEN 0 ELSE 1 END, updated_at DESC
-     LIMIT 1`,
-    [normalizedSku, String(titleHint || "").trim(), product.title],
-  );
   const facets = includeOptions
     ? await getShopifyCatalogFacets()
     : { tags: [], collections: [] };
   return {
     id: product.shopifyId,
-    title: override?.title || product.title,
-    description: override ? override.description : product.descriptionHtml,
-    descriptionHtml: override ? override.description : product.descriptionHtml,
-    tags: override
-      ? Array.isArray(override.tags_json)
-        ? override.tags_json.map(String)
-        : []
-      : product.tags,
-    collections: override
-      ? Array.isArray(override.collections_json)
-        ? override.collections_json.map(String)
-        : []
-      : product.collections,
-    weight: override ? Number(override.weight || 0) : product.weight,
-    weightUnit:
-      (override?.weight_unit || product.weightUnit) === "kg" ? "kg" : "g",
+    title: product.title,
+    description: product.descriptionHtml,
+    descriptionHtml: product.descriptionHtml,
+    tags: product.tags,
+    collections: product.collections,
+    weight: product.weight,
+    weightUnit: product.weightUnit,
     images: product.media.length
       ? product.media
       : product.imageUrl
@@ -1216,6 +1192,46 @@ export async function stageShopifyCatalogProducts(
     [batchId, Number(total)],
   );
   return Number(total);
+}
+
+export async function upsertShopifyCatalogProducts(
+  products: ShopifyCatalogSyncProduct[],
+) {
+  await ensureDatabase();
+  if (!products.length) return 0;
+  await query(
+    `INSERT INTO shopify_catalog_products
+       (shopify_id, title, handle, status, vendor, product_type, tags_json,
+        collections_json, description_html, image_url, image_alt, media_json,
+        weight, weight_unit, primary_sku, variants_json, total_inventory,
+        price_min, price_max, shopify_updated_at, synced_at)
+     SELECT shopify_id, title, handle, status, vendor, product_type, tags_json,
+       collections_json, description_html, image_url, image_alt, media_json,
+       weight, weight_unit, primary_sku, variants_json, total_inventory,
+       price_min, price_max, shopify_updated_at, NOW()
+     FROM jsonb_to_recordset($1::jsonb) AS incoming(
+       shopify_id TEXT, title TEXT, handle TEXT, status TEXT, vendor TEXT,
+       product_type TEXT, tags_json JSONB, collections_json JSONB,
+       description_html TEXT, image_url TEXT, image_alt TEXT, media_json JSONB,
+       weight DOUBLE PRECISION, weight_unit TEXT, primary_sku TEXT,
+       variants_json JSONB, total_inventory INTEGER, price_min DOUBLE PRECISION,
+       price_max DOUBLE PRECISION, shopify_updated_at TIMESTAMPTZ
+     )
+     ON CONFLICT (shopify_id) DO UPDATE SET
+       title=EXCLUDED.title, handle=EXCLUDED.handle, status=EXCLUDED.status,
+       vendor=EXCLUDED.vendor, product_type=EXCLUDED.product_type,
+       tags_json=EXCLUDED.tags_json, collections_json=EXCLUDED.collections_json,
+       description_html=EXCLUDED.description_html,
+       image_url=EXCLUDED.image_url, image_alt=EXCLUDED.image_alt,
+       media_json=EXCLUDED.media_json, weight=EXCLUDED.weight,
+       weight_unit=EXCLUDED.weight_unit,
+       primary_sku=EXCLUDED.primary_sku, variants_json=EXCLUDED.variants_json,
+       total_inventory=EXCLUDED.total_inventory, price_min=EXCLUDED.price_min,
+       price_max=EXCLUDED.price_max,
+       shopify_updated_at=EXCLUDED.shopify_updated_at, synced_at=NOW()`,
+    [JSON.stringify(products.map(shopifyProductRecord))],
+  );
+  return products.length;
 }
 
 export async function completeShopifyCatalogSync(

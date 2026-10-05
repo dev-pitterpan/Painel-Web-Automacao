@@ -1,15 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  archiveShopifyCatalogProducts,
   deleteShopifyCatalogProducts,
   getCurrentUser,
   recordAudit,
+  upsertShopifyCatalogProducts,
 } from "@/lib/auth";
+import {
+  archiveShopifyProduct,
+  deleteShopifyProduct,
+  shopifyProductToCatalog,
+  unpublishShopifyProduct,
+} from "@/lib/shopify-admin";
 
-const TIMEOUT_MS = 55000;
-const DEFAULT_WEBHOOK =
-  "https://n8n.pitterpan.com.br/webhook/dashboard-gerenciar-produtos";
 const actions = ["archive", "unpublish", "delete"] as const;
 type BulkAction = (typeof actions)[number];
 
@@ -61,68 +64,61 @@ export async function POST(req: NextRequest) {
     );
 
   const requestId = randomUUID();
-  const url = text(
-    process.env.N8N_PRODUCT_BULK_WEBHOOK_URL || DEFAULT_WEBHOOK,
-    1000,
-  );
-  const token = text(
-    process.env.N8N_PRODUCT_BULK_TOKEN ||
-      process.env.N8N_PRODUCT_EDITOR_TOKEN ||
-      process.env.N8N_REPROCESS_TOKEN,
-    1000,
-  );
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-request-id": requestId,
-        ...(token ? { "x-pitterpan-token": token } : {}),
-      },
-      body: JSON.stringify({
-        action,
-        request_id: requestId,
-        products,
-        origem: "dashboard-pitter-pan",
-        solicitado_em: new Date().toISOString(),
-        solicitado_por: {
-          id: user.id,
-          nome: user.name,
-          email: user.email,
-          perfil: user.role,
-        },
-      }),
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    const raw = await response.text();
-    let result: any = null;
-    try {
-      result = raw ? JSON.parse(raw) : null;
-    } catch {
-      result = null;
-    }
-    if (!response.ok || result?.ok === false)
-      throw new Error(
-        text(
-          result?.error || result?.message || raw || `HTTP ${response.status}`,
-          1500,
-        ),
+    const failures: string[] = [];
+    const completedIds: string[] = [];
+    for (let index = 0; index < products.length; index += 5) {
+      const batch = products.slice(index, index + 5);
+      const results = await Promise.allSettled(
+        batch.map(async (product) => {
+          if (action === "archive") {
+            const archived = await archiveShopifyProduct(product.shopify_id);
+            await upsertShopifyCatalogProducts([
+              shopifyProductToCatalog(archived),
+            ]);
+          } else if (action === "unpublish") {
+            await unpublishShopifyProduct(product.shopify_id);
+          } else {
+            await deleteShopifyProduct(product.shopify_id);
+          }
+          return product;
+        }),
       );
-
-    const ids = products.map((product) => product.shopify_id);
-    if (action === "archive") await archiveShopifyCatalogProducts(ids);
-    if (action === "delete") await deleteShopifyCatalogProducts(ids);
+      results.forEach((result, batchIndex) => {
+        const product = batch[batchIndex];
+        if (result.status === "fulfilled")
+          completedIds.push(product.shopify_id);
+        else
+          failures.push(
+            `${product.title || product.sku || product.shopify_id}: ${
+              result.reason instanceof Error
+                ? result.reason.message
+                : "falha desconhecida"
+            }`,
+          );
+      });
+    }
+    if (action === "delete" && completedIds.length)
+      await deleteShopifyCatalogProducts(completedIds);
 
     await recordAudit({
       userId: user.id,
       action: `products_${action}`,
       entity: "product",
-      details: { requestId, count: products.length, productIds: ids },
+      details: {
+        requestId,
+        count: completedIds.length,
+        requestedCount: products.length,
+        productIds: completedIds,
+        failures,
+      },
     });
+
+    if (failures.length)
+      throw new Error(
+        `${completedIds.length} de ${products.length} produto(s) concluído(s). ${failures.slice(0, 5).join(" ")}`,
+      );
 
     const actionMessage = {
       archive:
@@ -141,7 +137,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       requestId,
-      count: products.length,
+      count: completedIds.length,
       message: actionMessage,
     });
   } catch (error) {
@@ -157,14 +153,9 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(
       {
-        error:
-          error instanceof Error && error.name === "AbortError"
-            ? "O n8n demorou mais de 55 segundos para responder."
-            : `Não foi possível concluir a ação no Shopify: ${error instanceof Error ? error.message : "falha desconhecida"}`,
+        error: `Não foi possível concluir a ação na Shopify: ${error instanceof Error ? error.message : "falha desconhecida"}`,
       },
       { status: 502 },
     );
-  } finally {
-    clearTimeout(timeout);
   }
 }

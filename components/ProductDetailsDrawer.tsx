@@ -986,7 +986,7 @@ export function ProductDetailsDrawer({
           to: position,
         }))
         .filter((move) => move.from !== move.to);
-      const response = await fetch("/api/n8n/product-editor", {
+      const response = await fetch("/api/shopify/product-editor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

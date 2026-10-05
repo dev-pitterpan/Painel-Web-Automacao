@@ -13,11 +13,7 @@ import {
 } from "@/lib/auth";
 
 function validSyncToken(req: NextRequest) {
-  const expected = String(
-    process.env.SHOPIFY_CATALOG_SYNC_TOKEN ||
-      process.env.N8N_REPROCESS_TOKEN ||
-      "",
-  ).trim();
+  const expected = String(process.env.SHOPIFY_CATALOG_SYNC_TOKEN || "").trim();
   const received = String(
     req.headers.get("x-pitterpan-token") ||
       req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||

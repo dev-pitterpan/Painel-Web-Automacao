@@ -488,7 +488,7 @@ export function ShopifyProductsClient({
     setBulkActionRunning(action);
     setAutomationMessage(null);
     try {
-      const response = await fetch("/api/n8n/product-bulk", {
+      const response = await fetch("/api/shopify/product-bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

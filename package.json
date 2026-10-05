@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "shopify:sync": "node scripts/sync-shopify-catalog.mjs",
+    "shopify:webhooks": "node scripts/register-shopify-webhooks.mjs",
     "auth:create": "node scripts/create-user.cjs",
     "db:migrate": "node scripts/migrate-sqlite-to-postgres.mjs"
   },

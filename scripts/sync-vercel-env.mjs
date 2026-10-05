@@ -4,7 +4,8 @@ import path from "node:path";
 process.loadEnvFile(path.join(process.cwd(), ".env.local"));
 
 const configDir = process.argv[2];
-if (!configDir) throw new Error("Informe a pasta de configuração global da Vercel.");
+if (!configDir)
+  throw new Error("Informe a pasta de configuração global da Vercel.");
 
 const names = [
   "GOOGLE_SHEET_ID",
@@ -14,16 +15,45 @@ const names = [
   "N8N_REPROCESS_WEBHOOK_URL",
   "N8N_REPROCESS_TOKEN",
   "N8N_REPROCESS_CALLBACK_TOKEN",
+  "SHOPIFY_STORE_DOMAIN",
+  "SHOPIFY_API_VERSION",
+  "SHOPIFY_CLIENT_ID",
+  "SHOPIFY_CLIENT_SECRET",
+  "SHOPIFY_CATALOG_API_URL",
+  "SHOPIFY_CATALOG_SYNC_TOKEN",
+  "SHOPIFY_WEBHOOK_BASE_URL",
 ];
 
 for (const name of names) {
   const value = String(process.env[name] || "").trim();
   if (!value) continue;
   const npxCommand = "npx";
-  const result = spawnSync(npxCommand, [
-    "vercel", "env", "add", name, "production,preview,development",
-    "--force", "--sensitive", "--yes", "--global-config", configDir,
-  ], { cwd: process.cwd(), input: `${value}\n`, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], shell: process.platform === "win32", windowsHide: true });
-  if (result.status !== 0) throw new Error(`Falha ao configurar ${name}: ${result.error?.message || result.stderr || result.stdout}`);
+  const result = spawnSync(
+    npxCommand,
+    [
+      "vercel",
+      "env",
+      "add",
+      name,
+      "production,preview,development",
+      "--force",
+      "--sensitive",
+      "--yes",
+      "--global-config",
+      configDir,
+    ],
+    {
+      cwd: process.cwd(),
+      input: `${value}\n`,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+      shell: process.platform === "win32",
+      windowsHide: true,
+    },
+  );
+  if (result.status !== 0)
+    throw new Error(
+      `Falha ao configurar ${name}: ${result.error?.message || result.stderr || result.stdout}`,
+    );
   console.log(`${name}: configurada`);
 }
