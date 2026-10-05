@@ -1879,6 +1879,14 @@ export function ProductDetailsDrawer({
                 options={availableCollections}
                 onChange={(value) => update("collections", value)}
               />
+              <ChoicePicker
+                label="Tags"
+                icon={<Tag size={18} />}
+                actionLabel=""
+                value={form.tags}
+                options={availableTags}
+                onChange={(value) => update("tags", value)}
+              />
               <section className="product-edit-card product-sales-channels-editor">
                 <span className="product-edit-card-icon">
                   <Store size={18} />
@@ -1957,14 +1965,6 @@ export function ProductDetailsDrawer({
                   )}
                 </div>
               </section>
-              <ChoicePicker
-                label="Tags"
-                icon={<Tag size={18} />}
-                actionLabel=""
-                value={form.tags}
-                options={availableTags}
-                onChange={(value) => update("tags", value)}
-              />
               <div className="product-edit-card product-weight-card">
                 <span className="product-edit-card-icon">
                   <Scale size={18} />
