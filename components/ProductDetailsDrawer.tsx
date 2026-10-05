@@ -1900,9 +1900,6 @@ export function ProductDetailsDrawer({
                             : "Publicar em todos os canais"
                         }
                       >
-                        <span className="sr-only">
-                          Selecionar todos os canais de venda
-                        </span>
                         <input
                           ref={(input) => {
                             if (input)
