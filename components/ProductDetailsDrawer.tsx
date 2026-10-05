@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  ReactNode,
+} from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -273,6 +277,13 @@ function HtmlDescriptionEditor({
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [sourceMode, setSourceMode] = useState(false);
+  const [activeFormats, setActiveFormats] = useState({
+    bold: false,
+    italic: false,
+    underline: false,
+    unorderedList: false,
+    orderedList: false,
+  });
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -281,40 +292,110 @@ function HtmlDescriptionEditor({
     if (editor.innerHTML !== safeHtml) editor.innerHTML = safeHtml;
   }, [value, sourceMode]);
 
+  const refreshActiveFormats = () => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (
+      !editor ||
+      !selection?.anchorNode ||
+      !editor.contains(selection.anchorNode)
+    )
+      return;
+    setActiveFormats({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      underline: document.queryCommandState("underline"),
+      unorderedList: document.queryCommandState("insertUnorderedList"),
+      orderedList: document.queryCommandState("insertOrderedList"),
+    });
+  };
+
+  useEffect(() => {
+    if (sourceMode) return;
+    document.addEventListener("selectionchange", refreshActiveFormats);
+    return () =>
+      document.removeEventListener("selectionchange", refreshActiveFormats);
+  }, [sourceMode]);
+
   const format = (command: string) => {
     editorRef.current?.focus();
     document.execCommand(command);
     onChange(editorRef.current?.innerHTML || "");
+    refreshActiveFormats();
+  };
+
+  const keepEditorSelection = (event: ReactMouseEvent<HTMLButtonElement>) =>
+    event.preventDefault();
+
+  const handleEditorShortcut = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    const key = event.key.toLocaleLowerCase("pt-BR");
+    const command =
+      key === "z"
+        ? event.shiftKey
+          ? "redo"
+          : "undo"
+        : key === "y"
+          ? "redo"
+          : "";
+    if (!command) return;
+    event.preventDefault();
+    document.execCommand(command);
+    onChange(event.currentTarget.innerHTML);
+    refreshActiveFormats();
   };
 
   return (
     <div className="html-description-editor">
       <div className="html-editor-toolbar" aria-label="Formatação da descrição">
-        <button type="button" onClick={() => format("bold")} title="Negrito">
+        <button
+          className={activeFormats.bold ? "is-active" : ""}
+          type="button"
+          onMouseDown={keepEditorSelection}
+          onClick={() => format("bold")}
+          title="Negrito (Ctrl+B)"
+          aria-pressed={activeFormats.bold}
+        >
           <Bold size={15} />
         </button>
-        <button type="button" onClick={() => format("italic")} title="Itálico">
+        <button
+          className={activeFormats.italic ? "is-active" : ""}
+          type="button"
+          onMouseDown={keepEditorSelection}
+          onClick={() => format("italic")}
+          title="Itálico (Ctrl+I)"
+          aria-pressed={activeFormats.italic}
+        >
           <Italic size={15} />
         </button>
         <button
           type="button"
+          className={activeFormats.underline ? "is-active" : ""}
+          onMouseDown={keepEditorSelection}
           onClick={() => format("underline")}
-          title="Sublinhado"
+          title="Sublinhado (Ctrl+U)"
+          aria-pressed={activeFormats.underline}
         >
           <Underline size={15} />
         </button>
         <span />
         <button
           type="button"
+          className={activeFormats.unorderedList ? "is-active" : ""}
+          onMouseDown={keepEditorSelection}
           onClick={() => format("insertUnorderedList")}
           title="Lista"
+          aria-pressed={activeFormats.unorderedList}
         >
           <List size={16} />
         </button>
         <button
           type="button"
+          className={activeFormats.orderedList ? "is-active" : ""}
+          onMouseDown={keepEditorSelection}
           onClick={() => format("insertOrderedList")}
           title="Lista numerada"
+          aria-pressed={activeFormats.orderedList}
         >
           <ListOrdered size={16} />
         </button>
@@ -342,11 +423,15 @@ function HtmlDescriptionEditor({
           contentEditable
           suppressContentEditableWarning
           onInput={(event) => onChange(event.currentTarget.innerHTML)}
-          dangerouslySetInnerHTML={{ __html: safeDescriptionHtml(value) }}
+          onKeyDown={handleEditorShortcut}
+          onKeyUp={refreshActiveFormats}
+          onMouseUp={refreshActiveFormats}
+          onBlur={(event) => onChange(event.currentTarget.innerHTML)}
         />
       )}
       <small>
-        A visualização é formatada; o conteúdo continua sendo salvo em HTML.
+        A visualização é formatada; use Ctrl+Z para desfazer e Ctrl+Y ou
+        Ctrl+Shift+Z para refazer.
       </small>
     </div>
   );

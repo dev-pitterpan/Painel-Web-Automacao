@@ -7,6 +7,7 @@ import {
   getShopifyCatalogProductDetails,
   getCurrentUser,
   recordAudit,
+  upsertProductOverride,
   upsertShopifyCatalogProducts,
 } from "@/lib/auth";
 import {
@@ -161,6 +162,16 @@ export async function POST(req: NextRequest) {
     });
     const synchronizedProduct = shopifyProductToCatalog(updatedProduct);
     await upsertShopifyCatalogProducts([synchronizedProduct]);
+    await upsertProductOverride(user, {
+      sku,
+      sourceTitle: catalogProduct.title || titleHint || title,
+      title: synchronizedProduct.title,
+      description: synchronizedProduct.descriptionHtml,
+      tags: synchronizedProduct.tags,
+      collections: synchronizedProduct.collections,
+      weight: synchronizedProduct.weight,
+      weightUnit: synchronizedProduct.weightUnit,
+    });
     let imageSync: "queued" | "failed" | "not_required" = "not_required";
     if (images.length || deleteImagePositions.length || imageReorder.length) {
       try {

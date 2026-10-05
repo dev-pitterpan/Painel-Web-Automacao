@@ -997,6 +997,59 @@ export async function getShopifyCatalogProductDetails(
   };
 }
 
+export async function getShopifyCatalogProductsBySkus(skus: string[]) {
+  await ensureDatabase();
+  const normalizedSkus = [
+    ...new Set(skus.map((sku) => String(sku || "").trim()).filter(Boolean)),
+  ].slice(0, 25000);
+  if (!normalizedSkus.length)
+    return new Map<
+      string,
+      { title: string; vendor: string; tags: string[]; collections: string[] }
+    >();
+
+  const rows = await query<{
+    primary_sku: string;
+    title: string;
+    vendor: string;
+    tags_json: unknown;
+    collections_json: unknown;
+    variants_json: unknown;
+  }>(
+    `SELECT p.primary_sku, p.title, p.vendor, p.tags_json,
+       p.collections_json, p.variants_json
+     FROM shopify_catalog_products p
+     WHERE p.primary_sku = ANY($1::text[])
+        OR EXISTS (
+          SELECT 1 FROM jsonb_array_elements(p.variants_json) variant
+          WHERE variant->>'sku' = ANY($1::text[])
+        )`,
+    [normalizedSkus],
+  );
+  const bySku = new Map<
+    string,
+    { title: string; vendor: string; tags: string[]; collections: string[] }
+  >();
+  rows.forEach((row) => {
+    const product = {
+      title: String(row.title || ""),
+      vendor: String(row.vendor || ""),
+      tags: Array.isArray(row.tags_json) ? row.tags_json.map(String) : [],
+      collections: Array.isArray(row.collections_json)
+        ? row.collections_json.map(String)
+        : [],
+    };
+    const primarySku = String(row.primary_sku || "").trim();
+    if (primarySku) bySku.set(primarySku, product);
+    const variants = Array.isArray(row.variants_json) ? row.variants_json : [];
+    variants.forEach((variant: any) => {
+      const sku = String(variant?.sku || "").trim();
+      if (sku && !bySku.has(sku)) bySku.set(sku, product);
+    });
+  });
+  return bySku;
+}
+
 export async function syncWinthorProductStatuses(
   products: WinthorStatusProduct[],
   sourceFile: string,

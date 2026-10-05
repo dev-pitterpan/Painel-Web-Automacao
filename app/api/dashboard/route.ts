@@ -3,6 +3,7 @@ import {
   getAppSettings,
   getCurrentUser,
   getProductOverrides,
+  getShopifyCatalogProductsBySkus,
   productIdentityKey,
 } from "@/lib/auth";
 import { getHistoryRowsWithStatus } from "@/lib/googleSheets";
@@ -19,14 +20,24 @@ export async function GET(req: NextRequest) {
       ? Math.min(Math.max(Math.floor(requestedDays), 1), 3650)
       : 30;
     const sheet = await getHistoryRowsWithStatus(params.get("refresh") === "1");
-    const [settings, overrides] = await Promise.all([
+    const [settings, overrides, catalogBySku] = await Promise.all([
       getAppSettings(),
       getProductOverrides(),
+      getShopifyCatalogProductsBySkus(sheet.rows.map((row) => row.sku)),
     ]);
     const rows = sheet.rows.map((row) => {
+      const catalogProduct = catalogBySku.get(String(row.sku || "").trim());
       const override = overrides.get(
         productIdentityKey(row.sku, row.tituloDepois || row.tituloAntes),
       );
+      if (catalogProduct)
+        return {
+          ...row,
+          tituloDepois: catalogProduct.title || row.tituloDepois,
+          tagsDepois: catalogProduct.tags.join(", "),
+          colecoesDepois: catalogProduct.collections.join(", "),
+          marca: catalogProduct.vendor || row.marca,
+        };
       if (!override) return row;
       return {
         ...row,
