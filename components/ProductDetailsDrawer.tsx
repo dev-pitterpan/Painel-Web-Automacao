@@ -752,6 +752,12 @@ export function ProductDetailsDrawer({
     );
     return initial && initial.published !== channel.published;
   });
+  const allSalesChannelsSelected =
+    salesChannels.length > 0 &&
+    salesChannels.every((channel) => channel.published);
+  const someSalesChannelsSelected = salesChannels.some(
+    (channel) => channel.published,
+  );
   const visibleMedia = useMemo(
     () => media.filter((item) => !item.isDeleted && item.url),
     [media],
@@ -1878,11 +1884,46 @@ export function ProductDetailsDrawer({
                   <Store size={18} />
                 </span>
                 <div className="product-sales-channels-content">
-                  <div>
-                    <strong>Canais de venda</strong>
-                    <small>
-                      Escolha onde este produto ficará disponível para venda.
-                    </small>
+                  <div className="product-sales-channels-header">
+                    <div>
+                      <strong>Canais de venda</strong>
+                      <small>
+                        Escolha onde este produto ficará disponível para venda.
+                      </small>
+                    </div>
+                    {!salesChannelsError && salesChannels.length > 0 && (
+                      <label
+                        className="product-sales-channel-master"
+                        title={
+                          allSalesChannelsSelected
+                            ? "Remover de todos os canais"
+                            : "Publicar em todos os canais"
+                        }
+                      >
+                        <span className="sr-only">
+                          Selecionar todos os canais de venda
+                        </span>
+                        <input
+                          ref={(input) => {
+                            if (input)
+                              input.indeterminate =
+                                someSalesChannelsSelected &&
+                                !allSalesChannelsSelected;
+                          }}
+                          type="checkbox"
+                          checked={allSalesChannelsSelected}
+                          onChange={(event) =>
+                            setSalesChannels((current) =>
+                              current.map((channel) => ({
+                                ...channel,
+                                published: event.target.checked,
+                              })),
+                            )
+                          }
+                        />
+                        <i aria-hidden="true" />
+                      </label>
+                    )}
                   </div>
                   {salesChannelsError ? (
                     <p className="product-sales-channels-error">

@@ -8540,7 +8540,8 @@ tbody tr:hover {
   color: #0968ee;
 }
 .product-sales-channels-heading > div,
-.product-sales-channels-content > div:first-child {
+.product-sales-channels-content > div:first-child,
+.product-sales-channels-header > div {
   display: grid;
   gap: 2px;
 }
@@ -8586,6 +8587,17 @@ tbody tr:hover {
   font-size: 11px;
   font-weight: 850;
 }
+.product-sales-channels-header {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px !important;
+}
+.product-sales-channel-master {
+  display: inline-flex;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
 .product-sales-channel-list {
   display: grid;
   overflow: hidden;
@@ -8607,12 +8619,14 @@ tbody tr:hover {
 .product-sales-channel-list label:last-child {
   border-bottom: 0;
 }
-.product-sales-channel-list input {
+.product-sales-channel-list input,
+.product-sales-channel-master input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
 }
-.product-sales-channel-list i {
+.product-sales-channel-list i,
+.product-sales-channel-master i {
   position: relative;
   width: 34px;
   height: 19px;
@@ -8620,7 +8634,8 @@ tbody tr:hover {
   background: #cbd6e5;
   transition: background 160ms ease;
 }
-.product-sales-channel-list i::after {
+.product-sales-channel-list i::after,
+.product-sales-channel-master i::after {
   position: absolute;
   top: 3px;
   left: 3px;
@@ -8632,13 +8647,24 @@ tbody tr:hover {
   content: "";
   transition: transform 160ms ease;
 }
-.product-sales-channel-list input:checked + i {
+.product-sales-channel-list input:checked + i,
+.product-sales-channel-master input:checked + i {
   background: #116bf2;
 }
-.product-sales-channel-list input:checked + i::after {
+.product-sales-channel-list input:checked + i::after,
+.product-sales-channel-master input:checked + i::after {
   transform: translateX(15px);
 }
-.product-sales-channel-list input:focus-visible + i {
+.product-sales-channel-list input:indeterminate + i,
+.product-sales-channel-master input:indeterminate + i {
+  background: #7faef5;
+}
+.product-sales-channel-list input:indeterminate + i::after,
+.product-sales-channel-master input:indeterminate + i::after {
+  transform: translateX(8px);
+}
+.product-sales-channel-list input:focus-visible + i,
+.product-sales-channel-master input:focus-visible + i {
   outline: 3px solid rgba(17, 107, 242, 0.25);
   outline-offset: 2px;
 }
