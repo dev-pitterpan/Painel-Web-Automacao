@@ -8,6 +8,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/api/auth") ||
     pathname === "/api/image-sync" ||
     pathname === "/api/shopify-products" ||
+    pathname === "/api/shopify/webhooks/products" ||
     pathname === "/api/winthor-products" ||
     pathname === "/api/n8n/reprocess/callback" ||
     pathname === "/api/n8n/product-automation/callback";
