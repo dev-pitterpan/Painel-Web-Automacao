@@ -6606,14 +6606,15 @@ tbody tr:hover {
   width: 31px;
   height: 31px;
 }
+.integration-shopify .integration-brand-icon {
+  border-radius: 0;
+  background: transparent;
+}
 .shopify-button-icon {
   display: block;
-  width: 19px;
-  height: 19px;
-  flex: 0 0 19px;
-  padding: 2px;
-  border-radius: 4px;
-  background: #fff;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
   object-fit: contain;
 }
 

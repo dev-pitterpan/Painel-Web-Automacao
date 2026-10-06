@@ -110,7 +110,7 @@ export function IntegrationHealthClient() {
           const iconSrc = iconById[integration.id as keyof typeof iconById];
           return (
             <article
-              className={`panel integration-card status-${integration.status}`}
+              className={`panel integration-card integration-${integration.id} status-${integration.status}`}
               key={integration.id}
             >
               <header>
