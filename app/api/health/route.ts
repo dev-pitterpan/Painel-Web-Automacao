@@ -18,6 +18,58 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+type N8nProbe = {
+  ok: boolean;
+  status: number | null;
+  latencyMs: number;
+  error: string;
+};
+
+async function probeN8n(url: string): Promise<N8nProbe> {
+  const startedAt = Date.now();
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+      redirect: "manual",
+      signal: AbortSignal.timeout(12_000),
+    });
+    return {
+      ok: response.ok,
+      status: response.status,
+      latencyMs: Date.now() - startedAt,
+      error: "",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: null,
+      latencyMs: Date.now() - startedAt,
+      error:
+        error instanceof Error ? error.message : "Falha ao conectar ao n8n.",
+    };
+  }
+}
+
+async function getN8nConnectionHealth(webhookUrl: string) {
+  try {
+    const origin = new URL(webhookUrl).origin;
+    const [process, readiness] = await Promise.all([
+      probeN8n(`${origin}/healthz`),
+      probeN8n(`${origin}/healthz/readiness`),
+    ]);
+    return {
+      origin,
+      process,
+      readiness,
+      checkedAt: new Date().toISOString(),
+      latencyMs: Math.max(process.latencyMs, readiness.latencyMs),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user || user.role !== "admin")
@@ -157,9 +209,15 @@ export async function GET(request: NextRequest) {
     };
   }
   const n8nSummary = await getN8nHealthSummary();
-  const configured = Boolean(
-    String(process.env.N8N_REPROCESS_WEBHOOK_URL || "").trim(),
-  );
+  const n8nWebhookUrl = String(
+    process.env.N8N_REPROCESS_WEBHOOK_URL ||
+      process.env.N8N_PRODUCT_AUTOMATION_WEBHOOK_URL ||
+      "",
+  ).trim();
+  const configured = Boolean(n8nWebhookUrl);
+  const n8nConnection = configured
+    ? await getN8nConnectionHealth(n8nWebhookUrl)
+    : null;
   const lastResponseAt = n8nSummary.lastResponse
     ? new Date(n8nSummary.lastResponse).getTime()
     : 0;
@@ -168,26 +226,65 @@ export async function GET(request: NextRequest) {
     : 0;
   const hasUnresolvedFailure =
     lastFailureAt > 0 && (!lastResponseAt || lastFailureAt > lastResponseAt);
-  const n8nStatus = !configured
-    ? "error"
-    : hasUnresolvedFailure
+  const n8nSlow = Boolean(
+    n8nConnection &&
+    (n8nConnection.process.latencyMs > 5_000 ||
+      n8nConnection.readiness.latencyMs > 5_000),
+  );
+  const n8nStatus =
+    !configured || !n8nConnection
       ? "error"
-      : n8nSummary.pending > 0
-        ? "warning"
-        : "operational";
+      : !n8nConnection.process.ok || !n8nConnection.readiness.ok
+        ? "error"
+        : hasUnresolvedFailure || n8nSummary.pending > 0 || n8nSlow
+          ? "warning"
+          : "operational";
   const n8n = {
     id: "n8n",
     name: "n8n",
     status: n8nStatus,
     message: !configured
       ? "Webhook de reprocessamento não configurado."
-      : hasUnresolvedFailure
-        ? "A última tentativa de reprocessamento falhou e ainda não houve uma resposta posterior."
-        : n8nSummary.pending
-          ? `${n8nSummary.pending} processamento(s) aguardando conclusão.`
-          : "Automação configurada e respondendo normalmente.",
-    lastResponse: n8nSummary.lastResponse,
+      : !n8nConnection
+        ? "A configuração do servidor n8n é inválida."
+        : !n8nConnection.process.ok
+          ? n8nConnection.process.status
+            ? `O servidor n8n está inacessível (HTTP ${n8nConnection.process.status}).`
+            : "O servidor n8n não respondeu dentro do tempo esperado."
+          : !n8nConnection.readiness.ok
+            ? n8nConnection.readiness.status
+              ? `O servidor responde, mas não está pronto para operar (HTTP ${n8nConnection.readiness.status}).`
+              : "O servidor responde, mas a prontidão não pôde ser confirmada."
+            : n8nSlow
+              ? "O servidor está conectado, mas responde com lentidão."
+              : hasUnresolvedFailure
+                ? "A última tentativa de reprocessamento falhou e ainda não houve uma resposta posterior."
+                : n8nSummary.pending
+                  ? `${n8nSummary.pending} processamento(s) aguardando conclusão.`
+                  : "Automação configurada e respondendo normalmente.",
+    lastResponse: n8nConnection?.checkedAt || n8nSummary.lastResponse,
+    latencyMs: n8nConnection?.latencyMs,
     details: [
+      {
+        label: "Servidor",
+        value: !n8nConnection
+          ? "Não verificado"
+          : n8nConnection.process.ok
+            ? `Online · HTTP ${n8nConnection.process.status}`
+            : n8nConnection.process.status
+              ? `Falha · HTTP ${n8nConnection.process.status}`
+              : "Sem resposta",
+      },
+      {
+        label: "Prontidão",
+        value: !n8nConnection
+          ? "Não verificada"
+          : n8nConnection.readiness.ok
+            ? `Pronto · HTTP ${n8nConnection.readiness.status}`
+            : n8nConnection.readiness.status
+              ? `Indisponível · HTTP ${n8nConnection.readiness.status}`
+              : "Sem resposta",
+      },
       {
         label: "Webhook",
         value: configured ? "Configurado" : "Não configurado",
@@ -198,13 +295,15 @@ export async function GET(request: NextRequest) {
       },
       { label: "Pendentes", value: n8nSummary.pending.toLocaleString("pt-BR") },
       {
-        label: "Históricos sem callback",
-        value: n8nSummary.expired.toLocaleString("pt-BR"),
+        label: "Último workflow",
+        value: n8nSummary.lastResponse
+          ? formatDateTime(n8nSummary.lastResponse)
+          : "Nenhuma resposta registrada",
       },
       {
         label: "Última falha",
         value: n8nSummary.lastFailureAt
-          ? new Date(n8nSummary.lastFailureAt).toLocaleString("pt-BR")
+          ? formatDateTime(n8nSummary.lastFailureAt)
           : "Nenhuma registrada",
       },
     ],
