@@ -2018,7 +2018,14 @@ export function ProductDetailsDrawer({
               disabled={saving || !totalChanges}
             >
               {saving && <LoaderCircle className="spin" size={14} />}
-              {!saving && <ShoppingBag size={15} />}
+              {!saving && (
+                <img
+                  className="shopify-button-icon"
+                  src="/icons/shopify.png"
+                  alt=""
+                  aria-hidden="true"
+                />
+              )}
               {saving ? "Salvando..." : "Salvar no Shopify"}
             </button>
           </footer>

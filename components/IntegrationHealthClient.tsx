@@ -25,6 +25,7 @@ type HealthData = {
 };
 
 const iconById = {
+  shopify: "/icons/shopify.png",
   sheets: "/icons/google-sheets.png",
   n8n: "/icons/n8n.png",
 } as const;
@@ -159,7 +160,7 @@ export function IntegrationHealthClient() {
         })}
         {loading &&
           !data &&
-          [0, 1].map((item) => (
+          [0, 1, 2].map((item) => (
             <div
               className="panel integration-card health-skeleton"
               key={item}
@@ -169,10 +170,11 @@ export function IntegrationHealthClient() {
       <section className="panel health-note">
         <strong>Como essa verificação funciona</strong>
         <p>
-          O Google Sheets é consultado diretamente. Para o n8n, o painel usa a
-          configuração, a última resposta e as falhas registradas, sem acionar o
-          webhook e sem alterar produtos. Registros antigos sem callback são
-          informativos e não significam que a automação esteja parada.
+          A Shopify e o Google Sheets são consultados diretamente. Na Shopify, o
+          painel compara a quantidade de produtos recebidos, verifica os canais
+          e as permissões do aplicativo. Para o n8n, usa a configuração, a
+          última resposta e as falhas registradas, sem acionar o webhook nem
+          alterar produtos.
         </p>
       </section>
     </>

@@ -5552,7 +5552,7 @@ tbody tr:hover {
 }
 .health-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 14px;
 }
@@ -6600,6 +6600,20 @@ tbody tr:hover {
   display: block;
   width: 28px;
   height: 28px;
+  object-fit: contain;
+}
+.integration-brand-icon img[src$="/shopify.png"] {
+  width: 31px;
+  height: 31px;
+}
+.shopify-button-icon {
+  display: block;
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  padding: 2px;
+  border-radius: 4px;
+  background: #fff;
   object-fit: contain;
 }
 

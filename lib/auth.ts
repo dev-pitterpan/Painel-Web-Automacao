@@ -959,6 +959,51 @@ export async function listShopifyCatalogProducts(input: {
   };
 }
 
+export async function getShopifyCatalogHealthSummary() {
+  await ensureDatabase();
+  const [catalogRows, syncRows] = await Promise.all([
+    query<{ total: number; last_received_at: string | null }>(
+      `SELECT COUNT(*)::int AS total, MAX(synced_at) AS last_received_at
+       FROM shopify_catalog_products`,
+    ),
+    query<{
+      status: string;
+      expected_count: number | null;
+      received_count: number;
+      completed_at: string | null;
+      started_at: string;
+      error_message: string;
+    }>(
+      `SELECT status, expected_count, received_count, completed_at, started_at,
+         error_message
+       FROM shopify_catalog_sync_runs
+       ORDER BY started_at DESC
+       LIMIT 1`,
+    ),
+  ]);
+  const catalog = catalogRows[0];
+  const sync = syncRows[0];
+  return {
+    productCount: Number(catalog?.total || 0),
+    lastReceivedAt: catalog?.last_received_at
+      ? iso(catalog.last_received_at)
+      : null,
+    latestSync: sync
+      ? {
+          status: String(sync.status || ""),
+          expectedCount:
+            sync.expected_count === null
+              ? null
+              : Number(sync.expected_count || 0),
+          receivedCount: Number(sync.received_count || 0),
+          completedAt: sync.completed_at ? iso(sync.completed_at) : null,
+          startedAt: iso(sync.started_at),
+          error: String(sync.error_message || ""),
+        }
+      : null,
+  };
+}
+
 export async function getShopifyCatalogProductDetails(
   sku: string,
   titleHint = "",

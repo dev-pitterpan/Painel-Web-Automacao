@@ -190,6 +190,29 @@ export async function getShopifyAccessScopes() {
   return data.currentAppInstallation.accessScopes.map((scope) => scope.handle);
 }
 
+export async function getShopifyHealthSnapshot() {
+  const data = await shopifyGraphql<{
+    shop: { name: string; myshopifyDomain: string };
+    productsCount: { count: number };
+    publications: { nodes: Array<{ id: string }> };
+    currentAppInstallation: { accessScopes: Array<{ handle: string }> };
+  }>(`query DashboardShopifyHealth {
+    shop { name myshopifyDomain }
+    productsCount(limit: null) { count }
+    publications(first: 100, catalogType: APP) { nodes { id } }
+    currentAppInstallation { accessScopes { handle } }
+  }`);
+  return {
+    shopName: data.shop.name,
+    domain: data.shop.myshopifyDomain,
+    productCount: Number(data.productsCount.count || 0),
+    channelCount: data.publications.nodes.length,
+    scopes: data.currentAppInstallation.accessScopes.map(
+      (scope) => scope.handle,
+    ),
+  };
+}
+
 export async function fetchShopifyProduct(productId: string) {
   const data = await shopifyGraphql<{ product: ShopifyProductNode | null }>(
     `query DashboardProduct($id: ID!) { product(id: $id) { ${PRODUCT_FIELDS} } }`,
