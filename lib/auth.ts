@@ -908,7 +908,7 @@ export async function listShopifyCatalogProducts(input: {
         ? "p.title DESC"
         : input.sort === "inventory"
           ? "p.total_inventory DESC, p.title ASC"
-          : "p.shopify_updated_at DESC NULLS LAST, p.title ASC";
+          : "p.shopify_id ASC";
   const countRows = await query<{ total: number }>(
     `SELECT COUNT(*)::int AS total
      FROM shopify_catalog_products p
@@ -941,8 +941,17 @@ export async function listShopifyCatalogProducts(input: {
     listParams,
   );
   const total = Number(countRows[0]?.total || 0);
+  const products = rows.map(catalogProductFromRow);
+  if (!input.sort || input.sort === "updated") {
+    products.sort((left, right) => {
+      const dateDifference =
+        new Date(right.shopifyUpdatedAt || 0).getTime() -
+        new Date(left.shopifyUpdatedAt || 0).getTime();
+      return dateDifference || left.title.localeCompare(right.title, "pt-BR");
+    });
+  }
   return {
-    products: rows.map(catalogProductFromRow),
+    products,
     page,
     perPage,
     total,
