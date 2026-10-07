@@ -54,6 +54,11 @@ export default function ProductImageEditor({
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [alignmentGuides, setAlignmentGuides] = useState({
+    x: false,
+    y: false,
+  });
+  const [dragging, setDragging] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -105,6 +110,7 @@ export default function ProductImageEditor({
     setZoom(1);
     setRotation(0);
     setOffset({ x: 0, y: 0 });
+    setAlignmentGuides({ x: false, y: false });
   }
 
   function rotate(direction: -1 | 1) {
@@ -189,6 +195,7 @@ export default function ProductImageEditor({
                   offsetX: offset.x,
                   offsetY: offset.y,
                 };
+                setDragging(true);
               }}
               onPointerMove={(event) => {
                 const drag = dragRef.current;
@@ -196,17 +203,28 @@ export default function ProductImageEditor({
                 if (!drag || drag.pointerId !== event.pointerId || !viewport)
                   return;
                 const ratio = OUTPUT_SIZE / viewport.clientWidth;
+                const rawX = drag.offsetX + (event.clientX - drag.x) * ratio;
+                const rawY = drag.offsetY + (event.clientY - drag.y) * ratio;
+                const snapDistance = 12;
+                const snapX = Math.abs(rawX) <= snapDistance;
+                const snapY = Math.abs(rawY) <= snapDistance;
                 setOffset({
-                  x: drag.offsetX + (event.clientX - drag.x) * ratio,
-                  y: drag.offsetY + (event.clientY - drag.y) * ratio,
+                  x: snapX ? 0 : rawX,
+                  y: snapY ? 0 : rawY,
                 });
+                setAlignmentGuides({ x: snapX, y: snapY });
               }}
               onPointerUp={(event) => {
-                if (dragRef.current?.pointerId === event.pointerId)
+                if (dragRef.current?.pointerId === event.pointerId) {
                   dragRef.current = null;
+                  setDragging(false);
+                  setAlignmentGuides({ x: false, y: false });
+                }
               }}
               onPointerCancel={() => {
                 dragRef.current = null;
+                setDragging(false);
+                setAlignmentGuides({ x: false, y: false });
               }}
             >
               {imageSize ? (
@@ -225,10 +243,49 @@ export default function ProductImageEditor({
               ) : (
                 <span>{error || "Carregando imagem..."}</span>
               )}
+              {imageSize && (
+                <div
+                  className={`product-image-editor-selection ${dragging ? "is-dragging" : ""}`}
+                  style={{
+                    width: `${(renderedWidth / OUTPUT_SIZE) * 100}%`,
+                    height: `${(renderedHeight / OUTPUT_SIZE) * 100}%`,
+                    left: `${50 + (offset.x / OUTPUT_SIZE) * 100}%`,
+                    top: `${50 + (offset.y / OUTPUT_SIZE) * 100}%`,
+                    transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+                  }}
+                  aria-hidden="true"
+                >
+                  <i className="is-top-left" />
+                  <i className="is-top-right" />
+                  <i className="is-bottom-left" />
+                  <i className="is-bottom-right" />
+                </div>
+              )}
               <div className="product-image-editor-grid" aria-hidden="true" />
+              {alignmentGuides.x && (
+                <div
+                  className="product-image-editor-guide is-vertical"
+                  aria-hidden="true"
+                />
+              )}
+              {alignmentGuides.y && (
+                <div
+                  className="product-image-editor-guide is-horizontal"
+                  aria-hidden="true"
+                />
+              )}
             </div>
-            <small>
-              <Move size={14} /> Arraste a imagem para reposicionar
+            <small
+              className={offset.x === 0 && offset.y === 0 ? "is-centered" : ""}
+            >
+              {offset.x === 0 && offset.y === 0 ? (
+                <Check size={14} />
+              ) : (
+                <Move size={14} />
+              )}
+              {offset.x === 0 && offset.y === 0
+                ? "Imagem centralizada"
+                : "Arraste a imagem para reposicionar"}
             </small>
           </div>
 
