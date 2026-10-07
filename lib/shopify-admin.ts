@@ -725,6 +725,37 @@ export async function updateShopifyProduct(input: ShopifyProductUpdateInput) {
     product = await fetchShopifyProduct(input.productId);
   }
   if (!product) throw new Error("Produto atualizado, mas não pôde ser relido.");
+  if (input.images.length) {
+    const previousIds = new Set(current.media.nodes.map((item) => item.id));
+    const createdIds = product.media.nodes
+      .filter((item) => !previousIds.has(item.id))
+      .map((item) => item.id);
+    const createdMoves = input.images.flatMap((image, index) =>
+      createdIds[index]
+        ? [{ id: createdIds[index], newPosition: String(image.position) }]
+        : [],
+    );
+    if (createdMoves.length) {
+      const reordered = await shopifyGraphql<{
+        productReorderMedia: { userErrors: GraphqlError[] };
+      }>(
+        `mutation DashboardPositionNewMedia($id: ID!, $moves: [MoveInput!]!) {
+          productReorderMedia(id: $id, moves: $moves) {
+            userErrors { field message }
+          }
+        }`,
+        { id: input.productId, moves: createdMoves },
+      );
+      if (reordered.productReorderMedia.userErrors?.length)
+        throw new Error(
+          errorMessage(
+            reordered.productReorderMedia.userErrors,
+            "A imagem foi enviada, mas não pôde ser posicionada.",
+          ),
+        );
+      product = (await fetchShopifyProduct(input.productId)) || product;
+    }
+  }
   return product;
 }
 

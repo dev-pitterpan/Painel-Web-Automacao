@@ -47,6 +47,7 @@ import {
   invalidateProductDetails,
   loadProductDetails,
 } from "@/components/ProductDetailsCache";
+import ProductImageEditor from "@/components/ProductImageEditor";
 
 type DrawerStep = "details" | "edit";
 type SuccessPhase = "hidden" | "visible" | "leaving";
@@ -78,6 +79,8 @@ type ProductMedia = {
   isNew?: boolean;
   isDeleted?: boolean;
   originalPosition?: number;
+  replacesId?: string;
+  replacesPosition?: number;
 };
 type SalesChannel = {
   id: string;
@@ -550,6 +553,7 @@ export function ProductDetailsDrawer({
   const [imagePreviewIndex, setImagePreviewIndex] = useState<number | null>(
     null,
   );
+  const [imageEditorIndex, setImageEditorIndex] = useState<number | null>(null);
   const [mediaLoading, setMediaLoading] = useState(false);
   const [barcode, setBarcode] = useState("");
   const [salesChannels, setSalesChannels] = useState<SalesChannel[]>([]);
@@ -637,6 +641,7 @@ export function ProductDetailsDrawer({
     setMedia(cachedMedia);
     setOriginalMedia(cachedMedia);
     setImagePreviewIndex(null);
+    setImageEditorIndex(null);
     setAvailableTags([]);
     setAvailableCollections([]);
     setBarcode("");
@@ -698,11 +703,15 @@ export function ProductDetailsDrawer({
         setImagePreviewIndex(null);
         return;
       }
+      if (imageEditorIndex !== null) {
+        setImageEditorIndex(null);
+        return;
+      }
       onClose();
     };
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
-  }, [row, onClose, saving, imagePreviewIndex]);
+  }, [row, onClose, saving, imagePreviewIndex, imageEditorIndex]);
 
   useEffect(
     () => () => {
@@ -1206,13 +1215,19 @@ export function ProductDetailsDrawer({
               alt: item.alt,
               position,
             })),
-          deleteMediaIds: media
-            .filter((item) => item.isDeleted && item.id)
-            .map((item) => item.id),
+          deleteMediaIds: media.flatMap((item) => [
+            ...(item.isDeleted && item.id ? [item.id] : []),
+            ...(!item.isDeleted && item.replacesId ? [item.replacesId] : []),
+          ]),
           deleteImagePositions: media
             .map((item, position) => ({ item, position }))
-            .filter(({ item }) => item.isDeleted && item.id)
-            .map(({ position }) => position),
+            .flatMap(({ item, position }) =>
+              item.isDeleted && item.id
+                ? [position]
+                : !item.isDeleted && item.replacesId
+                  ? [item.replacesPosition ?? position]
+                  : [],
+            ),
           mediaMoves,
           imageReorder,
           publicationChanges: salesChannelChanges.map((channel) => ({
@@ -1784,12 +1799,21 @@ export function ProductDetailsDrawer({
                         alt={item.alt || form.title}
                         role={item.isDeleted ? undefined : "button"}
                         tabIndex={item.isDeleted ? -1 : 0}
-                        title={item.isDeleted ? undefined : "Ampliar imagem"}
+                        title={
+                          item.isDeleted
+                            ? undefined
+                            : step === "edit"
+                              ? "Editar imagem"
+                              : "Ampliar imagem"
+                        }
                         onClick={() => {
                           if (item.isDeleted) return;
                           const visibleIndex = visibleMedia.indexOf(item);
-                          if (visibleIndex >= 0)
-                            setImagePreviewIndex(visibleIndex);
+                          if (visibleIndex >= 0) {
+                            if (step === "edit")
+                              setImageEditorIndex(visibleIndex);
+                            else setImagePreviewIndex(visibleIndex);
+                          }
                         }}
                         onKeyDown={(event) => {
                           if (
@@ -1799,8 +1823,11 @@ export function ProductDetailsDrawer({
                             return;
                           event.preventDefault();
                           const visibleIndex = visibleMedia.indexOf(item);
-                          if (visibleIndex >= 0)
-                            setImagePreviewIndex(visibleIndex);
+                          if (visibleIndex >= 0) {
+                            if (step === "edit")
+                              setImageEditorIndex(visibleIndex);
+                            else setImagePreviewIndex(visibleIndex);
+                          }
                         }}
                       />
                       {media.findIndex((mediaItem) => !mediaItem.isDeleted) ===
@@ -2100,6 +2127,32 @@ export function ProductDetailsDrawer({
             </>
           )}
         </div>
+      )}
+      {imageEditorIndex !== null && visibleMedia[imageEditorIndex] && (
+        <ProductImageEditor
+          source={visibleMedia[imageEditorIndex].url}
+          alt={visibleMedia[imageEditorIndex].alt || title}
+          onCancel={() => setImageEditorIndex(null)}
+          onApply={(source) => {
+            const selected = visibleMedia[imageEditorIndex];
+            setMedia((current) =>
+              current.map((item) =>
+                item === selected
+                  ? {
+                      ...item,
+                      id: undefined,
+                      url: source,
+                      isNew: true,
+                      replacesId: item.id || item.replacesId,
+                      replacesPosition:
+                        item.originalPosition ?? item.replacesPosition,
+                    }
+                  : item,
+              ),
+            );
+            setImageEditorIndex(null);
+          }}
+        />
       )}
     </>
   );
