@@ -1459,7 +1459,6 @@ export function ProductDetailsDrawer({
                 ) : (
                   <Pencil size={15} />
                 )}
-                <span>Editar</span>
               </button>
             )}
           </div>
