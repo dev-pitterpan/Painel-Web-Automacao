@@ -19,7 +19,6 @@ import {
   Store,
   Tag,
   Trash2,
-  Workflow,
   X,
 } from "lucide-react";
 import type { UpdatedProduct } from "@/components/ProductDetailsDrawer";
@@ -814,7 +813,7 @@ export function ShopifyProductsClient({
                 {automationRunning ? (
                   <LoaderCircle className="spin" size={17} />
                 ) : (
-                  <Workflow size={17} />
+                  <img src="/icons/n8n.png" alt="" />
                 )}
                 {automationRunning
                   ? "Rodando Automação..."

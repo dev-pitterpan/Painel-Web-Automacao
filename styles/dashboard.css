@@ -398,6 +398,11 @@
   background: #b9f38b;
   color: #287b22;
 }
+.run-flow-automation img {
+  width: 19px;
+  height: 19px;
+  object-fit: contain;
+}
 .run-flow-automation:hover:not(:disabled) {
   background: #f8fafc;
   border-color: #b9c3d1;
