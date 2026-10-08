@@ -77,6 +77,7 @@ export type DashboardData = {
     sheetName: string;
     totalRows: number;
     totalErrors: number;
+    currentErrors?: number;
     qualityTarget: number;
   };
 };

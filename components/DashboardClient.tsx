@@ -123,6 +123,8 @@ const formatCorrectionTime = (minutes: number) => {
 
 const Badge = ({ status }: { status: string }) => (
   <span
+    title={status}
+    aria-label={status}
     className={`badge status-indicator ${
       String(status || "")
         .toLowerCase()
@@ -781,6 +783,7 @@ export function DashboardClient({
       });
 
       if (mode === "dashboard") p.set("month", appliedFilters.month);
+      if (mode === "dashboard") p.set("currentErrors", "1");
       if (mode === "products") p.set("catalog", "1");
       if (mode === "dashboard" && appliedFilters.compareMonth)
         p.set("compareMonth", appliedFilters.compareMonth);
@@ -1813,8 +1816,8 @@ export function DashboardClient({
             />
             <Metric
               label="Erros"
-              value={data.metrics.erros}
-              comparison={data.metrics.comparisons.erros}
+              value={data.source?.currentErrors ?? data.metrics.erros}
+              comparison={null}
               comparisonLabel={data.comparison.label}
               inverse
               imageSrc="/icons/botao-x.png"

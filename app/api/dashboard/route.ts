@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getAppSettings,
   getCurrentUser,
-  isSuccessfulReprocessResult,
   listLatestReprocessResults,
   getProductOverrides,
   getShopifyCatalogProductsBySkus,
@@ -56,8 +55,9 @@ export async function GET(req: NextRequest) {
         };
       });
     const includeReprocess = params.get("includeReprocess") === "1";
+    const calculateCurrentErrors = params.get("currentErrors") === "1";
     const dashboardRows = [...rows];
-    if (includeReprocess) {
+    if (includeReprocess || calculateCurrentErrors) {
       const latestReprocesses = await listLatestReprocessResults();
       const latestSheetRowBySku = new Map<string, (typeof rows)[number]>();
       rows.forEach((row) => {
@@ -69,7 +69,6 @@ export async function GET(req: NextRequest) {
       });
 
       latestReprocesses.forEach((record) => {
-        if (!isSuccessfulReprocessResult(record.result)) return;
         const sku = String(record.sku || "").trim();
         const base = latestSheetRowBySku.get(sku.toLocaleLowerCase("pt-BR"));
         const rawResult = Array.isArray(record.result)
@@ -80,7 +79,7 @@ export async function GET(req: NextRequest) {
         const isYes = (value: unknown) =>
           ["sim", "true"].includes(String(value || "").toLowerCase());
         dashboardRows.push({
-          dataHora: record.createdAt,
+          dataHora: String(result.data_hora || record.createdAt),
           sku,
           shopifyId: base?.shopifyId,
           marca: base?.marca || "",
@@ -105,7 +104,7 @@ export async function GET(req: NextRequest) {
         });
       });
     }
-    const dashboard = buildDashboard(dashboardRows, {
+    const dashboardOptions = {
       q: (params.get("q") || "").slice(0, 120),
       marca: (params.get("marca") || "").slice(0, 120),
       status: (params.get("status") || "").slice(0, 40),
@@ -116,7 +115,18 @@ export async function GET(req: NextRequest) {
       catalog: catalogOnly,
       latestPerProduct: params.get("latest") === "1",
       timeSettings: settings,
-    });
+    };
+    const dashboard = buildDashboard(
+      includeReprocess ? dashboardRows : rows,
+      dashboardOptions,
+    );
+    const currentErrors = calculateCurrentErrors
+      ? buildDashboard(dashboardRows, {
+          ...dashboardOptions,
+          status: "erro",
+          latestPerProduct: true,
+        }).metrics.erros
+      : undefined;
     return NextResponse.json({
       ...dashboard,
       permissions: {
@@ -136,6 +146,7 @@ export async function GET(req: NextRequest) {
         totalErrors: rows.filter((row) =>
           row.status.toLowerCase().includes("erro"),
         ).length,
+        currentErrors,
         qualityTarget: settings.qualityTarget,
       },
     });
