@@ -34,7 +34,19 @@ Data/Hora, SKU, Marca, Título Antes, Título Depois, Tags Antes, Tags Depois, C
 Configure:
 
 - `N8N_REPROCESS_WEBHOOK_URL`
+- `N8N_PRODUCT_AUTOMATION_WEBHOOK_URL`
 - `N8N_REPROCESS_TOKEN` (opcional)
+
+No desenvolvimento local, use:
+
+```env
+N8N_REPROCESS_WEBHOOK_URL=http://localhost:5678/webhook/dashboard-reprocessar-produto
+N8N_PRODUCT_AUTOMATION_WEBHOOK_URL=http://localhost:5678/webhook/fila-processamento-produtos
+```
+
+Na Vercel, configure as mesmas rotas com o endereço HTTPS público e estável do
+servidor n8n. `localhost` não funciona na Vercel porque aponta para o próprio
+ambiente da hospedagem.
 
 O dashboard enviará:
 

@@ -224,8 +224,10 @@ export async function GET(request: NextRequest) {
   const lastFailureAt = n8nSummary.lastFailureAt
     ? new Date(n8nSummary.lastFailureAt).getTime()
     : 0;
+  const failureWarningWindowMs = 24 * 60 * 60 * 1000;
   const hasUnresolvedFailure =
-    lastFailureAt > 0 && (!lastResponseAt || lastFailureAt > lastResponseAt);
+    lastFailureAt > Date.now() - failureWarningWindowMs &&
+    (!lastResponseAt || lastFailureAt > lastResponseAt);
   const n8nSlow = Boolean(
     n8nConnection &&
     (n8nConnection.process.latencyMs > 5_000 ||
@@ -319,3 +321,4 @@ export async function GET(request: NextRequest) {
     integrations: [shopify, sheets, n8n],
   });
 }
+

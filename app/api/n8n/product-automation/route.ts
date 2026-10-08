@@ -7,8 +7,6 @@ import {
 } from "@/lib/auth";
 
 const REQUEST_TIMEOUT_MS = 20000;
-const DEFAULT_QUEUE_WEBHOOK =
-  "https://n8n.pitterpan.com.br/webhook/fila-processamento-produtos";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
@@ -43,8 +41,15 @@ export async function POST(req: NextRequest) {
 
   const requestId = randomUUID();
   const url = String(
-    process.env.N8N_PRODUCT_AUTOMATION_WEBHOOK_URL || DEFAULT_QUEUE_WEBHOOK,
+    process.env.N8N_PRODUCT_AUTOMATION_WEBHOOK_URL || "",
   ).trim();
+
+  if (!url) {
+    return NextResponse.json(
+      { error: "Webhook da automação de produtos ainda não configurado." },
+      { status: 503 },
+    );
+  }
   const token = String(process.env.N8N_REPROCESS_TOKEN || "").trim();
 
   const controller = new AbortController();
