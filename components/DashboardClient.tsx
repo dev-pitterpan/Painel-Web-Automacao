@@ -790,6 +790,7 @@ export function DashboardClient({
       if (mode === "errors") {
         p.set("status", "erro");
         p.set("latest", "1");
+        p.set("includeReprocess", "1");
       } else if (appliedFilters.statusFilter) {
         p.set("status", appliedFilters.statusFilter);
       }
@@ -1142,6 +1143,18 @@ export function DashboardClient({
                 "Não foi possível consultar o status do reprocessamento.",
             );
           if (statusJson?.completed) {
+            if (statusJson?.succeeded === false) {
+              const result = Array.isArray(statusJson?.result)
+                ? statusJson.result[0]
+                : statusJson?.result;
+              throw new Error(
+                String(
+                  result?.status ||
+                    result?.erro ||
+                    "O reprocessamento terminou com erro.",
+                ),
+              );
+            }
             setReprocessState((current) => ({ ...current, [key]: "success" }));
             if (mode === "errors" && !options.silent) await load(true);
             if (!options.silent)
@@ -1155,6 +1168,17 @@ export function DashboardClient({
 
         throw new Error(
           "O n8n ainda não concluiu o processamento. Atualize a página para consultar novamente.",
+        );
+      }
+
+      if (json.succeeded === false) {
+        const result = Array.isArray(json?.n8n) ? json.n8n[0] : json?.n8n;
+        throw new Error(
+          String(
+            result?.status ||
+              result?.erro ||
+              "O reprocessamento terminou com erro.",
+          ),
         );
       }
 

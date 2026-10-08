@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   getCurrentUser,
   isCompleteReprocessResult,
+  isSuccessfulReprocessResult,
   recordAudit,
   recordPendingReprocess,
   recordReprocess,
@@ -132,6 +133,7 @@ export async function POST(req: NextRequest) {
     }
 
     const completed = isCompleteReprocessResult(parsed);
+    const succeeded = completed && isSuccessfulReprocessResult(parsed);
 
     if (completed) {
       await recordReprocess({
@@ -161,6 +163,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       completed,
+      succeeded,
       requestId,
       message: completed
         ? parsed?.message || "Produto enviado para reprocessamento."

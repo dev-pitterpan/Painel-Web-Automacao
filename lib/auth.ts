@@ -26,6 +26,10 @@ export type ReprocessRecord = {
   status: "enviado";
   createdAt: string;
 };
+export type LatestReprocessResult = Pick<
+  ReprocessRecord,
+  "sku" | "title" | "createdAt" | "result"
+>;
 export type AppSettings = {
   manualSecondsPerProduct: number;
   batchSize: number;
@@ -1884,6 +1888,10 @@ export async function getReprocessStatus(user: AuthUser, requestId: string) {
     sku: row.sku,
     title: row.title,
     completed: row.status === "enviado" && Boolean(row.result_json),
+    succeeded:
+      row.status === "enviado" &&
+      Boolean(row.result_json) &&
+      isSuccessfulReprocessResult(row.result_json),
     result: jsonObject(row.result_json),
   };
 }
@@ -1908,6 +1916,59 @@ export function isCompleteReprocessResult(payload: unknown) {
     "status",
   ].some((field) => Object.prototype.hasOwnProperty.call(result, field));
   return Boolean(!explicitlyPending && (processed || hasFinalProductData));
+}
+
+export function isSuccessfulReprocessResult(payload: unknown) {
+  const result = Array.isArray(payload)
+    ? (payload[0] as Record<string, unknown> | undefined)
+    : (payload as Record<string, unknown> | null);
+  if (!result || typeof result !== "object") return false;
+
+  const status = String(result.status || "")
+    .trim()
+    .toLocaleLowerCase("pt-BR");
+  const failed =
+    status.startsWith("erro") ||
+    status.includes("falha") ||
+    status.includes("error") ||
+    result.sucesso === false ||
+    String(result.sucesso || "").toLowerCase() === "false";
+  if (failed) return false;
+
+  return Boolean(
+    result.processado === true ||
+    String(result.processado || "").toLowerCase() === "true" ||
+    result.sucesso === true ||
+    String(result.sucesso || "").toLowerCase() === "true" ||
+    status.includes("sucesso") ||
+    isCompleteReprocessResult(result),
+  );
+}
+
+export async function listLatestReprocessResults(): Promise<
+  LatestReprocessResult[]
+> {
+  await ensureDatabase();
+  const rows = await query<{
+    sku: string;
+    title: string;
+    created_at: unknown;
+    result_json: unknown;
+  }>(`
+    SELECT DISTINCT ON (LOWER(TRIM(sku))) sku, title, created_at, result_json
+    FROM reprocess_jobs
+    WHERE status = 'enviado'
+      AND result_json IS NOT NULL
+      AND source = 'reprocess'
+      AND TRIM(sku) <> ''
+    ORDER BY LOWER(TRIM(sku)), created_at DESC, id DESC
+  `);
+  return rows.map((row) => ({
+    sku: row.sku,
+    title: row.title,
+    createdAt: iso(row.created_at),
+    result: jsonObject(row.result_json),
+  }));
 }
 
 export async function listReprocesses(

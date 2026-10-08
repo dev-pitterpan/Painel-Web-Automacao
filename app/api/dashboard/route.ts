@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getAppSettings,
   getCurrentUser,
+  isSuccessfulReprocessResult,
+  listLatestReprocessResults,
   getProductOverrides,
   getShopifyCatalogProductsBySkus,
   productIdentityKey,
@@ -53,7 +55,57 @@ export async function GET(req: NextRequest) {
           colecoesDepois: override.collections.join(", "),
         };
       });
-    const dashboard = buildDashboard(rows, {
+    const includeReprocess = params.get("includeReprocess") === "1";
+    const dashboardRows = [...rows];
+    if (includeReprocess) {
+      const latestReprocesses = await listLatestReprocessResults();
+      const latestSheetRowBySku = new Map<string, (typeof rows)[number]>();
+      rows.forEach((row) => {
+        const sku = String(row.sku || "")
+          .trim()
+          .toLocaleLowerCase("pt-BR");
+        if (sku && !latestSheetRowBySku.has(sku))
+          latestSheetRowBySku.set(sku, row);
+      });
+
+      latestReprocesses.forEach((record) => {
+        if (!isSuccessfulReprocessResult(record.result)) return;
+        const sku = String(record.sku || "").trim();
+        const base = latestSheetRowBySku.get(sku.toLocaleLowerCase("pt-BR"));
+        const rawResult = Array.isArray(record.result)
+          ? record.result[0]
+          : record.result;
+        const result =
+          rawResult && typeof rawResult === "object" ? rawResult : {};
+        const isYes = (value: unknown) =>
+          ["sim", "true"].includes(String(value || "").toLowerCase());
+        dashboardRows.push({
+          dataHora: record.createdAt,
+          sku,
+          shopifyId: base?.shopifyId,
+          marca: base?.marca || "",
+          tipoProduto: base?.tipoProduto,
+          tituloAntes: String(result.titulo_antes || base?.tituloAntes || ""),
+          tituloDepois: String(
+            result.titulo_depois || record.title || base?.tituloDepois || "",
+          ),
+          tagsAntes: String(result.tags_antes || base?.tagsAntes || ""),
+          tagsDepois: String(result.tags_depois || base?.tagsDepois || ""),
+          colecoesAntes: String(
+            result.colecoes_antes || base?.colecoesAntes || "",
+          ),
+          colecoesDepois: String(
+            result.colecoes_depois || base?.colecoesDepois || "",
+          ),
+          tituloAlterado: isYes(result.titulo_alterado),
+          tagsAlteradas: isYes(result.tags_alteradas),
+          colecoesAlteradas: isYes(result.colecoes_alteradas),
+          descricaoGerada: isYes(result.descricao_gerada),
+          status: String(result.status || "Sucesso"),
+        });
+      });
+    }
+    const dashboard = buildDashboard(dashboardRows, {
       q: (params.get("q") || "").slice(0, 120),
       marca: (params.get("marca") || "").slice(0, 120),
       status: (params.get("status") || "").slice(0, 40),
