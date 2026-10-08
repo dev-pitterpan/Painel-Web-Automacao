@@ -79,6 +79,7 @@
 }
 
 .system-update-hero-icon {
+  position: relative;
   display: grid;
   width: 106px;
   height: 106px;
@@ -86,6 +87,27 @@
   border-radius: 24px;
   background: linear-gradient(145deg, #4893ff, #0963f2);
   box-shadow: 0 14px 28px rgba(20, 104, 237, 0.27);
+}
+
+.system-update-hero-check {
+  position: absolute;
+  right: -12px;
+  bottom: -9px;
+  display: grid;
+  width: 45px;
+  height: 45px;
+  place-items: center;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: #28b958;
+  box-shadow: 0 7px 15px rgba(22, 145, 72, 0.25);
+}
+
+.system-update-hero-icon .system-update-hero-check svg {
+  width: 25px;
+  height: 25px;
+  animation: none;
+  stroke-width: 3;
 }
 
 .system-update-hero-icon svg {
@@ -117,6 +139,9 @@
   transform: translate(117px, 15px);
   background: #16b45a;
 }
+.system-update-ray.is-green {
+  background: #16b45a;
+}
 
 .system-update-content {
   position: relative;
@@ -144,6 +169,17 @@
   border-radius: 50%;
   background: #1474ef;
   box-shadow: 0 0 0 3px rgba(20, 116, 239, 0.11);
+}
+
+.system-update-badge.is-success {
+  border-color: #a8dfbf;
+  background: #e9f8ef;
+  color: #09833b;
+}
+
+.system-update-badge.is-success i {
+  background: #20b755;
+  box-shadow: 0 0 0 3px rgba(32, 183, 85, 0.11);
 }
 
 .system-update-content h2 {
@@ -223,6 +259,29 @@
   background: #f39a00;
 }
 
+.system-update-status.is-success {
+  color: #0b913f !important;
+}
+
+.system-update-status.is-success i {
+  background: #20b755;
+}
+
+.system-update-complete-icon {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border: 2px solid #5270a4;
+  border-radius: 50%;
+}
+
+.system-update-complete-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.8;
+}
+
 .system-update-notice {
   display: flex;
   align-items: center;
@@ -254,6 +313,11 @@
   grid-template-columns: 1fr 1.35fr;
   gap: 14px;
   margin-top: 23px;
+}
+
+.system-update-actions.is-complete {
+  grid-template-columns: minmax(220px, 270px);
+  justify-content: center;
 }
 
 .system-update-actions button {

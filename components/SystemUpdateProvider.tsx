@@ -1,16 +1,23 @@
 "use client";
 
-import { Clock3, Cog, Info, Monitor, RefreshCw, X } from "lucide-react";
+import { Check, Clock3, Cog, Info, Monitor, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useAutomationProgress } from "@/components/AutomationProgressProvider";
 
 const CHECK_INTERVAL_MS = 60_000;
 const REMIND_LATER_MS = 15 * 60_000;
 const DISMISS_KEY = "pitter-system-update-dismissed";
+const COMPLETED_KEY = "pitter-system-update-completed";
 
 type AvailableVersion = {
   version: string;
   label: string;
+};
+
+type CompletedUpdate = {
+  previousLabel: string;
+  currentLabel: string;
+  targetVersion: string;
 };
 
 export function SystemUpdateProvider({
@@ -25,6 +32,8 @@ export function SystemUpdateProvider({
   const { isUpdateBlocked, isAutomationActive } = useAutomationProgress();
   const [available, setAvailable] = useState<AvailableVersion | null>(null);
   const [dismissedUntil, setDismissedUntil] = useState(0);
+  const [completedUpdate, setCompletedUpdate] =
+    useState<CompletedUpdate | null>(null);
 
   const checkVersion = useCallback(async () => {
     try {
@@ -55,6 +64,18 @@ export function SystemUpdateProvider({
   }, [currentVersion]);
 
   useEffect(() => {
+    try {
+      const completed = JSON.parse(
+        sessionStorage.getItem(COMPLETED_KEY) || "null",
+      ) as CompletedUpdate | null;
+      if (completed?.targetVersion === currentVersion) {
+        setCompletedUpdate(completed);
+      }
+      sessionStorage.removeItem(COMPLETED_KEY);
+    } catch {
+      sessionStorage.removeItem(COMPLETED_KEY);
+    }
+
     try {
       const stored = JSON.parse(sessionStorage.getItem(DISMISS_KEY) || "null");
       if (stored && Number(stored.until) > Date.now())
@@ -87,13 +108,111 @@ export function SystemUpdateProvider({
       );
   };
 
+  const applyUpdate = () => {
+    if (!available) return;
+    sessionStorage.setItem(
+      COMPLETED_KEY,
+      JSON.stringify({
+        previousLabel: currentLabel,
+        currentLabel: available.label,
+        targetVersion: available.version,
+      } satisfies CompletedUpdate),
+    );
+    window.location.reload();
+  };
+
   const visible =
     Boolean(available) && !isUpdateBlocked && Date.now() >= dismissedUntil;
 
   return (
     <>
       {children}
-      {visible && available && (
+      {completedUpdate && (
+        <div className="system-update-backdrop" role="presentation">
+          <section
+            className="system-update-modal system-update-complete"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="system-update-complete-title"
+          >
+            <button
+              className="system-update-close"
+              type="button"
+              onClick={() => setCompletedUpdate(null)}
+              aria-label="Fechar confirmação"
+            >
+              <X />
+            </button>
+            <div className="system-update-wave" aria-hidden="true" />
+            <div className="system-update-hero" aria-hidden="true">
+              <span className="system-update-ray ray-one" />
+              <span className="system-update-ray ray-two" />
+              <span className="system-update-ray ray-three is-green" />
+              <span className="system-update-ray ray-four is-green" />
+              <div className="system-update-hero-icon">
+                <RefreshCw />
+                <span className="system-update-hero-check">
+                  <Check />
+                </span>
+              </div>
+            </div>
+
+            <div className="system-update-content">
+              <div className="system-update-badge is-success">
+                <i /> Atualização concluída
+              </div>
+              <h2 id="system-update-complete-title">
+                Sistema atualizado com sucesso
+              </h2>
+              <p className="system-update-description">
+                A nova versão já foi aplicada. Seu painel foi recarregado e
+                agora está pronto para uso.
+              </p>
+
+              <div className="system-update-versions">
+                <div>
+                  <Monitor />
+                  <span>Versão anterior:</span>
+                  <strong>{completedUpdate.previousLabel}</strong>
+                </div>
+                <div>
+                  <span className="system-update-cog">
+                    <Cog />
+                  </span>
+                  <span>Versão atual:</span>
+                  <strong>{completedUpdate.currentLabel}</strong>
+                </div>
+                <div>
+                  <span className="system-update-complete-icon">
+                    <Check />
+                  </span>
+                  <span>Status:</span>
+                  <strong className="system-update-status is-success">
+                    <i /> atualizado e sincronizado
+                  </strong>
+                </div>
+              </div>
+
+              <div className="system-update-notice">
+                <Info />
+                Todas as máquinas conectadas já podem continuar usando a versão
+                mais recente.
+              </div>
+
+              <div className="system-update-actions is-complete">
+                <button
+                  className="is-primary"
+                  type="button"
+                  onClick={() => setCompletedUpdate(null)}
+                >
+                  Continuar
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+      {!completedUpdate && visible && available && (
         <div className="system-update-backdrop" role="presentation">
           <section
             className="system-update-modal"
@@ -176,7 +295,7 @@ export function SystemUpdateProvider({
                 <button
                   className="is-primary"
                   type="button"
-                  onClick={() => window.location.reload()}
+                  onClick={applyUpdate}
                 >
                   <RefreshCw /> Atualizar sistema
                 </button>
