@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
       compareMonth: (params.get("compareMonth") || "").slice(0, 7),
       quality: (params.get("quality") || "").slice(0, 40),
       catalog: catalogOnly,
+      latestPerProduct: params.get("latest") === "1",
       timeSettings: settings,
     });
     return NextResponse.json({

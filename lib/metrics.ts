@@ -139,6 +139,43 @@ function matchesQuality(row: HistoryRow, quality: string) {
   return true;
 }
 
+export function historyProductKey(row: HistoryRow) {
+  const sku = String(row.sku || "")
+    .trim()
+    .toLocaleLowerCase("pt-BR");
+  if (sku) return `sku:${sku}`;
+
+  const shopifyId = String(row.shopifyId || "").trim();
+  if (shopifyId) return `shopify:${shopifyId}`;
+
+  const title = String(row.tituloDepois || row.tituloAntes || "")
+    .trim()
+    .toLocaleLowerCase("pt-BR");
+  return title ? `title:${title}` : "";
+}
+
+export function latestHistoryRowsByProduct(rows: HistoryRow[]) {
+  const latest = new Map<string, { row: HistoryRow; timestamp: number }>();
+  const unidentified: HistoryRow[] = [];
+
+  rows.forEach((row) => {
+    const key = historyProductKey(row);
+    if (!key) {
+      unidentified.push(row);
+      return;
+    }
+
+    const timestamp = parseHistoryDate(row.dataHora)?.getTime() ?? 0;
+    const current = latest.get(key);
+    // Em caso de datas iguais, a última linha da planilha é a mais recente.
+    if (!current || timestamp >= current.timestamp) {
+      latest.set(key, { row, timestamp });
+    }
+  });
+
+  return [...latest.values()].map(({ row }) => row).concat(unidentified);
+}
+
 export function buildDashboard(
   rows: HistoryRow[],
   options: {
@@ -150,6 +187,7 @@ export function buildDashboard(
     compareMonth?: string;
     quality?: string;
     catalog?: boolean;
+    latestPerProduct?: boolean;
     timeSettings?: {
       manualSecondsPerProduct: number;
       batchSize: number;
@@ -191,7 +229,10 @@ export function buildDashboard(
     marca: options.marca || "",
     status: (options.status || "").toLowerCase(),
   };
-  const periodRows = rows
+  const sourceRows = options.latestPerProduct
+    ? latestHistoryRowsByProduct(rows)
+    : rows;
+  const periodRows = sourceRows
     .filter((row) => {
       const date = parseHistoryDate(row.dataHora);
       return (
@@ -207,7 +248,7 @@ export function buildDashboard(
         (parseHistoryDate(b.dataHora)?.getTime() || 0) -
         (parseHistoryDate(a.dataHora)?.getTime() || 0),
     );
-  const catalogRows = rows
+  const catalogRows = sourceRows
     .filter(
       (row) =>
         matches(row, filters) && matchesQuality(row, options.quality || ""),
@@ -224,7 +265,7 @@ export function buildDashboard(
   const previousRows =
     options.catalog || fullPeriod
       ? []
-      : rows.filter((row) => {
+      : sourceRows.filter((row) => {
           const date = parseHistoryDate(row.dataHora);
           return (
             date !== null &&

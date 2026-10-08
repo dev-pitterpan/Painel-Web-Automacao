@@ -43,7 +43,11 @@ import {
   X,
 } from "lucide-react";
 import type { DashboardData, HistoryRow } from "@/lib/types";
-import { calculateTimeSavedMinutes, parseHistoryDate } from "@/lib/metrics";
+import {
+  calculateTimeSavedMinutes,
+  historyProductKey,
+  parseHistoryDate,
+} from "@/lib/metrics";
 import {
   productRowKey,
   useProductPanel,
@@ -618,7 +622,9 @@ export function DashboardClient({
     });
 
     const totalErrors = data?.rows.length || 0;
-    const totalProcessed = errorOverviewRows.length;
+    const totalProcessed = new Set(
+      errorOverviewRows.map(historyProductKey).filter(Boolean),
+    ).size;
     const errorRate = totalProcessed ? (totalErrors / totalProcessed) * 100 : 0;
     const averageCorrectionMinutes = correctionMinutes.length
       ? correctionMinutes.reduce((sum, value) => sum + value, 0) /
@@ -783,6 +789,7 @@ export function DashboardClient({
 
       if (mode === "errors") {
         p.set("status", "erro");
+        p.set("latest", "1");
       } else if (appliedFilters.statusFilter) {
         p.set("status", appliedFilters.statusFilter);
       }
@@ -845,6 +852,7 @@ export function DashboardClient({
       if (mode === "errors") {
         const overviewParams = new URLSearchParams(p);
         overviewParams.delete("status");
+        overviewParams.delete("latest");
         overviewParams.delete("refresh");
         if (refresh) overviewParams.set("refresh", "1");
         try {
@@ -1135,6 +1143,7 @@ export function DashboardClient({
             );
           if (statusJson?.completed) {
             setReprocessState((current) => ({ ...current, [key]: "success" }));
+            if (mode === "errors" && !options.silent) await load(true);
             if (!options.silent)
               addNotification(
                 "success",
@@ -1153,6 +1162,8 @@ export function DashboardClient({
         ...current,
         [key]: "success",
       }));
+
+      if (mode === "errors" && !options.silent) await load(true);
 
       if (!options.silent)
         addNotification(
@@ -1212,6 +1223,7 @@ export function DashboardClient({
 
     setBatchReprocessing(false);
     setSelectedReprocessKeys([]);
+    if (mode === "errors" && successes > 0) await load(true);
     addNotification(
       failures ? "error" : "success",
       failures
@@ -2234,8 +2246,7 @@ export function DashboardClient({
                           Boolean(productBulkAction)
                         }
                         onClick={() => runProductBulkAction("unpublish")}
-                      >
-                      </button>
+                      ></button>
                       <button
                         className="is-danger"
                         type="button"
