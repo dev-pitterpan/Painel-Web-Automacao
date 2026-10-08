@@ -98,12 +98,28 @@ export function N8nExecutionsClient() {
   }, []);
 
   useEffect(() => {
-    load();
-    const refresh = window.setInterval(() => load(true), 15_000);
+    let active = true;
+    let refresh: number | undefined;
+
+    const schedule = async (immediate = false) => {
+      if (!active) return;
+      if (document.visibilityState === "visible") await load(!immediate);
+      if (active) refresh = window.setTimeout(() => schedule(), 2_000);
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (refresh) window.clearTimeout(refresh);
+      schedule();
+    };
+
+    schedule(true);
+    document.addEventListener("visibilitychange", handleVisibility);
     const clock = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => {
-      window.clearInterval(refresh);
+      active = false;
+      if (refresh) window.clearTimeout(refresh);
       window.clearInterval(clock);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [load]);
 
@@ -140,7 +156,7 @@ export function N8nExecutionsClient() {
         <div>
           <h1 className="page-title">n8n</h1>
           <div className="page-sub">
-            Acompanhe as execuções e o estado dos workflows em tempo real.
+            Acompanhe as execuções em tempo real, sem precisar atualizar a página.
           </div>
         </div>
         <div className="n8n-head-actions">
@@ -235,3 +251,5 @@ export function N8nExecutionsClient() {
     </>
   );
 }
+
+

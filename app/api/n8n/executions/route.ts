@@ -3,6 +3,11 @@ import { getCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+type WorkflowSummary = { id: string; name: string; active: boolean };
+
+let workflowCache:
+  | { baseUrl: string; data: WorkflowSummary[]; expiresAt: number }
+  | null = null;
 const EXECUTION_STATUSES = new Set([
   "new",
   "running",
@@ -81,17 +86,39 @@ export async function GET(request: NextRequest) {
     });
     if (status) params.set("status", status);
 
-    const [executionPayload, workflowPayload] = await Promise.all([
-      n8nRequest(`/executions?${params}`, apiKey, baseUrl),
-      n8nRequest("/workflows?limit=250", apiKey, baseUrl),
-    ]);
-    const workflows = Array.isArray(workflowPayload?.data)
-      ? workflowPayload.data.map((workflow: any) => ({
-          id: String(workflow.id || ""),
-          name: String(workflow.name || "Workflow sem nome"),
-          active: Boolean(workflow.active),
-        }))
-      : [];
+    const executionPromise = n8nRequest(
+      `/executions?${params}`,
+      apiKey,
+      baseUrl,
+    );
+    let workflows = workflowCache?.expiresAt
+      ? workflowCache.baseUrl === baseUrl && workflowCache.expiresAt > Date.now()
+        ? workflowCache.data
+        : null
+      : null;
+    if (!workflows) {
+      const workflowPayload = await n8nRequest(
+        "/workflows?limit=250",
+        apiKey,
+        baseUrl,
+      );
+      const fetchedWorkflows: WorkflowSummary[] = Array.isArray(
+        workflowPayload?.data,
+      )
+        ? workflowPayload.data.map((workflow: any) => ({
+            id: String(workflow.id || ""),
+            name: String(workflow.name || "Workflow sem nome"),
+            active: Boolean(workflow.active),
+          }))
+        : [];
+      workflows = fetchedWorkflows;
+      workflowCache = {
+        baseUrl,
+        data: fetchedWorkflows,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      };
+    }
+    const executionPayload = await executionPromise;
     const workflowNames = new Map(
       workflows.map((workflow: { id: string; name: string }) => [
         workflow.id,
@@ -147,3 +174,6 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+
+
