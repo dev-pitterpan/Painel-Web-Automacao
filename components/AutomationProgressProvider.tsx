@@ -123,7 +123,7 @@ export function AutomationProgressProvider({
             </div>
 
             <div className="automation-progress-content">
-              <div className="automation-progress-eyebrow">AUTOMAÇÃO n8n</div>
+              <div className="automation-progress-eyebrow">Automação n8n</div>
               <h2 id="automation-progress-title">
                 {done ? "Processamento concluído" : "Processando produtos"}
               </h2>
