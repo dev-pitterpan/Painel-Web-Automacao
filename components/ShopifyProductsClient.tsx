@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import type { UpdatedProduct } from "@/components/ProductDetailsDrawer";
+import { useAutomationProgress } from "@/components/AutomationProgressProvider";
 import {
   productRowKey,
   useProductPanel,
@@ -215,6 +216,7 @@ export function ShopifyProductsClient({
   winthorOnly?: boolean;
 }) {
   const { activeProductKey, openProduct } = useProductPanel();
+  const automationProgress = useAutomationProgress();
   const [data, setData] = useState<CatalogResponse | null>(null);
   const [facets, setFacets] = useState<Facets>();
   const [loading, setLoading] = useState(true);
@@ -406,6 +408,7 @@ export function ShopifyProductsClient({
 
     setAutomationRunning(true);
     setAutomationMessage(null);
+    automationProgress.start(selectedProductsList.length);
 
     let successes = 0;
     let failures = 0;
@@ -465,13 +468,23 @@ export function ShopifyProductsClient({
               statusJson?.error ||
                 "Não foi possível consultar o status da automação.",
             );
-          if (statusJson?.completed) return { ok: true as const };
+          if (statusJson?.completed) {
+            const succeeded = statusJson?.succeeded !== false;
+            automationProgress.productFinished(succeeded);
+            return succeeded
+              ? { ok: true as const }
+              : {
+                  ok: false as const,
+                  error: `${title}: o processamento terminou com erro.`,
+                };
+          }
         }
 
         throw new Error(
           "A automação ainda não concluiu o produto dentro do tempo esperado.",
         );
       } catch (cause) {
+        automationProgress.productFinished(false);
         return {
           ok: false as const,
           error: `${title}: ${
@@ -499,6 +512,8 @@ export function ShopifyProductsClient({
         }
       }
     }
+
+    automationProgress.queueReady(queued.length, failures);
 
     const completionResults = await Promise.all(
       queued.map(({ requestId, title }) => waitForProduct(requestId, title)),
@@ -888,8 +903,7 @@ export function ShopifyProductsClient({
                   type="button"
                   disabled={!selectedIds.length || Boolean(bulkActionRunning)}
                   onClick={() => runBulkAction("unpublish")}
-                >
-                </button>
+                ></button>
                 <button
                   className="is-danger"
                   type="button"

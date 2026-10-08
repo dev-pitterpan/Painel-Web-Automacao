@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import "./globals.css";
 import { PageContent } from "@/components/PageContent";
 import { ProductPanelProvider } from "@/components/ProductPanelProvider";
+import { AutomationProgressProvider } from "@/components/AutomationProgressProvider";
 import { Sidebar } from "@/components/Sidebar";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -33,8 +34,10 @@ export default async function RootLayout({
       <body>
         {user ? (
           <ProductPanelProvider>
-            <Sidebar user={user} />
-            <PageContent>{children}</PageContent>
+            <AutomationProgressProvider>
+              <Sidebar user={user} />
+              <PageContent>{children}</PageContent>
+            </AutomationProgressProvider>
           </ProductPanelProvider>
         ) : (
           children
