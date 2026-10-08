@@ -411,7 +411,7 @@ export function ShopifyProductsClient({
     let failures = 0;
     const failureMessages: string[] = [];
 
-    const processProduct = async (product: ShopifyCatalogProduct) => {
+    const enqueueProduct = async (product: ShopifyCatalogProduct) => {
       if (!product.sku)
         return {
           ok: false as const,
@@ -433,11 +433,30 @@ export function ShopifyProductsClient({
         if (!response.ok || !result?.ok)
           throw new Error(result?.error || "Falha ao iniciar automação.");
 
-        const maxAttempts = 160;
+        return {
+          ok: true as const,
+          requestId: String(result.requestId),
+          title: product.title,
+        };
+      } catch (cause) {
+        return {
+          ok: false as const,
+          error: `${product.title}: ${
+            cause instanceof Error
+              ? cause.message
+              : "Falha ao iniciar automação."
+          }`,
+        };
+      }
+    };
+
+    const waitForProduct = async (requestId: string, title: string) => {
+      try {
+        const maxAttempts = 320;
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
           await new Promise((resolve) => window.setTimeout(resolve, 3000));
           const statusResponse = await fetch(
-            `/api/n8n/product-automation/status?request_id=${encodeURIComponent(result.requestId)}`,
+            `/api/n8n/product-automation/status?request_id=${encodeURIComponent(requestId)}`,
             { cache: "no-store" },
           );
           const statusJson = await statusResponse.json().catch(() => null);
@@ -455,26 +474,40 @@ export function ShopifyProductsClient({
       } catch (cause) {
         return {
           ok: false as const,
-          error: `${product.title}: ${
+          error: `${title}: ${
             cause instanceof Error
               ? cause.message
-              : "Falha ao iniciar automação."
+              : "Falha ao acompanhar a automação."
           }`,
         };
       }
     };
 
-    // Lote rígido: envia até 5 e espera TODOS terminarem.
-    // Somente então libera o próximo grupo de até 5.
+    const queued: Array<{ requestId: string; title: string }> = [];
+
+    // Enfileira todos rapidamente, limitando apenas o pico de requisições HTTP.
+    // O n8n mantém cinco workers e cada worker busca o próximo item ao terminar.
     for (let index = 0; index < selectedProductsList.length; index += 5) {
       const batch = selectedProductsList.slice(index, index + 5);
-      const results = await Promise.all(batch.map(processProduct));
-      for (const result of results) {
-        if (result.ok) successes += 1;
+      const enqueueResults = await Promise.all(batch.map(enqueueProduct));
+      for (const result of enqueueResults) {
+        if (result.ok)
+          queued.push({ requestId: result.requestId, title: result.title });
         else {
           failures += 1;
           failureMessages.push(result.error);
         }
+      }
+    }
+
+    const completionResults = await Promise.all(
+      queued.map(({ requestId, title }) => waitForProduct(requestId, title)),
+    );
+    for (const result of completionResults) {
+      if (result.ok) successes += 1;
+      else {
+        failures += 1;
+        failureMessages.push(result.error);
       }
     }
 
