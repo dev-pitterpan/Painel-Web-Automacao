@@ -213,3 +213,14 @@ N8N_REPROCESS_TOKEN=TOKEN_FORTE
 ```
 
 O token nunca é enviado ao navegador; a chamada ao n8n é feita pela API interna do Next.js.
+
+### Painel de execuções do n8n
+
+A página administrativa `/n8n` consulta a API pública do n8n sem expor a chave ao navegador. Configure na Vercel:
+
+```env
+N8N_API_BASE_URL=https://seu-n8n.example.com
+N8N_API_KEY=sua-chave-da-api
+```
+
+Crie a chave em **Settings > API** no n8n e mantenha o valor apenas nas variáveis protegidas do servidor.

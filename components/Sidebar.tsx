@@ -19,6 +19,7 @@ import {
   Settings,
   UserCog,
   UserRound,
+  Workflow,
 } from "lucide-react";
 import type { AuthUser } from "@/lib/auth";
 
@@ -47,6 +48,7 @@ export function Sidebar({ user }: { user: AuthUser }) {
             LucideIcon,
           ],
           ["Integrações", "/saude", Activity] as [string, string, LucideIcon],
+          ["n8n", "/n8n", Workflow] as [string, string, LucideIcon],
           ["Usuários", "/usuarios", UserCog] as [string, string, LucideIcon],
           ["Auditoria", "/auditoria", ScrollText] as [
             string,

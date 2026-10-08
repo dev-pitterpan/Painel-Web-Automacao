@@ -1,0 +1,53 @@
+.n8n-page-head { align-items: flex-end; }
+.n8n-head-actions { display: flex; align-items: center; gap: 12px; }
+.n8n-head-actions small { color: var(--muted); font-size: 12px; }
+.n8n-message, .n8n-setup { display: flex; align-items: flex-start; gap: 14px; padding: 20px; }
+.n8n-message p, .n8n-setup p { margin: 5px 0 0; color: var(--muted); }
+.n8n-message-error { color: #a11932; border-color: #ffd2da; background: #fff8f9; }
+.n8n-setup > span { display: grid; place-items: center; width: 46px; height: 46px; flex: 0 0 auto; border-radius: 14px; color: #ef366c; background: #fff0f5; }
+.n8n-setup h2 { margin: 0; font-size: 18px; }
+.n8n-setup code { display: inline-block; margin: 14px 8px 0 0; padding: 7px 10px; border-radius: 8px; color: #33466f; background: #edf3fb; }
+.n8n-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+.n8n-summary { display: flex; align-items: center; gap: 13px; padding: 18px; }
+.n8n-summary > span { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; }
+.n8n-summary div { display: grid; gap: 3px; }
+.n8n-summary small { color: var(--muted); font-size: 12px; }
+.n8n-summary strong { font-size: 24px; line-height: 1; }
+.n8n-summary-running > span { color: #1268f4; background: #eaf2ff; }
+.n8n-summary-success > span { color: #078f60; background: #e8f8f1; }
+.n8n-summary-error > span { color: #d72e4b; background: #fff0f3; }
+.n8n-summary-waiting > span { color: #b97800; background: #fff7e4; }
+.n8n-executions-panel { overflow: hidden; padding: 0; }
+.n8n-toolbar { display: grid; grid-template-columns: minmax(240px, 1fr) 180px minmax(220px, 300px) auto; align-items: center; gap: 10px; padding: 16px; border-bottom: 1px solid var(--line); }
+.n8n-search { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 11px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.n8n-search svg { color: var(--muted); flex: 0 0 auto; }
+.n8n-search input { width: 100%; height: 40px; min-width: 0; border: 0; outline: 0; color: var(--ink); background: transparent; }
+.n8n-toolbar select { height: 42px; min-width: 0; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: #fff; }
+.n8n-result-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.n8n-table table { min-width: 900px; }
+.n8n-table td strong, .n8n-table td small { display: block; }
+.n8n-table td small { max-width: 260px; margin-top: 3px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.n8n-status { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.n8n-status-success { color: #087950; background: #e4f7ef; }
+.n8n-status-running, .n8n-status-new { color: #075eca; background: #e6f0ff; }
+.n8n-status-error, .n8n-status-crashed, .n8n-status-canceled { color: #bd2440; background: #ffe9ed; }
+.n8n-status-waiting { color: #9b6500; background: #fff3d5; }
+.n8n-duration, .n8n-execution-link { display: inline-flex; align-items: center; gap: 5px; }
+.n8n-duration { white-space: nowrap; color: #40557f; }
+.n8n-execution-link { color: var(--blue); font-weight: 700; text-decoration: none; }
+.n8n-execution-link:hover { text-decoration: underline; }
+.n8n-loading { padding: 32px; color: var(--muted); text-align: center; }
+@media (max-width: 1050px) {
+  .n8n-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .n8n-toolbar { grid-template-columns: minmax(0, 1fr) minmax(150px, 0.55fr); }
+  .n8n-result-count { justify-self: end; }
+}
+@media (max-width: 640px) {
+  .n8n-page-head, .n8n-head-actions { align-items: stretch; }
+  .n8n-head-actions { flex-direction: column; }
+  .n8n-summary-grid { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+  .n8n-summary { padding: 14px; }
+  .n8n-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .n8n-result-count { justify-self: start; }
+  .n8n-setup code { display: block; width: fit-content; }
+}
