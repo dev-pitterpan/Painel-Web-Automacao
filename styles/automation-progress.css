@@ -154,6 +154,30 @@
   font-size: 22px;
 }
 
+.automation-progress-duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 7px 13px;
+  border: 1px solid #d9e6f6;
+  border-radius: 999px;
+  background: #f5f9ff;
+  color: #526a94;
+  font-size: 13px;
+}
+
+.automation-progress-duration svg {
+  width: 16px;
+  height: 16px;
+  color: #176df0;
+}
+
+.automation-progress-duration strong {
+  color: #10275b;
+  font-size: 14px;
+}
+
 .automation-progress-bar-row {
   display: grid;
   grid-template-columns: 1fr auto;

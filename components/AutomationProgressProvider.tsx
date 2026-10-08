@@ -28,6 +28,8 @@ type AutomationProgressState = {
   total: number;
   successes: number;
   errors: number;
+  startedAt: number | null;
+  finishedAt: number | null;
   reading: boolean;
   open: boolean;
   minimized: boolean;
@@ -40,6 +42,8 @@ const INITIAL_STATE: AutomationProgressState = {
   total: 0,
   successes: 0,
   errors: 0,
+  startedAt: null,
+  finishedAt: null,
   reading: false,
   open: false,
   minimized: false,
@@ -58,24 +62,37 @@ export function AutomationProgressProvider({
       total: Math.max(1, total),
       successes: 0,
       errors: 0,
+      startedAt: Date.now(),
+      finishedAt: null,
       reading: true,
       open: true,
       minimized: false,
     });
 
   const queueReady = (_accepted: number, failed: number) =>
-    setState((current) => ({
-      ...current,
-      errors: Math.max(0, failed),
-      reading: false,
-    }));
+    setState((current) => {
+      const errors = Math.max(0, failed);
+      return {
+        ...current,
+        errors,
+        reading: false,
+        finishedAt:
+          current.successes + errors >= current.total ? Date.now() : null,
+      };
+    });
 
   const productFinished = (success: boolean) =>
-    setState((current) => ({
-      ...current,
-      successes: current.successes + (success ? 1 : 0),
-      errors: current.errors + (success ? 0 : 1),
-    }));
+    setState((current) => {
+      const successes = current.successes + (success ? 1 : 0);
+      const errors = current.errors + (success ? 0 : 1);
+      return {
+        ...current,
+        successes,
+        errors,
+        finishedAt:
+          successes + errors >= current.total ? Date.now() : current.finishedAt,
+      };
+    });
 
   const completed = state.successes + state.errors;
   const pending = Math.max(0, state.total - state.successes - state.errors);
@@ -87,6 +104,10 @@ export function AutomationProgressProvider({
   const percentage = state.total
     ? Math.min(100, Math.round((completed / state.total) * 100))
     : 0;
+  const totalDuration =
+    state.startedAt && state.finishedAt
+      ? formatExecutionDuration(state.finishedAt - state.startedAt)
+      : "";
 
   const context = useMemo(() => ({ start, queueReady, productFinished }), []);
 
@@ -130,6 +151,13 @@ export function AutomationProgressProvider({
               <p className="automation-progress-subtitle">
                 {completed} de {state.total} concluídos
               </p>
+              {done && totalDuration && (
+                <div className="automation-progress-duration">
+                  <Clock3 />
+                  <span>Tempo total</span>
+                  <strong>{totalDuration}</strong>
+                </div>
+              )}
 
               <div className="automation-progress-bar-row">
                 <div
@@ -248,6 +276,17 @@ export function AutomationProgressProvider({
       )}
     </AutomationProgressContext.Provider>
   );
+}
+
+function formatExecutionDuration(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0)
+    return `${hours}h ${String(minutes).padStart(2, "0")}min ${String(seconds).padStart(2, "0")}s`;
+  if (minutes > 0) return `${minutes}min ${String(seconds).padStart(2, "0")}s`;
+  return `${seconds}s`;
 }
 
 function ProgressStat({
