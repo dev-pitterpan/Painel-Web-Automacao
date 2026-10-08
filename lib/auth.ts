@@ -1924,6 +1924,13 @@ export function isSuccessfulReprocessResult(payload: unknown) {
     : (payload as Record<string, unknown> | null);
   if (!result || typeof result !== "object") return false;
 
+  const processed =
+    result.processado === true ||
+    String(result.processado || "").toLowerCase() === "true";
+  // O callback usa este campo para confirmar a execução nova. Já `status`
+  // também pertence ao histórico da planilha e pode carregar um erro antigo.
+  if (processed) return true;
+
   const status = String(result.status || "")
     .trim()
     .toLocaleLowerCase("pt-BR");
@@ -1936,8 +1943,6 @@ export function isSuccessfulReprocessResult(payload: unknown) {
   if (failed) return false;
 
   return Boolean(
-    result.processado === true ||
-    String(result.processado || "").toLowerCase() === "true" ||
     result.sucesso === true ||
     String(result.sucesso || "").toLowerCase() === "true" ||
     status.includes("sucesso") ||

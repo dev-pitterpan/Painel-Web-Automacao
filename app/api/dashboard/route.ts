@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getAppSettings,
   getCurrentUser,
+  isSuccessfulReprocessResult,
   listLatestReprocessResults,
   getProductOverrides,
   getShopifyCatalogProductsBySkus,
@@ -78,6 +79,7 @@ export async function GET(req: NextRequest) {
           rawResult && typeof rawResult === "object" ? rawResult : {};
         const isYes = (value: unknown) =>
           ["sim", "true"].includes(String(value || "").toLowerCase());
+        const reprocessSucceeded = isSuccessfulReprocessResult(record.result);
         dashboardRows.push({
           dataHora: String(result.data_hora || record.createdAt),
           sku,
@@ -100,7 +102,9 @@ export async function GET(req: NextRequest) {
           tagsAlteradas: isYes(result.tags_alteradas),
           colecoesAlteradas: isYes(result.colecoes_alteradas),
           descricaoGerada: isYes(result.descricao_gerada),
-          status: String(result.status || "Sucesso"),
+          status: reprocessSucceeded
+            ? "Sucesso - reprocessado"
+            : String(result.status || "Erro - reprocessamento não concluído"),
         });
       });
     }
