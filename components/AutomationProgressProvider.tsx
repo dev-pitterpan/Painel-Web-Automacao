@@ -22,6 +22,8 @@ type AutomationProgressContextValue = {
   start: (total: number) => void;
   queueReady: (accepted: number, failed: number) => void;
   productFinished: (success: boolean) => void;
+  isUpdateBlocked: boolean;
+  isAutomationActive: boolean;
 };
 
 type AutomationProgressState = {
@@ -109,7 +111,16 @@ export function AutomationProgressProvider({
       ? formatExecutionDuration(state.finishedAt - state.startedAt)
       : "";
 
-  const context = useMemo(() => ({ start, queueReady, productFinished }), []);
+  const context = useMemo(
+    () => ({
+      start,
+      queueReady,
+      productFinished,
+      isUpdateBlocked: state.open && !state.minimized,
+      isAutomationActive: state.open && !done,
+    }),
+    [done, state.open, state.minimized],
+  );
 
   return (
     <AutomationProgressContext.Provider value={context}>

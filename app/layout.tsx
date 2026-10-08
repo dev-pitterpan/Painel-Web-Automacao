@@ -5,8 +5,10 @@ import "./globals.css";
 import { PageContent } from "@/components/PageContent";
 import { ProductPanelProvider } from "@/components/ProductPanelProvider";
 import { AutomationProgressProvider } from "@/components/AutomationProgressProvider";
+import { SystemUpdateProvider } from "@/components/SystemUpdateProvider";
 import { Sidebar } from "@/components/Sidebar";
 import { getCurrentUser } from "@/lib/auth";
+import { formatBuildVersion, getBuildVersion } from "@/lib/buildVersion";
 
 export const metadata: Metadata = {
   title: "Pitter Pan | Automação Shopify",
@@ -25,6 +27,7 @@ export default async function RootLayout({
 }) {
   const user = await getCurrentUser();
   const pathname = (await headers()).get("x-pitter-pathname") || "/";
+  const currentVersion = getBuildVersion();
 
   if (!user && pathname !== "/login") redirect("/login");
   if (user && pathname === "/login") redirect("/");
@@ -35,8 +38,13 @@ export default async function RootLayout({
         {user ? (
           <ProductPanelProvider>
             <AutomationProgressProvider>
-              <Sidebar user={user} />
-              <PageContent>{children}</PageContent>
+              <SystemUpdateProvider
+                currentVersion={currentVersion}
+                currentLabel={formatBuildVersion(currentVersion)}
+              >
+                <Sidebar user={user} />
+                <PageContent>{children}</PageContent>
+              </SystemUpdateProvider>
             </AutomationProgressProvider>
           </ProductPanelProvider>
         ) : (
