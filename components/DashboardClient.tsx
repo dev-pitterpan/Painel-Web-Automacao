@@ -657,6 +657,19 @@ export function DashboardClient({
         previousRate === null ? null : errorRate - previousRate,
     };
   }, [data, errorOverviewRows]);
+  const currentDashboardMetrics = useMemo(() => {
+    const total = data?.metrics.total || 0;
+    const errors = Math.min(
+      total,
+      Math.max(0, data?.source?.currentErrors ?? data?.metrics.erros ?? 0),
+    );
+    const success = Math.max(0, total - errors);
+    return {
+      errors,
+      success,
+      successRate: total ? (success / total) * 100 : 0,
+    };
+  }, [data]);
   const processedFacets = useMemo<ProcessedFacets>(() => {
     const rows = data?.rows || [];
     const unique = (values: string[]) =>
@@ -1807,8 +1820,8 @@ export function DashboardClient({
             />
             <Metric
               label="Sucesso"
-              value={data.metrics.sucesso}
-              comparison={data.metrics.comparisons.sucesso}
+              value={currentDashboardMetrics.success}
+              comparison={null}
               comparisonLabel={data.comparison.label}
               imageSrc="/icons/verificar.png"
               href="/produtos/processados?status=sucesso"
@@ -1816,7 +1829,7 @@ export function DashboardClient({
             />
             <Metric
               label="Erros"
-              value={data.source?.currentErrors ?? data.metrics.erros}
+              value={currentDashboardMetrics.errors}
               comparison={null}
               comparisonLabel={data.comparison.label}
               inverse
@@ -1826,8 +1839,8 @@ export function DashboardClient({
             />
             <Metric
               label="Taxa de sucesso"
-              value={`${data.metrics.taxaSucesso.toFixed(2)}%`}
-              comparison={data.metrics.comparisons.taxaSucesso}
+              value={`${currentDashboardMetrics.successRate.toFixed(2)}%`}
+              comparison={null}
               comparisonLabel={data.comparison.label}
               imageSrc="/icons/percentagem.png"
               tone="violet"
