@@ -304,9 +304,10 @@ export function ShopifyProductsClient({
       }
       setError("");
       try {
+        const skuTerms = multipleSkuTerms(query);
         const params = new URLSearchParams({
           page: String(page),
-          perPage: multipleSkuTerms(query).length ? "100" : "50",
+          perPage: skuTerms.length ? "500" : "50",
           sort,
           facets: "1",
         });

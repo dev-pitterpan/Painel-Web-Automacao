@@ -865,7 +865,7 @@ export async function listShopifyCatalogProducts(input: {
 }) {
   await ensureDatabase();
   const page = Math.max(1, Math.trunc(input.page || 1));
-  const perPage = Math.min(100, Math.max(10, Math.trunc(input.perPage || 50)));
+  const perPage = Math.min(500, Math.max(10, Math.trunc(input.perPage || 50)));
   const search = String(input.query || "").trim();
   const skuTerms = multipleSkuTerms(search);
   const status = String(input.status || "")
