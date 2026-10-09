@@ -57,6 +57,8 @@ import {
   NotificationCenter,
   type NotificationItem,
 } from "@/components/NotificationCenter";
+import { SkuNotFoundModal } from "@/components/SkuNotFoundModal";
+import { missingSkuTerms } from "@/lib/search";
 
 const colors = [
   "#233b8f",
@@ -456,6 +458,7 @@ export function DashboardClient({
   const [loading, setLoading] = useState(true);
 
   const [q, setQ] = useState("");
+  const [missingSkus, setMissingSkus] = useState<string[]>([]);
   const [marca, setMarca] = useState("");
   const [days, setDays] = useState("30");
   const [month, setMonth] = useState("all");
@@ -866,6 +869,14 @@ export function DashboardClient({
       };
 
       setData(safeData);
+      if (!refresh) {
+        setMissingSkus(
+          missingSkuTerms(
+            appliedFilters.q,
+            safeData.rows.map((row) => row.sku),
+          ),
+        );
+      }
       if (mode === "errors") {
         const overviewParams = new URLSearchParams(p);
         overviewParams.delete("status");
@@ -1474,6 +1485,7 @@ export function DashboardClient({
 
   return (
     <>
+      <SkuNotFoundModal skus={missingSkus} onClose={() => setMissingSkus([])} />
       {toast && (
         <div
           className={`integration-toast integration-toast-${toast.tone}`}

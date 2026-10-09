@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import type { ExcludedProductRow } from "@/lib/types";
 import { ProductThumbnail } from "@/components/ProductThumbnail";
-import { multipleSkuTerms } from "@/lib/search";
+import { SkuNotFoundModal } from "@/components/SkuNotFoundModal";
+import { missingSkuTerms, multipleSkuTerms } from "@/lib/search";
 
 const PAGE_SIZE = 100;
 type ApiResponse = {
@@ -44,6 +45,7 @@ export function ExcludedProductsClient() {
   const [loadingExiting, setLoadingExiting] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [missingSkus, setMissingSkus] = useState<string[]>([]);
   const [status, setStatus] = useState("all");
   const [date, setDate] = useState("");
   const [page, setPage] = useState(1);
@@ -127,6 +129,28 @@ export function ExcludedProductsClient() {
       return matchesQuery && matchesStatus && matchesDate;
     });
   }, [data, query, status, date]);
+
+  useEffect(() => {
+    if (!multipleSkuTerms(query).length) {
+      setMissingSkus([]);
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      const rows = data?.rows || [];
+      setMissingSkus(
+        missingSkuTerms(
+          query,
+          rows.flatMap((row) => [
+            row.productCode,
+            row.manufacturerCode,
+            row.barcode,
+            row.shopifyId,
+          ]),
+        ),
+      );
+    }, 600);
+    return () => window.clearTimeout(timeout);
+  }, [data, query]);
 
   const metrics = useMemo(
     () => ({
@@ -394,6 +418,7 @@ export function ExcludedProductsClient() {
           </div>
         )}
       </section>
+      <SkuNotFoundModal skus={missingSkus} onClose={() => setMissingSkus([])} />
     </>
   );
 }

@@ -18,3 +18,23 @@ export function multipleSkuTerms(value: string) {
     return [];
   return terms.map((term) => term.toLocaleLowerCase("pt-BR"));
 }
+
+export function missingSkuTerms(value: string, foundValues: unknown[]) {
+  if (!multipleSkuTerms(value).length) return [];
+  const found = new Set(
+    foundValues
+      .map((item) =>
+        String(item ?? "")
+          .trim()
+          .toLocaleLowerCase("pt-BR"),
+      )
+      .filter(Boolean),
+  );
+  const seen = new Set<string>();
+  return splitSearchTerms(value).filter((term) => {
+    const normalized = term.toLocaleLowerCase("pt-BR");
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
+    return !found.has(normalized);
+  });
+}

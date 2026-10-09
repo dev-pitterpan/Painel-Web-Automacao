@@ -35,6 +35,8 @@ import {
   NotificationCenter,
   type NotificationItem,
 } from "@/components/NotificationCenter";
+import { SkuNotFoundModal } from "@/components/SkuNotFoundModal";
+import { missingSkuTerms, multipleSkuTerms } from "@/lib/search";
 
 type Facets = {
   vendors: string[];
@@ -240,6 +242,7 @@ export function ShopifyProductsClient({
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
+  const [missingSkus, setMissingSkus] = useState<string[]>([]);
   const [filters, setFilters] = useState<Partial<Record<FilterKey, string>>>(
     {},
   );
@@ -301,7 +304,7 @@ export function ShopifyProductsClient({
       try {
         const params = new URLSearchParams({
           page: String(page),
-          perPage: "50",
+          perPage: multipleSkuTerms(query).length ? "100" : "50",
           sort,
           facets: "1",
         });
@@ -327,6 +330,17 @@ export function ShopifyProductsClient({
           );
         });
         setData(result);
+        if (!background) {
+          setMissingSkus(
+            missingSkuTerms(
+              query,
+              result.products.flatMap((product) => [
+                product.sku,
+                ...product.variants.map((variant) => variant.sku),
+              ]),
+            ),
+          );
+        }
         setLastRefreshAt(new Date().toISOString());
         if (result.facets) setFacets(result.facets);
         if (notify)
@@ -1141,6 +1155,7 @@ export function ShopifyProductsClient({
           </div>
         )}
       </section>
+      <SkuNotFoundModal skus={missingSkus} onClose={() => setMissingSkus([])} />
       {channelBulkAction && (
         <div
           className="sales-channel-bulk-backdrop"
