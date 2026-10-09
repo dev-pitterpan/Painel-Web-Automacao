@@ -474,6 +474,16 @@
   overflow: visible;
   z-index: 20;
 }
+.shopify-products-workspace:has(.catalog-bulk-menu[open]) {
+  overflow: visible;
+  z-index: 20;
+}
+.shopify-products-workspace .catalog-bulk-menu[open] {
+  z-index: 1000;
+}
+.shopify-products-workspace .catalog-bulk-menu[open] > div {
+  z-index: 1001;
+}
 .catalog-reset-sort,
 .catalog-bulk-menu > summary {
   width: 30px;
