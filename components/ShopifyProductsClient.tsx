@@ -778,7 +778,7 @@ export function ShopifyProductsClient({
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Pesquisar e filtrar"
+              placeholder="Pesquisar ou colar vários SKUs"
             />
           </label>
           <FilterPicker

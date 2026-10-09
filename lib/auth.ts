@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { multipleSkuTerms } from "./search";
 import {
   createHash,
   randomBytes,
@@ -866,16 +867,29 @@ export async function listShopifyCatalogProducts(input: {
   const page = Math.max(1, Math.trunc(input.page || 1));
   const perPage = Math.min(100, Math.max(10, Math.trunc(input.perPage || 50)));
   const search = String(input.query || "").trim();
+  const skuTerms = multipleSkuTerms(search);
   const status = String(input.status || "")
     .trim()
     .toUpperCase();
   const where: string[] = [];
   const params: unknown[] = [];
   if (search) {
-    params.push(`%${search}%`);
-    where.push(
-      `(p.title ILIKE $${params.length} OR p.primary_sku ILIKE $${params.length} OR p.vendor ILIKE $${params.length} OR p.variants_json::text ILIKE $${params.length})`,
-    );
+    if (skuTerms.length) {
+      params.push(skuTerms);
+      where.push(`(
+        LOWER(TRIM(p.primary_sku)) = ANY($${params.length}::text[])
+        OR EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(p.variants_json) AS variant
+          WHERE LOWER(TRIM(variant->>'sku')) = ANY($${params.length}::text[])
+        )
+      )`);
+    } else {
+      params.push(`%${search}%`);
+      where.push(
+        `(p.title ILIKE $${params.length} OR p.primary_sku ILIKE $${params.length} OR p.vendor ILIKE $${params.length} OR p.variants_json::text ILIKE $${params.length})`,
+      );
+    }
   }
   if (["ACTIVE", "DRAFT", "ARCHIVED"].includes(status)) {
     params.push(status);

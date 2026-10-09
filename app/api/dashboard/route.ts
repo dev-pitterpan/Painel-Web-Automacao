@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
       });
     }
     const dashboardOptions = {
-      q: (params.get("q") || "").slice(0, 120),
+      q: (params.get("q") || "").slice(0, 2000),
       marca: (params.get("marca") || "").slice(0, 120),
       status: (params.get("status") || "").slice(0, 40),
       days,

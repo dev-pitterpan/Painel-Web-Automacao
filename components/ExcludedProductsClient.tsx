@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { ExcludedProductRow } from "@/lib/types";
 import { ProductThumbnail } from "@/components/ProductThumbnail";
+import { multipleSkuTerms } from "@/lib/search";
 
 const PAGE_SIZE = 100;
 type ApiResponse = {
@@ -100,17 +101,25 @@ export function ExcludedProductsClient() {
 
   const filteredRows = useMemo(() => {
     const term = normalized(query);
+    const skuTerms = multipleSkuTerms(query);
     return (data?.rows || []).filter((row) => {
       const matchesQuery =
         !term ||
-        [
-          row.productCode,
-          row.manufacturerCode,
-          row.barcode,
-          row.description,
-          row.shopifyId,
-          row.shopifyError,
-        ].some((value) => normalized(value).includes(term));
+        (skuTerms.length
+          ? [
+              row.productCode,
+              row.manufacturerCode,
+              row.barcode,
+              row.shopifyId,
+            ].some((value) => skuTerms.includes(normalized(value)))
+          : [
+              row.productCode,
+              row.manufacturerCode,
+              row.barcode,
+              row.description,
+              row.shopifyId,
+              row.shopifyError,
+            ].some((value) => normalized(value).includes(term)));
       const matchesStatus =
         status === "all" || statusKind(row.shopifyStatus) === status;
       const matchesDate =
@@ -244,7 +253,7 @@ export function ExcludedProductsClient() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar código, EAN, produto ou ID Shopify..."
+              placeholder="Buscar produto ou colar vários códigos..."
             />
           </label>
           <select

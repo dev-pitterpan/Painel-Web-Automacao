@@ -1,4 +1,5 @@
 import type { DashboardData, HistoryRow } from "./types";
+import { multipleSkuTerms } from "./search";
 
 export function parseHistoryDate(value: string) {
   const match = String(value || "").match(
@@ -18,11 +19,19 @@ function matches(
   row: HistoryRow,
   options: { q: string; marca: string; status: string },
 ) {
+  const skuTerms = multipleSkuTerms(options.q);
   const searchable = [row.sku, row.tituloAntes, row.tituloDepois, row.marca]
     .join(" ")
     .toLowerCase();
   return (
-    (!options.q || searchable.includes(options.q)) &&
+    (!options.q ||
+      (skuTerms.length
+        ? skuTerms.includes(
+            String(row.sku || "")
+              .trim()
+              .toLocaleLowerCase("pt-BR"),
+          )
+        : searchable.includes(options.q))) &&
     (!options.marca || row.marca === options.marca) &&
     (!options.status || row.status.toLowerCase().includes(options.status))
   );
