@@ -28,6 +28,7 @@ import {
   useProductPanel,
 } from "@/components/ProductPanelProvider";
 import { setCachedProductImage } from "@/components/ProductThumbnail";
+import { invalidateProductDetails } from "@/components/ProductDetailsCache";
 import type { ShopifyCatalogProduct } from "@/lib/auth";
 import type { HistoryRow } from "@/lib/types";
 import {
@@ -50,6 +51,7 @@ type CatalogResponse = {
   totalPages: number;
   facets?: Facets;
   permissions?: { canEditProducts: boolean };
+  processingHistoryBySku?: Record<string, HistoryRow>;
   error?: string;
 };
 type FilterKey = "vendor" | "tag" | "status" | "productType" | "collection";
@@ -74,7 +76,21 @@ const winthorStatusLabel: Record<string, string> = {
   PENDENTE: "Aguardando sincronização",
 };
 
-function toHistoryRow(product: ShopifyCatalogProduct): HistoryRow {
+function toHistoryRow(
+  product: ShopifyCatalogProduct,
+  processingHistory?: HistoryRow,
+): HistoryRow {
+  if (processingHistory) {
+    return {
+      ...processingHistory,
+      shopifyId: product.shopifyId,
+      marca: product.vendor || processingHistory.marca,
+      tipoProduto: product.productType,
+      tituloDepois: product.title || processingHistory.tituloDepois,
+      tagsDepois: product.tags.join(", "),
+      colecoesDepois: product.collections.join(", "),
+    };
+  }
   return {
     dataHora: product.shopifyUpdatedAt
       ? new Date(product.shopifyUpdatedAt).toLocaleString("pt-BR")
@@ -371,9 +387,15 @@ export function ShopifyProductsClient({
           }
         : current,
     );
+  const historyForProduct = (product: ShopifyCatalogProduct) =>
+    data?.processingHistoryBySku?.[
+      product.sku.trim().toLocaleLowerCase("pt-BR")
+    ];
+  const productHistoryRow = (product: ShopifyCatalogProduct) =>
+    toHistoryRow(product, historyForProduct(product));
   const openProductDetails = (product: ShopifyCatalogProduct) =>
     openProduct(
-      toHistoryRow(product),
+      productHistoryRow(product),
       Boolean(data?.permissions?.canEditProducts),
       (_, updated) => updateProduct(product.shopifyId, updated),
     );
@@ -524,6 +546,11 @@ export function ShopifyProductsClient({
         failureMessages.push(result.error);
       }
     }
+
+    selectedProductsList.forEach((product) =>
+      invalidateProductDetails(product.sku, product.title),
+    );
+    await load(true);
 
     setAutomationRunning(false);
 
@@ -997,7 +1024,8 @@ export function ShopifyProductsClient({
                       selectedIds.includes(product.shopifyId)
                         ? "is-selected"
                         : "",
-                      activeProductKey === productRowKey(toHistoryRow(product))
+                      activeProductKey ===
+                      productRowKey(productHistoryRow(product))
                         ? "is-product-open"
                         : "",
                     ]
@@ -1007,7 +1035,8 @@ export function ShopifyProductsClient({
                     tabIndex={0}
                     role="button"
                     aria-current={
-                      activeProductKey === productRowKey(toHistoryRow(product))
+                      activeProductKey ===
+                      productRowKey(productHistoryRow(product))
                         ? "true"
                         : undefined
                     }
