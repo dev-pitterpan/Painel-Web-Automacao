@@ -1638,7 +1638,7 @@ export function DashboardClient({
             <label className="shopify-command-search">
               <Search size={17} aria-hidden="true" />
               <input
-                placeholder="Pesquisar ou colar vários SKUs"
+                placeholder="Pesquisar"
                 value={q}
                 onChange={(event) => setQ(event.target.value)}
               />
