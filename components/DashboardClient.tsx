@@ -500,6 +500,7 @@ export function DashboardClient({
   const automationHealthRef = useRef<
     "unknown" | "operational" | "warning" | "error"
   >("unknown");
+  const loadRequestId = useRef(0);
   const { activeProductKey, openProduct } = useProductPanel();
 
   useEffect(() => {
@@ -765,6 +766,18 @@ export function DashboardClient({
       ),
     [displayedRows, mode, productsPage],
   );
+  const visibleMissingSkus = useMemo(() => {
+    const found = new Set(
+      (data?.rows || []).map((row) =>
+        String(row.sku || "")
+          .trim()
+          .toLocaleLowerCase("pt-BR"),
+      ),
+    );
+    return missingSkus.filter(
+      (sku) => !found.has(sku.trim().toLocaleLowerCase("pt-BR")),
+    );
+  }, [data, missingSkus]);
   const monthOptions = useMemo(
     () => [
       { value: "all", label: "Período completo" },
@@ -787,6 +800,7 @@ export function DashboardClient({
   );
 
   async function load(refresh = false) {
+    const requestId = ++loadRequestId.current;
     setLoading(true);
     setLoadingExiting(false);
     setError("");
@@ -827,6 +841,7 @@ export function DashboardClient({
       if (!response.ok || json?.error) {
         throw new Error(json?.error || `Erro HTTP ${response.status}`);
       }
+      if (requestId !== loadRequestId.current) return;
 
       // Proteção adicional contra resposta incompleta
       const safeData: DashboardData = {
@@ -907,6 +922,7 @@ export function DashboardClient({
       }
       setProductsPage(1);
     } catch (err) {
+      if (requestId !== loadRequestId.current) return;
       setData(null);
       setError(
         err instanceof Error
@@ -914,6 +930,7 @@ export function DashboardClient({
           : "Erro desconhecido ao carregar o dashboard.",
       );
     } finally {
+      if (requestId !== loadRequestId.current) return;
       setLoading(false);
       setLoadingProgress(100);
       setLoadingExiting(true);
@@ -979,6 +996,7 @@ export function DashboardClient({
   );
 
   function applyFilters() {
+    setMissingSkus([]);
     setAppliedFilters({
       q,
       marca,
@@ -1485,7 +1503,10 @@ export function DashboardClient({
 
   return (
     <>
-      <SkuNotFoundModal skus={missingSkus} onClose={() => setMissingSkus([])} />
+      <SkuNotFoundModal
+        skus={visibleMissingSkus}
+        onClose={() => setMissingSkus([])}
+      />
       {toast && (
         <div
           className={`integration-toast integration-toast-${toast.tone}`}

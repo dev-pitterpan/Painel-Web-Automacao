@@ -270,6 +270,7 @@ export function ShopifyProductsClient({
   const [channelsSaving, setChannelsSaving] = useState(false);
   const [channelsError, setChannelsError] = useState("");
   const refreshInProgress = useRef(false);
+  const loadRequestId = useRef(0);
 
   const addNotification = useCallback(
     (tone: NotificationItem["tone"], message: string) => {
@@ -294,6 +295,7 @@ export function ShopifyProductsClient({
   const load = useCallback(
     async (background = false, notify = false) => {
       if (background && refreshInProgress.current) return;
+      const requestId = ++loadRequestId.current;
       if (background) {
         refreshInProgress.current = true;
         setRefreshing(true);
@@ -321,6 +323,7 @@ export function ShopifyProductsClient({
           throw new Error(
             result.error || "Não foi possível carregar o catálogo.",
           );
+        if (requestId !== loadRequestId.current) return;
         result.products.forEach((product) => {
           if (!product.sku || !product.imageUrl) return;
           setCachedProductImage(
@@ -346,6 +349,7 @@ export function ShopifyProductsClient({
         if (notify)
           addNotification("success", "Catálogo atualizado com sucesso.");
       } catch (cause) {
+        if (requestId !== loadRequestId.current) return;
         const message =
           cause instanceof Error
             ? cause.message
@@ -356,7 +360,7 @@ export function ShopifyProductsClient({
         if (background) {
           refreshInProgress.current = false;
           setRefreshing(false);
-        } else {
+        } else if (requestId === loadRequestId.current) {
           setLoading(false);
         }
       }
@@ -371,6 +375,23 @@ export function ShopifyProductsClient({
     return () => window.clearInterval(timer);
   }, [load]);
   useEffect(() => setSelectedProducts({}), [filters, query, sort]);
+  const visibleMissingSkus = useMemo(() => {
+    const found = new Set(
+      (data?.products || [])
+        .flatMap((product) => [
+          product.sku,
+          ...product.variants.map((variant) => variant.sku),
+        ])
+        .map((sku) =>
+          String(sku || "")
+            .trim()
+            .toLocaleLowerCase("pt-BR"),
+        ),
+    );
+    return missingSkus.filter(
+      (sku) => !found.has(sku.trim().toLocaleLowerCase("pt-BR")),
+    );
+  }, [data, missingSkus]);
   const setFilter = (key: FilterKey, value: string) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
@@ -757,6 +778,7 @@ export function ShopifyProductsClient({
           className="shopify-products-commandbar"
           onSubmit={(event) => {
             event.preventDefault();
+            setMissingSkus([]);
             setPage(1);
             setQuery(search.trim());
           }}
@@ -1155,7 +1177,10 @@ export function ShopifyProductsClient({
           </div>
         )}
       </section>
-      <SkuNotFoundModal skus={missingSkus} onClose={() => setMissingSkus([])} />
+      <SkuNotFoundModal
+        skus={visibleMissingSkus}
+        onClose={() => setMissingSkus([])}
+      />
       {channelBulkAction && (
         <div
           className="sales-channel-bulk-backdrop"
