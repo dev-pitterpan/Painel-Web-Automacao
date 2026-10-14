@@ -58,6 +58,7 @@ import {
   type NotificationItem,
 } from "@/components/NotificationCenter";
 import { SkuNotFoundModal } from "@/components/SkuNotFoundModal";
+import { DeleteProductsModal } from "@/components/DeleteProductsModal";
 import { missingSkuTerms } from "@/lib/search";
 
 const colors = [
@@ -486,6 +487,7 @@ export function DashboardClient({
   const [batchReprocessing, setBatchReprocessing] = useState(false);
   const [productBulkAction, setProductBulkAction] =
     useState<ProductBulkAction | null>(null);
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [toast, setToast] = useState<{
     tone: "success" | "error";
     message: string;
@@ -1301,7 +1303,10 @@ export function DashboardClient({
     );
   }
 
-  async function runProductBulkAction(action: ProductBulkAction) {
+  async function runProductBulkAction(
+    action: ProductBulkAction,
+    confirmed = false,
+  ) {
     if (productBulkAction || batchReprocessing) return;
     const selectedRows = (data?.rows || []).filter((row) =>
       selectedReprocessKeys.includes(reprocessKey(row)),
@@ -1323,12 +1328,10 @@ export function DashboardClient({
 
     const count = products.length;
     const plural = count === 1 ? "produto" : "produtos";
-    if (action === "delete") {
-      const confirmation = window.prompt(
-        `A exclusão de ${count} ${plural} é permanente no Shopify. Digite EXCLUIR para continuar.`,
-      );
-      if (confirmation !== "EXCLUIR") return;
-    } else {
+    if (action === "delete" && !confirmed) {
+      setDeleteConfirmationOpen(true);
+      return;
+    } else if (action !== "delete") {
       const message =
         action === "archive"
           ? `Arquivar ${count} ${plural} no Shopify?`
@@ -2688,6 +2691,16 @@ export function DashboardClient({
           )}
         </section>
       )}
+      <DeleteProductsModal
+        open={deleteConfirmationOpen}
+        count={selectedReprocessKeys.length}
+        busy={productBulkAction === "delete"}
+        onCancel={() => setDeleteConfirmationOpen(false)}
+        onConfirm={() => {
+          setDeleteConfirmationOpen(false);
+          void runProductBulkAction("delete", true);
+        }}
+      />
     </>
   );
 }

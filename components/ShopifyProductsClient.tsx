@@ -36,6 +36,7 @@ import {
   type NotificationItem,
 } from "@/components/NotificationCenter";
 import { SkuNotFoundModal } from "@/components/SkuNotFoundModal";
+import { DeleteProductsModal } from "@/components/DeleteProductsModal";
 import { missingSkuTerms, multipleSkuTerms } from "@/lib/search";
 
 type Facets = {
@@ -255,6 +256,7 @@ export function ShopifyProductsClient({
   const [bulkActionRunning, setBulkActionRunning] = useState<BulkAction | null>(
     null,
   );
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [automationMessage, setAutomationMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -612,18 +614,16 @@ export function ShopifyProductsClient({
     }
   };
 
-  const runBulkAction = async (action: BulkAction) => {
+  const runBulkAction = async (action: BulkAction, confirmed = false) => {
     if (automationRunning || bulkActionRunning || !selectedProductsList.length)
       return;
 
     const count = selectedProductsList.length;
     const plural = count === 1 ? "produto" : "produtos";
-    if (action === "delete") {
-      const confirmation = window.prompt(
-        `A exclusão de ${count} ${plural} é permanente no Shopify. Digite EXCLUIR para continuar.`,
-      );
-      if (confirmation !== "EXCLUIR") return;
-    } else {
+    if (action === "delete" && !confirmed) {
+      setDeleteConfirmationOpen(true);
+      return;
+    } else if (action !== "delete") {
       const message =
         action === "archive"
           ? `Arquivar ${count} ${plural} no Shopify?`
@@ -963,11 +963,6 @@ export function ShopifyProductsClient({
                 </button>
                 <hr />
                 <button
-                  type="button"
-                  disabled={!selectedIds.length || Boolean(bulkActionRunning)}
-                  onClick={() => runBulkAction("unpublish")}
-                ></button>
-                <button
                   className="is-danger"
                   type="button"
                   disabled={!selectedIds.length || Boolean(bulkActionRunning)}
@@ -1295,6 +1290,16 @@ export function ShopifyProductsClient({
           </section>
         </div>
       )}
+      <DeleteProductsModal
+        open={deleteConfirmationOpen}
+        count={selectedProductsList.length}
+        busy={bulkActionRunning === "delete"}
+        onCancel={() => setDeleteConfirmationOpen(false)}
+        onConfirm={() => {
+          setDeleteConfirmationOpen(false);
+          void runBulkAction("delete", true);
+        }}
+      />
     </>
   );
 }
