@@ -1111,7 +1111,7 @@ export function DashboardClient({
     }
 
     checkAutomationHealth();
-    const interval = window.setInterval(checkAutomationHealth, 60_000);
+    const interval = window.setInterval(checkAutomationHealth, 5 * 60_000);
     return () => {
       active = false;
       window.clearInterval(interval);

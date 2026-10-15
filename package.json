@@ -9,16 +9,20 @@
     "shopify:sync": "node scripts/sync-shopify-catalog.mjs",
     "shopify:webhooks": "node scripts/register-shopify-webhooks.mjs",
     "auth:create": "node scripts/create-user.cjs",
-    "db:migrate": "node scripts/migrate-sqlite-to-postgres.mjs"
+    "db:migrate": "node scripts/migrate-sqlite-to-postgres.mjs",
+    "db:setup": "node scripts/setup-postgres.mjs",
+    "db:merge": "node scripts/merge-postgres-databases.mjs",
+    "db:sync-admin": "node scripts/sync-admin.mjs"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.1.0",
+    "@prisma/ppg": "^1.0.1",
     "@types/better-sqlite3": "^9.6.0",
     "better-sqlite3": "^13.0.3",
     "exceljs": "^4.4.0",
     "googleapis": "^144.0.0",
     "lucide-react": "^1.47.0",
     "next": "^15.0.0",
+    "pg": "^8.23.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.13.0",
@@ -26,6 +30,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "prettier": "^3.9.9",

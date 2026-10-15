@@ -402,7 +402,7 @@ export function ShopifyProductsClient({
     void checkCatalogVersion();
     const timer = window.setInterval(() => {
       void checkCatalogVersion();
-    }, 60_000);
+    }, 5 * 60_000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
