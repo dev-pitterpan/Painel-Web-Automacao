@@ -733,14 +733,16 @@ export async function listShopifyCatalogProducts(input: {
   const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const order =
     input.sort === "title"
-      ? "p.title ASC"
+      ? "p.title ASC, p.shopify_id ASC"
       : input.sort === "title_desc"
-        ? "p.title DESC"
+        ? "p.title DESC, p.shopify_id ASC"
         : input.sort === "inventory"
-          ? "p.total_inventory DESC, p.title ASC"
-          : "p.shopify_id ASC";
-  const countRows = await query<{ total: number }>(
-    `SELECT COUNT(*)::int AS total
+          ? "p.total_inventory DESC, p.title ASC, p.shopify_id ASC"
+          : "p.shopify_updated_at DESC NULLS LAST, p.title ASC, p.shopify_id ASC";
+  const listParams = [...params, perPage, (page - 1) * perPage];
+  const [countRows, rows] = await Promise.all([
+    query<{ total: number }>(
+      `SELECT COUNT(*)::int AS total
      FROM shopify_catalog_products p
      LEFT JOIN winthor_product_statuses w
        ON w.sku = p.primary_sku
@@ -748,11 +750,14 @@ export async function listShopifyCatalogProducts(input: {
         SELECT batch_id FROM winthor_sync_runs ORDER BY created_at DESC LIMIT 1
       )
      ${clause}`,
-    params,
-  );
-  const listParams = [...params, perPage, (page - 1) * perPage];
-  const rows = await query<any>(
-    `SELECT p.*,
+      params,
+    ),
+    query<any>(
+      `SELECT p.shopify_id, p.title, p.handle, p.status, p.vendor,
+       p.product_type, p.tags_json, p.collections_json, p.image_url,
+       p.image_alt, p.weight, p.weight_unit, p.primary_sku,
+       p.variants_json, p.total_inventory, p.price_min, p.price_max,
+       p.shopify_updated_at, p.synced_at,
        CASE
          WHEN NOT EXISTS (SELECT 1 FROM winthor_sync_runs) THEN 'PENDENTE'
          WHEN w.sku IS NOT NULL THEN 'FORA_DE_LINHA'
@@ -768,18 +773,11 @@ export async function listShopifyCatalogProducts(input: {
       )
      ${clause}
      ORDER BY ${order} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-    listParams,
-  );
+      listParams,
+    ),
+  ]);
   const total = Number(countRows[0]?.total || 0);
   const products = rows.map(catalogProductFromRow);
-  if (!input.sort || input.sort === "updated") {
-    products.sort((left, right) => {
-      const dateDifference =
-        new Date(right.shopifyUpdatedAt || 0).getTime() -
-        new Date(left.shopifyUpdatedAt || 0).getTime();
-      return dateDifference || left.title.localeCompare(right.title, "pt-BR");
-    });
-  }
   return {
     products,
     page,
@@ -1827,6 +1825,47 @@ export async function listLatestProductAutomationResults(): Promise<
       AND TRIM(sku) <> ''
     ORDER BY LOWER(TRIM(sku)), created_at DESC, id DESC
   `);
+  return rows.map((row) => ({
+    sku: row.sku,
+    title: row.title,
+    createdAt: iso(row.created_at),
+    result: jsonObject(row.result_json),
+  }));
+}
+
+export async function listLatestProductAutomationResultsBySkus(
+  skus: string[],
+): Promise<LatestReprocessResult[]> {
+  await ensureDatabase();
+  const normalizedSkus = [
+    ...new Set(
+      skus
+        .map((sku) =>
+          String(sku || "")
+            .trim()
+            .toLocaleLowerCase("pt-BR"),
+        )
+        .filter(Boolean),
+    ),
+  ].slice(0, 250);
+  if (!normalizedSkus.length) return [];
+  const rows = await query<{
+    sku: string;
+    title: string;
+    created_at: unknown;
+    result_json: unknown;
+  }>(
+    `SELECT DISTINCT ON (LOWER(TRIM(sku))) sku, title, created_at, result_json
+     FROM reprocess_jobs
+     WHERE status = 'enviado'
+       AND result_json IS NOT NULL
+       AND source = 'products'
+       AND LOWER(TRIM(sku)) IN (
+         SELECT jsonb_array_elements_text($1::jsonb)
+       )
+     ORDER BY LOWER(TRIM(sku)), created_at DESC, id DESC`,
+    [JSON.stringify(normalizedSkus)],
+  );
   return rows.map((row) => ({
     sku: row.sku,
     title: row.title,

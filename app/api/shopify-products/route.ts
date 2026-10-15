@@ -8,7 +8,6 @@ import {
   getShopifyCatalogFacets,
   getShopifyCatalogHealthSummary,
   getShopifyCatalogProductDetails,
-  listLatestProductAutomationResults,
   listShopifyCatalogProducts,
   stageShopifyCatalogProducts,
   upsertShopifyCatalogProducts,
@@ -16,13 +15,9 @@ import {
 } from "@/lib/auth";
 import {
   fetchShopifyProduct,
-  getShopifyProductSalesChannelCounts,
   getShopifyProductSalesChannels,
   shopifyProductToCatalog,
 } from "@/lib/shopify-admin";
-import { getHistoryRowsWithStatus } from "@/lib/googleSheets";
-import { latestHistoryRowsByProduct, parseHistoryDate } from "@/lib/metrics";
-import type { HistoryRow } from "@/lib/types";
 
 function validSyncToken(req: NextRequest) {
   const expected = String(process.env.SHOPIFY_CATALOG_SYNC_TOKEN || "").trim();
@@ -158,101 +153,27 @@ export async function GET(req: NextRequest) {
             { status: 404 },
           );
     }
-    const result = await listShopifyCatalogProducts({
-      query: params.get("q") || "",
-      status: params.get("status") || "",
-      vendor: params.get("vendor") || "",
-      tag: params.get("tag") || "",
-      collection: params.get("collection") || "",
-      productType: params.get("productType") || "",
-      winthorStatus: params.get("winthorStatus") || "",
-      page: Number(params.get("page") || 1),
-      perPage: Number(params.get("perPage") || 50),
-      sort: (params.get("sort") || "updated") as
-        "updated" | "title" | "title_desc" | "inventory",
-    });
-    try {
-      const salesChannelCounts = await getShopifyProductSalesChannelCounts(
-        result.products.map((product) => product.shopifyId),
-      );
-      result.products = result.products.map((product) => ({
-        ...product,
-        salesChannelsCount: salesChannelCounts.get(product.shopifyId) ?? 0,
-      }));
-    } catch {
-      // Mantém a listagem disponível se a consulta complementar falhar.
-    }
-    let processingHistoryBySku = {};
-    try {
-      const [history, productAutomationResults] = await Promise.all([
-        getHistoryRowsWithStatus(),
-        listLatestProductAutomationResults(),
-      ]);
-      const visibleSkus = new Set(
-        result.products
-          .map((product) => product.sku.trim().toLocaleLowerCase("pt-BR"))
-          .filter(Boolean),
-      );
-      const latestBySku = new Map<string, HistoryRow>(
-        latestHistoryRowsByProduct(history.rows)
-          .filter((row) =>
-            visibleSkus.has(row.sku.trim().toLocaleLowerCase("pt-BR")),
-          )
-          .map((row) => [row.sku.trim().toLocaleLowerCase("pt-BR"), row]),
-      );
-      productAutomationResults.forEach((record) => {
-        const sku = record.sku.trim().toLocaleLowerCase("pt-BR");
-        if (!visibleSkus.has(sku)) return;
-        const current = latestBySku.get(sku);
-        const currentTime = current
-          ? (parseHistoryDate(current.dataHora)?.getTime() ?? 0)
-          : 0;
-        const resultTime = new Date(record.createdAt).getTime();
-        if (Number.isFinite(resultTime) && resultTime < currentTime) return;
-        const rawResult = Array.isArray(record.result)
-          ? record.result[0]
-          : record.result;
-        const result =
-          rawResult && typeof rawResult === "object"
-            ? (rawResult as Record<string, unknown>)
-            : {};
-        const isYes = (value: unknown) =>
-          ["sim", "true"].includes(String(value || "").toLowerCase());
-        latestBySku.set(sku, {
-          dataHora: String(result.data_hora || record.createdAt),
-          sku: record.sku,
-          marca: String(result.marca || current?.marca || ""),
-          tituloAntes: String(
-            result.titulo_antes || current?.tituloAntes || record.title,
-          ),
-          tituloDepois: String(result.titulo_depois || record.title),
-          tagsAntes: String(result.tags_antes || current?.tagsAntes || ""),
-          tagsDepois: String(result.tags_depois || current?.tagsDepois || ""),
-          colecoesAntes: String(
-            result.colecoes_antes || current?.colecoesAntes || "",
-          ),
-          colecoesDepois: String(
-            result.colecoes_depois || current?.colecoesDepois || "",
-          ),
-          tituloAlterado: isYes(result.titulo_alterado),
-          tagsAlteradas: isYes(result.tags_alteradas),
-          colecoesAlteradas: isYes(result.colecoes_alteradas),
-          descricaoGerada: isYes(result.descricao_gerada),
-          status: String(result.status || "Sucesso"),
-        });
-      });
-      processingHistoryBySku = Object.fromEntries(latestBySku);
-    } catch {
-      // O catálogo continua disponível mesmo se o histórico estiver indisponível.
-    }
-    const facets =
+    const [result, facets] = await Promise.all([
+      listShopifyCatalogProducts({
+        query: params.get("q") || "",
+        status: params.get("status") || "",
+        vendor: params.get("vendor") || "",
+        tag: params.get("tag") || "",
+        collection: params.get("collection") || "",
+        productType: params.get("productType") || "",
+        winthorStatus: params.get("winthorStatus") || "",
+        page: Number(params.get("page") || 1),
+        perPage: Number(params.get("perPage") || 50),
+        sort: (params.get("sort") || "updated") as
+          "updated" | "title" | "title_desc" | "inventory",
+      }),
       params.get("facets") === "1"
-        ? await getShopifyCatalogFacets()
-        : undefined;
+        ? getShopifyCatalogFacets()
+        : Promise.resolve(undefined),
+    ]);
     return NextResponse.json({
       ...result,
       facets,
-      processingHistoryBySku,
       permissions: { canEditProducts: user.role === "admin" },
     });
   } catch (error) {

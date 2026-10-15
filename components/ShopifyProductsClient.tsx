@@ -57,6 +57,10 @@ type CatalogResponse = {
   processingHistoryBySku?: Record<string, HistoryRow>;
   error?: string;
 };
+type CatalogEnrichmentResponse = {
+  salesChannelCounts?: Record<string, number>;
+  processingHistoryBySku?: Record<string, HistoryRow>;
+};
 type FilterKey = "vendor" | "tag" | "status" | "productType" | "collection";
 type BulkAction = "archive" | "unpublish" | "delete";
 type ChannelBulkAction = "publish" | "unpublish";
@@ -274,6 +278,7 @@ export function ShopifyProductsClient({
   const refreshInProgress = useRef(false);
   const loadRequestId = useRef(0);
   const catalogVersion = useRef("");
+  const facetsLoaded = useRef(false);
 
   const addNotification = useCallback(
     (tone: NotificationItem["tone"], message: string) => {
@@ -312,7 +317,7 @@ export function ShopifyProductsClient({
           page: String(page),
           perPage: skuTerms.length ? "500" : "50",
           sort,
-          facets: "1",
+          facets: facetsLoaded.current ? "0" : "1",
         });
         if (query) params.set("q", query);
         if (winthorOnly) params.set("winthorStatus", "FORA_DE_LINHA");
@@ -337,6 +342,45 @@ export function ShopifyProductsClient({
           );
         });
         setData(result);
+        void fetch("/api/shopify-products/enrichment", {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            products: result.products.map((product) => ({
+              shopifyId: product.shopifyId,
+              sku: product.sku,
+              title: product.title,
+            })),
+          }),
+        })
+          .then(async (enrichmentResponse) => {
+            if (!enrichmentResponse.ok) return null;
+            return (await enrichmentResponse.json()) as CatalogEnrichmentResponse;
+          })
+          .then((enrichment) => {
+            if (!enrichment || requestId !== loadRequestId.current) return;
+            const counts = enrichment.salesChannelCounts || {};
+            setData((current) =>
+              current
+                ? {
+                    ...current,
+                    products: current.products.map((product) => ({
+                      ...product,
+                      salesChannelsCount:
+                        counts[product.shopifyId] ?? product.salesChannelsCount,
+                    })),
+                    processingHistoryBySku: {
+                      ...(current.processingHistoryBySku || {}),
+                      ...(enrichment.processingHistoryBySku || {}),
+                    },
+                  }
+                : current,
+            );
+          })
+          .catch(() => {
+            // A navegação principal continua disponível sem os complementos.
+          });
         if (!background) {
           setMissingSkus(
             missingSkuTerms(
@@ -349,7 +393,10 @@ export function ShopifyProductsClient({
           );
         }
         setLastRefreshAt(new Date().toISOString());
-        if (result.facets) setFacets(result.facets);
+        if (result.facets) {
+          facetsLoaded.current = true;
+          setFacets(result.facets);
+        }
         if (notify)
           addNotification("success", "Catálogo atualizado com sucesso.");
       } catch (cause) {
@@ -1028,7 +1075,7 @@ export function ShopifyProductsClient({
             <span>{error}</span>
           </div>
         )}
-        {loading ? (
+        {loading && !data ? (
           <div className="shopify-catalog-state">
             <LoaderCircle className="spin" size={28} />
             <strong>Carregando produtos</strong>
@@ -1183,20 +1230,32 @@ export function ShopifyProductsClient({
           <div className="shopify-products-pagination">
             <button
               type="button"
-              disabled={page <= 1}
+              disabled={loading || page <= 1}
               onClick={() => setPage((value) => Math.max(1, value - 1))}
             >
               <ChevronLeft size={16} />
             </button>
             <span>
-              {((data.page - 1) * data.perPage + 1).toLocaleString("pt-BR")}–
-              {Math.min(data.page * data.perPage, data.total).toLocaleString(
-                "pt-BR",
+              {loading ? (
+                <LoaderCircle
+                  className="spin"
+                  size={16}
+                  aria-label="Carregando página"
+                />
+              ) : (
+                <>
+                  {((data.page - 1) * data.perPage + 1).toLocaleString("pt-BR")}
+                  –
+                  {Math.min(
+                    data.page * data.perPage,
+                    data.total,
+                  ).toLocaleString("pt-BR")}
+                </>
               )}
             </span>
             <button
               type="button"
-              disabled={page >= data.totalPages}
+              disabled={loading || page >= data.totalPages}
               onClick={() => setPage((value) => value + 1)}
             >
               <ChevronRight size={16} />
