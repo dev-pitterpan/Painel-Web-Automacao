@@ -12,6 +12,7 @@
     "db:migrate": "node scripts/migrate-sqlite-to-postgres.mjs",
     "db:setup": "node scripts/setup-postgres.mjs",
     "db:merge": "node scripts/merge-postgres-databases.mjs",
+    "db:backup": "node scripts/backup-postgres.mjs",
     "db:sync-admin": "node scripts/sync-admin.mjs"
   },
   "dependencies": {
