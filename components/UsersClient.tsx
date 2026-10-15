@@ -18,7 +18,14 @@ type ManagedUser = {
   email: string;
   role: string;
   createdAt: string;
+  avatarUrl: string | null;
 };
+
+function userInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return `${parts[0][0] || ""}${parts.length > 1 ? parts.at(-1)?.[0] || "" : ""}`.toUpperCase();
+}
 
 function formatCreatedAt(value: string) {
   if (!value) return "—";
@@ -42,6 +49,7 @@ export function UsersClient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<ManagedUser | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -215,10 +223,36 @@ export function UsersClient() {
                   {users.map((user) => (
                     <tr key={user.id}>
                       <td data-label="Usuário">
-                        <b>{user.name}</b>
-                        {user.id === currentUserId && (
-                          <small className="current-user">Conta atual</small>
-                        )}
+                        <div className="user-identity">
+                          {user.avatarUrl ? (
+                            <button
+                              type="button"
+                              className="user-list-avatar has-image"
+                              title={`Ver foto de ${user.name}`}
+                              aria-label={`Ver foto de ${user.name}`}
+                              onClick={() => setAvatarPreview(user)}
+                            >
+                              <span>{userInitials(user.name)}</span>
+                              <img src={user.avatarUrl} alt="" />
+                            </button>
+                          ) : (
+                            <span
+                              className="user-list-avatar"
+                              aria-label={`${user.name} não possui foto de perfil`}
+                              title="Sem foto de perfil"
+                            >
+                              <span>{userInitials(user.name)}</span>
+                            </span>
+                          )}
+                          <div className="user-identity-copy">
+                            <b>{user.name}</b>
+                            {user.id === currentUserId && (
+                              <small className="current-user">
+                                Conta atual
+                              </small>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td data-label="E-mail">{user.email}</td>
                       <td data-label="Perfil">
@@ -424,6 +458,44 @@ export function UsersClient() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {avatarPreview?.avatarUrl && (
+        <div
+          className="user-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setAvatarPreview(null);
+          }}
+        >
+          <div
+            className="panel user-avatar-preview"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="user-avatar-preview-title"
+          >
+            <div className="user-edit-head">
+              <div>
+                <div className="eyebrow">Foto de perfil</div>
+                <h2 id="user-avatar-preview-title">{avatarPreview.name}</h2>
+              </div>
+              <button
+                type="button"
+                className="user-modal-close"
+                aria-label="Fechar"
+                onClick={() => setAvatarPreview(null)}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <div className="user-avatar-preview-image">
+              <img
+                src={avatarPreview.avatarUrl}
+                alt={`Foto de perfil de ${avatarPreview.name}`}
+              />
+            </div>
+          </div>
         </div>
       )}
     </>
