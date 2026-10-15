@@ -683,13 +683,17 @@ export async function listShopifyCatalogProducts(input: {
   const params: unknown[] = [];
   if (search) {
     if (skuTerms.length) {
-      params.push(skuTerms);
+      params.push(JSON.stringify(skuTerms));
       where.push(`(
-        LOWER(TRIM(p.primary_sku)) = ANY($${params.length}::text[])
+        LOWER(TRIM(p.primary_sku)) IN (
+          SELECT jsonb_array_elements_text($${params.length}::jsonb)
+        )
         OR EXISTS (
           SELECT 1
           FROM jsonb_array_elements(p.variants_json) AS variant
-          WHERE LOWER(TRIM(variant->>'sku')) = ANY($${params.length}::text[])
+          WHERE LOWER(TRIM(variant->>'sku')) IN (
+            SELECT jsonb_array_elements_text($${params.length}::jsonb)
+          )
         )
       )`);
     } else {
@@ -920,15 +924,15 @@ export async function getShopifyCatalogProductsBySkus(skus: string[]) {
        ARRAY(
          SELECT variant->>'sku'
          FROM jsonb_array_elements(p.variants_json) variant
-         WHERE variant->>'sku' = ANY($1::text[])
+         WHERE variant->>'sku' IN (SELECT jsonb_array_elements_text($1::jsonb))
        ) AS matched_variant_skus
      FROM shopify_catalog_products p
-     WHERE p.primary_sku = ANY($1::text[])
+     WHERE p.primary_sku IN (SELECT jsonb_array_elements_text($1::jsonb))
         OR EXISTS (
           SELECT 1 FROM jsonb_array_elements(p.variants_json) variant
-          WHERE variant->>'sku' = ANY($1::text[])
+          WHERE variant->>'sku' IN (SELECT jsonb_array_elements_text($1::jsonb))
         )`,
-    [normalizedSkus],
+    [JSON.stringify(normalizedSkus)],
   );
   const bySku = new Map<
     string,
@@ -1288,8 +1292,8 @@ export async function archiveShopifyCatalogProducts(shopifyIds: string[]) {
   await query(
     `UPDATE shopify_catalog_products
      SET status = 'ARCHIVED', shopify_updated_at = NOW(), synced_at = NOW()
-     WHERE shopify_id = ANY($1::text[])`,
-    [ids],
+     WHERE shopify_id IN (SELECT jsonb_array_elements_text($1::jsonb))`,
+    [JSON.stringify(ids)],
   );
 }
 
@@ -1301,8 +1305,8 @@ export async function deleteShopifyCatalogProducts(shopifyIds: string[]) {
   );
   if (!ids.length) return;
   await query(
-    "DELETE FROM shopify_catalog_products WHERE shopify_id = ANY($1::text[])",
-    [ids],
+    "DELETE FROM shopify_catalog_products WHERE shopify_id IN (SELECT jsonb_array_elements_text($1::jsonb))",
+    [JSON.stringify(ids)],
   );
 }
 
