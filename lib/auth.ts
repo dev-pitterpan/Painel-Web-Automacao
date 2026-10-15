@@ -1105,10 +1105,15 @@ export async function getShopifyCatalogProductsBySkus(skus: string[]) {
     product_type: string;
     tags_json: unknown;
     collections_json: unknown;
-    variants_json: unknown;
+    matched_variant_skus: unknown;
   }>(
     `SELECT p.shopify_id, p.primary_sku, p.title, p.vendor, p.product_type, p.tags_json,
-       p.collections_json, p.variants_json
+       p.collections_json,
+       ARRAY(
+         SELECT variant->>'sku'
+         FROM jsonb_array_elements(p.variants_json) variant
+         WHERE variant->>'sku' = ANY($1::text[])
+       ) AS matched_variant_skus
      FROM shopify_catalog_products p
      WHERE p.primary_sku = ANY($1::text[])
         OR EXISTS (
@@ -1141,9 +1146,11 @@ export async function getShopifyCatalogProductsBySkus(skus: string[]) {
     };
     const primarySku = String(row.primary_sku || "").trim();
     if (primarySku) bySku.set(primarySku, product);
-    const variants = Array.isArray(row.variants_json) ? row.variants_json : [];
-    variants.forEach((variant: any) => {
-      const sku = String(variant?.sku || "").trim();
+    const matchedVariantSkus = Array.isArray(row.matched_variant_skus)
+      ? row.matched_variant_skus
+      : [];
+    matchedVariantSkus.forEach((value: unknown) => {
+      const sku = String(value || "").trim();
       if (sku && !bySku.has(sku)) bySku.set(sku, product);
     });
   });

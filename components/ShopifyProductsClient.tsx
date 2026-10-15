@@ -273,6 +273,7 @@ export function ShopifyProductsClient({
   const [channelsError, setChannelsError] = useState("");
   const refreshInProgress = useRef(false);
   const loadRequestId = useRef(0);
+  const catalogVersion = useRef("");
 
   const addNotification = useCallback(
     (tone: NotificationItem["tone"], message: string) => {
@@ -372,10 +373,40 @@ export function ShopifyProductsClient({
   );
   useEffect(() => void load(), [load]);
   useEffect(() => {
+    let cancelled = false;
+    const checkCatalogVersion = async () => {
+      if (document.visibilityState !== "visible" || refreshInProgress.current)
+        return;
+      try {
+        const response = await fetch("/api/shopify-products?version=1", {
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const result = (await response.json()) as {
+          productCount?: number;
+          lastReceivedAt?: string | null;
+        };
+        const nextVersion = `${result.productCount || 0}:${result.lastReceivedAt || ""}`;
+        if (cancelled) return;
+        if (!catalogVersion.current) {
+          catalogVersion.current = nextVersion;
+          return;
+        }
+        if (catalogVersion.current === nextVersion) return;
+        catalogVersion.current = nextVersion;
+        await load(true);
+      } catch {
+        // Mantém a lista atual se a verificação em segundo plano falhar.
+      }
+    };
+    void checkCatalogVersion();
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void load(true);
+      void checkCatalogVersion();
     }, 60_000);
-    return () => window.clearInterval(timer);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [load]);
   useEffect(() => setSelectedProducts({}), [filters, query, sort]);
   const visibleMissingSkus = useMemo(() => {

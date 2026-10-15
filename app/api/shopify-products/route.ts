@@ -6,6 +6,7 @@ import {
   failShopifyCatalogSync,
   getCurrentUser,
   getShopifyCatalogFacets,
+  getShopifyCatalogHealthSummary,
   getShopifyCatalogProductDetails,
   listLatestProductAutomationResults,
   listShopifyCatalogProducts,
@@ -96,6 +97,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   try {
     const params = req.nextUrl.searchParams;
+    if (params.get("version") === "1") {
+      const catalog = await getShopifyCatalogHealthSummary();
+      return NextResponse.json({
+        productCount: catalog.productCount,
+        lastReceivedAt: catalog.lastReceivedAt,
+      });
+    }
     if (params.get("details") === "1") {
       let product = await getShopifyCatalogProductDetails(
         params.get("sku") || "",
