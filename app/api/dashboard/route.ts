@@ -25,11 +25,14 @@ export async function GET(req: NextRequest) {
     const days = Number.isFinite(requestedDays)
       ? Math.min(Math.max(Math.floor(requestedDays), 1), 3650)
       : 30;
+    const historicalView = params.get("historicalView") === "1";
     const sheet = await getHistoryRowsWithStatus(params.get("refresh") === "1");
     const [settings, overrides, catalogBySku] = await Promise.all([
       getAppSettings(),
-      getProductOverrides(),
-      getShopifyCatalogProductsBySkus(sheet.rows.map((row) => row.sku)),
+      historicalView ? Promise.resolve(new Map()) : getProductOverrides(),
+      historicalView
+        ? Promise.resolve(new Map())
+        : getShopifyCatalogProductsBySkus(sheet.rows.map((row) => row.sku)),
     ]);
     const catalogOnly = params.get("catalog") === "1";
     const rows = sheet.rows
@@ -37,6 +40,10 @@ export async function GET(req: NextRequest) {
         (row) => !catalogOnly || catalogBySku.has(String(row.sku || "").trim()),
       )
       .map((row) => {
+        // Relatórios históricos precisam preservar exatamente o produto
+        // registrado na execução. Um SKU pode pertencer a unidade, display
+        // ou variações diferentes e não identifica sozinho um item Shopify.
+        if (historicalView) return row;
         const catalogProduct = catalogBySku.get(String(row.sku || "").trim());
         const override = overrides.get(
           productIdentityKey(row.sku, row.tituloDepois || row.tituloAntes),

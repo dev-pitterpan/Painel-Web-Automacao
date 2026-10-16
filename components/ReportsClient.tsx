@@ -24,7 +24,6 @@ import type { DashboardData, HistoryRow } from "@/lib/types";
 import {
   calculateTimeSavedMinutes,
   historyDateKey,
-  historyProductKey,
   parseHistoryDate,
 } from "@/lib/metrics";
 import { useProductPanel } from "@/components/ProductPanelProvider";
@@ -140,6 +139,22 @@ function rowChanges(row: HistoryRow) {
   return changes;
 }
 
+const normalizeProductIdentity = (value: string) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLocaleLowerCase("pt-BR");
+
+function reportProductKey(row: HistoryRow, fallback: string) {
+  const sku = normalizeProductIdentity(row.sku);
+  const sourceTitle = normalizeProductIdentity(
+    row.tituloAntes || row.tituloDepois,
+  );
+  if (sku || sourceTitle) return `${sku}::${sourceTitle}`;
+  return `registro:${fallback}`;
+}
+
 export function ReportsClient() {
   const [defaultFilters] = useState(defaultDateRange);
   const [allRows, setAllRows] = useState<HistoryRow[]>([]);
@@ -189,7 +204,7 @@ export function ReportsClient() {
     setError("");
     try {
       const response = await fetch(
-        `/api/dashboard?month=all${refresh ? "&refresh=1" : ""}`,
+        `/api/dashboard?month=all&historicalView=1${refresh ? "&refresh=1" : ""}`,
         { cache: "no-store" },
       );
       const data = (await response.json()) as DashboardData & {
@@ -288,16 +303,13 @@ export function ReportsClient() {
       );
   }, [allRows, applied, start, end, brand, status, change]);
 
-  const uniqueProcessedProducts = useMemo(() => {
-    const identified = new Set<string>();
-    let unidentified = 0;
-    filteredRows.forEach((row) => {
-      const key = historyProductKey(row);
-      if (key) identified.add(key);
-      else unidentified += 1;
-    });
-    return identified.size + unidentified;
-  }, [filteredRows]);
+  const distinctProcessedProducts = useMemo(
+    () =>
+      new Set(
+        filteredRows.map((row, index) => reportProductKey(row, String(index))),
+      ).size,
+    [filteredRows],
+  );
 
   const reportRows = useMemo(
     () =>
@@ -311,22 +323,22 @@ export function ReportsClient() {
   const brandRows = useMemo<BrandReportRow[]>(() => {
     const grouped = new Map<
       string,
-      { skus: Set<string>; total: number; successes: number; errors: number }
+      {
+        products: Set<string>;
+        total: number;
+        successes: number;
+        errors: number;
+      }
     >();
-    filteredRows.forEach((row) => {
+    filteredRows.forEach((row, index) => {
       const key = String(row.marca || "Sem marca").trim() || "Sem marca";
       const item = grouped.get(key) || {
-        skus: new Set<string>(),
+        products: new Set<string>(),
         total: 0,
         successes: 0,
         errors: 0,
       };
-      item.skus.add(
-        row.sku ||
-          row.tituloDepois ||
-          row.tituloAntes ||
-          `${key}-${item.total}`,
-      );
+      item.products.add(reportProductKey(row, `${key}-${index}`));
       item.total += 1;
       if (isError(row)) item.errors += 1;
       else item.successes += 1;
@@ -335,7 +347,7 @@ export function ReportsClient() {
     return [...grouped.entries()]
       .map(([itemBrand, item]) => ({
         brand: itemBrand,
-        products: item.skus.size,
+        products: item.products.size,
         total: item.total,
         successes: item.successes,
         errors: item.errors,
@@ -388,7 +400,7 @@ export function ReportsClient() {
       changed: new Set(
         filteredRows
           .filter(hasChange)
-          .map((row) => row.sku || row.tituloDepois || row.tituloAntes),
+          .map((row, index) => reportProductKey(row, String(index))),
       ).size,
       errors: filteredRows.filter(isError).length,
       time: calculateTimeSavedMinutes(filteredRows.length, timeSettings),
@@ -605,8 +617,11 @@ export function ReportsClient() {
             ["Marca", filters.brand || "Todas as marcas"],
             ["Status", filters.status || "Todos os status"],
             ["Tipo de alteração", filters.change || "Todos os tipos"],
-            ["Processamentos", filteredRows.length],
-            ["Produtos únicos processados", uniqueProcessedProducts],
+            ["Produtos processados", filteredRows.length],
+            [
+              "Produtos distintos (SKU + título original)",
+              distinctProcessedProducts,
+            ],
             ["Produtos com alteração", summaries.changed],
             ["Erros", summaries.errors],
             ["Tempo economizado", fmtMinutes(summaries.time)],
@@ -1124,10 +1139,10 @@ export function ReportsClient() {
           </span>
           <div>
             <span>Produtos processados</span>
-            <strong>{uniqueProcessedProducts.toLocaleString("pt-BR")}</strong>
+            <strong>{filteredRows.length.toLocaleString("pt-BR")}</strong>
             <small>
-              {filteredRows.length.toLocaleString("pt-BR")} processamentos no
-              período
+              {distinctProcessedProducts.toLocaleString("pt-BR")} combinações de
+              SKU e produto
             </small>
           </div>
         </article>
@@ -1254,7 +1269,7 @@ export function ReportsClient() {
                 <thead>
                   <tr>
                     <th>Marca</th>
-                    <th>Produtos únicos</th>
+                    <th>Produtos distintos</th>
                     <th>Processamentos</th>
                     <th>Sucessos</th>
                     <th>Erros</th>
