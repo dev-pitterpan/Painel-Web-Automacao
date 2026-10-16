@@ -221,6 +221,46 @@ export async function fetchShopifyProduct(productId: string) {
   return data.product;
 }
 
+export async function findMissingShopifyProductIds(productIds: string[]) {
+  const ids = [...new Set(productIds.filter(Boolean))];
+  const missing: string[] = [];
+  const batchSize = 100;
+  const concurrentBatches = 4;
+
+  for (let offset = 0; offset < ids.length; offset += batchSize * concurrentBatches) {
+    const batches = Array.from({ length: concurrentBatches }, (_, index) =>
+      ids.slice(
+        offset + index * batchSize,
+        offset + (index + 1) * batchSize,
+      ),
+    ).filter((batch) => batch.length);
+    const results = await Promise.all(
+      batches.map(async (batch) => {
+        const data = await shopifyGraphql<{
+          nodes: Array<{ id: string; __typename: string } | null>;
+        }>(
+          `query VerifyWinthorProducts($ids: [ID!]!) {
+            nodes(ids: $ids) { __typename id }
+          }`,
+          { ids: batch },
+        );
+        if (!Array.isArray(data?.nodes) || data.nodes.length !== batch.length)
+          throw new Error("A Shopify retornou uma validação incompleta dos produtos WinThor.");
+        return batch.filter((id, index) => {
+          const node = data.nodes[index];
+          if (node === null) return true;
+          if (node.__typename !== "Product" || node.id !== id)
+            throw new Error("A Shopify retornou um produto diferente do esperado na validação WinThor.");
+          return false;
+        });
+      }),
+    );
+    results.forEach((batch) => missing.push(...batch));
+  }
+
+  return missing;
+}
+
 export async function getShopifyProductSalesChannels(productId: string) {
   const data = await shopifyGraphql<{
     publications: { nodes: Array<{ id: string; name: string }> };

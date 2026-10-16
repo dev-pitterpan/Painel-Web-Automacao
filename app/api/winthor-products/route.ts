@@ -1,11 +1,14 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  deleteShopifyCatalogProducts,
   getCurrentUser,
   getWinthorProductStatus,
+  listShopifyCatalogIdsForWinthorSkus,
   syncWinthorProductStatuses,
   type WinthorStatusProduct,
 } from "@/lib/auth";
+import { findMissingShopifyProductIds } from "@/lib/shopify-admin";
 
 function normalizeSyncToken(value: unknown) {
   let token = String(value || "")
@@ -92,11 +95,25 @@ export async function POST(req: NextRequest) {
         ).trim(),
       }),
     );
+    const catalogIds = await listShopifyCatalogIdsForWinthorSkus(
+      products.map((product) => product.sku),
+    );
+    // Se a consulta à Shopify falhar, a importação não substitui o último
+    // lote válido do WinThor por uma lista que não foi conferida.
+    const missingIds = await findMissingShopifyProductIds(catalogIds);
+    for (let offset = 0; offset < missingIds.length; offset += 250) {
+      await deleteShopifyCatalogProducts(missingIds.slice(offset, offset + 250));
+    }
     const result = await syncWinthorProductStatuses(
       products,
       String(body?.sourceFile || "produtos_fora_de_linha.xls"),
     );
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      checkedOnShopify: catalogIds.length,
+      removedFromCatalog: missingIds.length,
+    });
   } catch (error) {
     return NextResponse.json(
       {

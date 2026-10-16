@@ -1007,6 +1007,25 @@ export async function syncWinthorProductStatuses(
   return { batchId, synchronized: normalized.length };
 }
 
+export async function listShopifyCatalogIdsForWinthorSkus(skus: string[]) {
+  await ensureDatabase();
+  const normalizedSkus = [
+    ...new Set(skus.map((sku) => String(sku || "").trim()).filter(Boolean)),
+  ];
+  if (!normalizedSkus.length) return [];
+
+  // A aba Fora de linha associa o código WinThor ao SKU principal do produto.
+  // Consultamos todos os IDs: display e unidade podem compartilhar o SKU.
+  const rows = await query<{ shopify_id: string }>(
+    `SELECT DISTINCT p.shopify_id
+     FROM shopify_catalog_products p
+     JOIN jsonb_array_elements_text($1::jsonb) AS input(sku)
+       ON input.sku = p.primary_sku`,
+    [JSON.stringify(normalizedSkus)],
+  );
+  return rows.map((row) => String(row.shopify_id || "")).filter(Boolean);
+}
+
 export async function getWinthorProductStatus(sku: string) {
   await ensureDatabase();
   const rows = await query<any>(
