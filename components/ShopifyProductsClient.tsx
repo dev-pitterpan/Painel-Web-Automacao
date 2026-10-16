@@ -411,7 +411,11 @@ export function ShopifyProductsClient({
         if (background) {
           refreshInProgress.current = false;
           setRefreshing(false);
-        } else if (requestId === loadRequestId.current) {
+        }
+        // Uma atualização em segundo plano pode assumir a requisição ativa
+        // depois que a página já mudou. A requisição mais recente sempre
+        // encerra também o indicador da paginação.
+        if (requestId === loadRequestId.current) {
           setLoading(false);
         }
       }
