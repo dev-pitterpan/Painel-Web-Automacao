@@ -422,6 +422,10 @@ export function ShopifyProductsClient({
     },
     [addNotification, filters, page, query, sort, winthorOnly],
   );
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
   useEffect(() => void load(), [load]);
   useEffect(() => {
     let cancelled = false;
@@ -445,7 +449,7 @@ export function ShopifyProductsClient({
         }
         if (catalogVersion.current === nextVersion) return;
         catalogVersion.current = nextVersion;
-        await load(true);
+        await loadRef.current(true);
       } catch {
         // Mantém a lista atual se a verificação em segundo plano falhar.
       }
@@ -458,7 +462,7 @@ export function ShopifyProductsClient({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [load]);
+  }, []);
   useEffect(() => setSelectedProducts({}), [filters, query, sort]);
   const visibleMissingSkus = useMemo(() => {
     const found = new Set(

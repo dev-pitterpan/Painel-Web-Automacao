@@ -1,4 +1,5 @@
 import { client, defaultClientConfig, type Client } from "@prisma/ppg";
+import { cache } from "react";
 import { multipleSkuTerms } from "./search";
 import {
   createHash,
@@ -716,28 +717,31 @@ export async function listShopifyCatalogProducts(input: {
 
 export async function getShopifyCatalogHealthSummary() {
   await ensureDatabase();
-  const [catalogRows, syncRows] = await Promise.all([
-    query<{ total: number; last_received_at: string | null }>(
-      `SELECT COUNT(*)::int AS total, MAX(synced_at) AS last_received_at
-       FROM shopify_catalog_products`,
-    ),
-    query<{
-      status: string;
+  const [catalog] = await query<{
+      total: number;
+      last_received_at: string | null;
+      status: string | null;
       expected_count: number | null;
-      received_count: number;
+      received_count: number | null;
       completed_at: string | null;
-      started_at: string;
-      error_message: string;
-    }>(
-      `SELECT status, expected_count, received_count, completed_at, started_at,
-         error_message
+      started_at: string | null;
+      error_message: string | null;
+  }>(
+    `SELECT catalog.total, catalog.last_received_at,
+       sync.status, sync.expected_count, sync.received_count,
+       sync.completed_at, sync.started_at, sync.error_message
+     FROM (
+       SELECT COUNT(*)::int AS total, MAX(synced_at) AS last_received_at
+       FROM shopify_catalog_products
+     ) catalog
+     LEFT JOIN LATERAL (
+       SELECT status, expected_count, received_count, completed_at,
+         started_at, error_message
        FROM shopify_catalog_sync_runs
-       ORDER BY started_at DESC
-       LIMIT 1`,
-    ),
-  ]);
-  const catalog = catalogRows[0];
-  const sync = syncRows[0];
+       ORDER BY started_at DESC LIMIT 1
+     ) sync ON true`,
+  );
+  const sync = catalog?.status ? catalog : null;
   return {
     productCount: Number(catalog?.total || 0),
     lastReceivedAt: catalog?.last_received_at
@@ -981,32 +985,32 @@ export async function getWinthorProductStatus(sku: string) {
 
 export async function getShopifyCatalogFacets() {
   await ensureDatabase();
-  const [vendors, productTypes, statuses, tags, collections] =
-    await Promise.all([
-      query<{ value: string }>(
-        "SELECT DISTINCT vendor AS value FROM shopify_catalog_products WHERE vendor <> '' ORDER BY value",
-      ),
-      query<{ value: string }>(
-        "SELECT DISTINCT product_type AS value FROM shopify_catalog_products WHERE product_type <> '' ORDER BY value",
-      ),
-      query<{ value: string }>(
-        "SELECT DISTINCT status AS value FROM shopify_catalog_products WHERE status <> '' ORDER BY value",
-      ),
-      query<{ value: string }>(
-        "SELECT DISTINCT jsonb_array_elements_text(tags_json) AS value FROM shopify_catalog_products ORDER BY value",
-      ),
-      query<{ value: string }>(
-        "SELECT DISTINCT jsonb_array_elements_text(collections_json) AS value FROM shopify_catalog_products ORDER BY value",
-      ),
-    ]);
-  const values = (rows: Array<{ value: string }>) =>
-    rows.map((row) => String(row.value)).filter(Boolean);
+  const [facets] = await query<{
+    vendors: string[];
+    product_types: string[];
+    statuses: string[];
+    tags: string[];
+    collections: string[];
+  }>(`SELECT
+    ARRAY(SELECT DISTINCT vendor FROM shopify_catalog_products
+      WHERE vendor <> '' ORDER BY vendor) AS vendors,
+    ARRAY(SELECT DISTINCT product_type FROM shopify_catalog_products
+      WHERE product_type <> '' ORDER BY product_type) AS product_types,
+    ARRAY(SELECT DISTINCT status FROM shopify_catalog_products
+      WHERE status <> '' ORDER BY status) AS statuses,
+    ARRAY(SELECT DISTINCT value FROM shopify_catalog_products p,
+      jsonb_array_elements_text(p.tags_json) AS tag(value)
+      ORDER BY value) AS tags,
+    ARRAY(SELECT DISTINCT value FROM shopify_catalog_products p,
+      jsonb_array_elements_text(p.collections_json) AS collection(value)
+      ORDER BY value) AS collections`);
+  const values = (items: string[] = []) => items.map(String).filter(Boolean);
   return {
-    vendors: values(vendors),
-    productTypes: values(productTypes),
-    statuses: values(statuses),
-    tags: values(tags),
-    collections: values(collections),
+    vendors: values(facets?.vendors),
+    productTypes: values(facets?.product_types),
+    statuses: values(facets?.statuses),
+    tags: values(facets?.tags),
+    collections: values(facets?.collections),
   };
 }
 
@@ -1839,11 +1843,11 @@ export async function listReprocesses(
   }));
 }
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   const { cookies } = await import("next/headers");
   const token = (await cookies()).get("pitter_session")?.value;
   return await getUserBySession(token);
-}
+});
 
 export async function getAuthenticatedUser() {
   return await getCurrentUser();

@@ -1093,6 +1093,7 @@ export function DashboardClient({
 
     let active = true;
     async function checkAutomationHealth() {
+      if (document.visibilityState !== "visible") return;
       try {
         const response = await fetch("/api/health", { cache: "no-store" });
         const health = await response.json().catch(() => null);
@@ -1130,9 +1131,11 @@ export function DashboardClient({
 
     checkAutomationHealth();
     const interval = window.setInterval(checkAutomationHealth, 5 * 60_000);
+    document.addEventListener("visibilitychange", checkAutomationHealth);
     return () => {
       active = false;
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", checkAutomationHealth);
     };
   }, [data?.permissions?.canReprocess]);
 
