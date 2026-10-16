@@ -15,6 +15,38 @@ export function parseHistoryDate(value: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+export function historyDateKey(value: string) {
+  const text = String(value || "").trim();
+  const brazilianDate = text.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (brazilianDate) {
+    const [, day, month, year] = brazilianDate;
+    const numericDay = Number(day);
+    const numericMonth = Number(month);
+    const daysInMonth =
+      numericMonth >= 1 && numericMonth <= 12
+        ? new Date(Date.UTC(Number(year), numericMonth, 0)).getUTCDate()
+        : 0;
+    if (numericDay < 1 || numericDay > daysInMonth) return null;
+    return `${year}-${month}-${day}`;
+  }
+
+  const date = parseHistoryDate(text);
+  if (!date) return null;
+
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value || "";
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  return year && month && day ? `${year}-${month}-${day}` : null;
+}
+
 function matches(
   row: HistoryRow,
   options: { q: string; marca: string; status: string },

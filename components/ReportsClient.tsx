@@ -21,7 +21,12 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import type { DashboardData, HistoryRow } from "@/lib/types";
-import { calculateTimeSavedMinutes, parseHistoryDate } from "@/lib/metrics";
+import {
+  calculateTimeSavedMinutes,
+  historyDateKey,
+  historyProductKey,
+  parseHistoryDate,
+} from "@/lib/metrics";
 import { useProductPanel } from "@/components/ProductPanelProvider";
 import { ProductThumbnail } from "@/components/ProductThumbnail";
 
@@ -184,7 +189,7 @@ export function ReportsClient() {
     setError("");
     try {
       const response = await fetch(
-        `/api/dashboard?days=3650${refresh ? "&refresh=1" : ""}`,
+        `/api/dashboard?month=all${refresh ? "&refresh=1" : ""}`,
         { cache: "no-store" },
       );
       const data = (await response.json()) as DashboardData & {
@@ -261,22 +266,38 @@ export function ReportsClient() {
   );
   const filteredRows = useMemo(() => {
     const filters = applied || { start, end, brand, status, change };
-    const startAt = new Date(`${filters.start}T00:00:00-03:00`).getTime();
-    const endAt = new Date(`${filters.end}T23:59:59-03:00`).getTime();
-    return allRows.filter((row) => {
-      const date = parseHistoryDate(row.dataHora);
-      if (!date || date.getTime() < startAt || date.getTime() > endAt)
-        return false;
-      if (filters.brand && row.marca !== filters.brand) return false;
-      if (filters.status === "sucesso" && isError(row)) return false;
-      if (filters.status === "erro" && !isError(row)) return false;
-      if (filters.change === "titulo" && !row.tituloAlterado) return false;
-      if (filters.change === "tags" && !row.tagsAlteradas) return false;
-      if (filters.change === "colecoes" && !row.colecoesAlteradas) return false;
-      if (filters.change === "descricao" && !row.descricaoGerada) return false;
-      return true;
-    });
+    return allRows
+      .filter((row) => {
+        const date = historyDateKey(row.dataHora);
+        if (!date || date < filters.start || date > filters.end) return false;
+        if (filters.brand && row.marca !== filters.brand) return false;
+        if (filters.status === "sucesso" && isError(row)) return false;
+        if (filters.status === "erro" && !isError(row)) return false;
+        if (filters.change === "titulo" && !row.tituloAlterado) return false;
+        if (filters.change === "tags" && !row.tagsAlteradas) return false;
+        if (filters.change === "colecoes" && !row.colecoesAlteradas)
+          return false;
+        if (filters.change === "descricao" && !row.descricaoGerada)
+          return false;
+        return true;
+      })
+      .sort(
+        (a, b) =>
+          (parseHistoryDate(b.dataHora)?.getTime() || 0) -
+          (parseHistoryDate(a.dataHora)?.getTime() || 0),
+      );
   }, [allRows, applied, start, end, brand, status, change]);
+
+  const uniqueProcessedProducts = useMemo(() => {
+    const identified = new Set<string>();
+    let unidentified = 0;
+    filteredRows.forEach((row) => {
+      const key = historyProductKey(row);
+      if (key) identified.add(key);
+      else unidentified += 1;
+    });
+    return identified.size + unidentified;
+  }, [filteredRows]);
 
   const reportRows = useMemo(
     () =>
@@ -326,9 +347,9 @@ export function ReportsClient() {
   const productivityRows = useMemo<ProductivityReportRow[]>(() => {
     const grouped = new Map<string, ProductivityReportRow>();
     filteredRows.forEach((row) => {
-      const parsed = parseHistoryDate(row.dataHora);
-      if (!parsed) return;
-      const key = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+      const key = historyDateKey(row.dataHora);
+      if (!key) return;
+      const parsed = new Date(`${key}T12:00:00-03:00`);
       const item = grouped.get(key) || {
         date: new Intl.DateTimeFormat("pt-BR").format(parsed),
         sort: new Date(
@@ -425,13 +446,6 @@ export function ReportsClient() {
       setStart(value);
       setEnd(value);
       setSelectingEnd(true);
-      setApplied((current) => ({
-        ...(current || { brand, status, change }),
-        start: value,
-        end: value,
-      }));
-      setPage(1);
-      setShowAll(false);
       return;
     }
     const nextStart = value < start ? value : start;
@@ -439,13 +453,7 @@ export function ReportsClient() {
     setStart(nextStart);
     setEnd(nextEnd);
     setSelectingEnd(false);
-    setApplied((current) => ({
-      ...(current || { brand, status, change }),
-      start: nextStart,
-      end: nextEnd,
-    }));
-    setPage(1);
-    setShowAll(false);
+    setCalendarOpen(false);
   }
 
   function resetFilters() {
@@ -598,6 +606,7 @@ export function ReportsClient() {
             ["Status", filters.status || "Todos os status"],
             ["Tipo de alteração", filters.change || "Todos os tipos"],
             ["Processamentos", filteredRows.length],
+            ["Produtos únicos processados", uniqueProcessedProducts],
             ["Produtos com alteração", summaries.changed],
             ["Erros", summaries.errors],
             ["Tempo economizado", fmtMinutes(summaries.time)],
@@ -1115,8 +1124,11 @@ export function ReportsClient() {
           </span>
           <div>
             <span>Produtos processados</span>
-            <strong>{filteredRows.length.toLocaleString("pt-BR")}</strong>
-            <small>No período selecionado</small>
+            <strong>{uniqueProcessedProducts.toLocaleString("pt-BR")}</strong>
+            <small>
+              {filteredRows.length.toLocaleString("pt-BR")} processamentos no
+              período
+            </small>
           </div>
         </article>
         <article className="report-stat">
@@ -1124,7 +1136,7 @@ export function ReportsClient() {
             <TriangleAlert />
           </span>
           <div>
-            <span>Erros exportados</span>
+            <span>Erros no período</span>
             <strong>{summaries.errors.toLocaleString("pt-BR")}</strong>
             <small>No período selecionado</small>
           </div>
