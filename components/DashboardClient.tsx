@@ -758,7 +758,14 @@ export function DashboardClient({
       }
       return true;
     });
-    if (mode !== "products" || productsSort === "recent") return rows;
+    if (mode !== "products") return rows;
+    if (productsSort === "recent") {
+      return [...rows].sort(
+        (a, b) =>
+          (parseHistoryDate(b.dataHora)?.getTime() || 0) -
+          (parseHistoryDate(a.dataHora)?.getTime() || 0),
+      );
+    }
     return [...rows].sort((a, b) =>
       String(a.tituloDepois || a.tituloAntes || "").localeCompare(
         String(b.tituloDepois || b.tituloAntes || ""),

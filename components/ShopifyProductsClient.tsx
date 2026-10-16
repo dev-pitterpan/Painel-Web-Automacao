@@ -477,6 +477,15 @@ export function ShopifyProductsClient({
       (sku) => !found.has(sku.trim().toLocaleLowerCase("pt-BR")),
     );
   }, [data, missingSkus]);
+  const pageProducts = useMemo(() => {
+    const products = data?.products || [];
+    if (sort !== "updated") return products;
+    return [...products].sort((a, b) => {
+      const recentDate = Date.parse(b.shopifyUpdatedAt) || 0;
+      const olderDate = Date.parse(a.shopifyUpdatedAt) || 0;
+      return recentDate - olderDate;
+    });
+  }, [data?.products, sort]);
   const setFilter = (key: FilterKey, value: string) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
@@ -1132,7 +1141,7 @@ export function ShopifyProductsClient({
                 </tr>
               </thead>
               <tbody>
-                {data.products.map((product, index) => (
+                {pageProducts.map((product, index) => (
                   <tr
                     className={[
                       selectedIds.includes(product.shopifyId)

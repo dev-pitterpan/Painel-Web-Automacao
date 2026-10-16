@@ -738,7 +738,7 @@ export async function listShopifyCatalogProducts(input: {
         ? "p.title DESC, p.shopify_id ASC"
         : input.sort === "inventory"
           ? "p.total_inventory DESC, p.title ASC, p.shopify_id ASC"
-          : "p.shopify_updated_at DESC NULLS LAST, p.title ASC, p.shopify_id ASC";
+          : "p.shopify_updated_at DESC NULLS LAST, LENGTH(p.shopify_id) DESC, p.shopify_id DESC";
   const listParams = [...params, perPage, (page - 1) * perPage];
   const [countRows, rows] = await Promise.all([
     query<{ total: number }>(
