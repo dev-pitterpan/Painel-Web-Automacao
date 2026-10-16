@@ -992,19 +992,20 @@ export async function getShopifyCatalogFacets() {
     tags: string[];
     collections: string[];
   }>(`SELECT
-    ARRAY(SELECT DISTINCT vendor FROM shopify_catalog_products
-      WHERE vendor <> '' ORDER BY vendor) AS vendors,
-    ARRAY(SELECT DISTINCT product_type FROM shopify_catalog_products
-      WHERE product_type <> '' ORDER BY product_type) AS product_types,
-    ARRAY(SELECT DISTINCT status FROM shopify_catalog_products
-      WHERE status <> '' ORDER BY status) AS statuses,
-    ARRAY(SELECT DISTINCT value FROM shopify_catalog_products p,
+    to_jsonb(ARRAY(SELECT DISTINCT vendor FROM shopify_catalog_products
+      WHERE vendor <> '' ORDER BY vendor)) AS vendors,
+    to_jsonb(ARRAY(SELECT DISTINCT product_type FROM shopify_catalog_products
+      WHERE product_type <> '' ORDER BY product_type)) AS product_types,
+    to_jsonb(ARRAY(SELECT DISTINCT status FROM shopify_catalog_products
+      WHERE status <> '' ORDER BY status)) AS statuses,
+    to_jsonb(ARRAY(SELECT DISTINCT value FROM shopify_catalog_products p,
       jsonb_array_elements_text(p.tags_json) AS tag(value)
-      ORDER BY value) AS tags,
-    ARRAY(SELECT DISTINCT value FROM shopify_catalog_products p,
+      ORDER BY value)) AS tags,
+    to_jsonb(ARRAY(SELECT DISTINCT value FROM shopify_catalog_products p,
       jsonb_array_elements_text(p.collections_json) AS collection(value)
-      ORDER BY value) AS collections`);
-  const values = (items: string[] = []) => items.map(String).filter(Boolean);
+      ORDER BY value)) AS collections`);
+  const values = (items: unknown) =>
+    Array.isArray(items) ? items.map(String).filter(Boolean) : [];
   return {
     vendors: values(facets?.vendors),
     productTypes: values(facets?.product_types),
