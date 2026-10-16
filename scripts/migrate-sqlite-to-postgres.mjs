@@ -44,12 +44,12 @@ try {
   );
   await client.query(schema);
   const existing = await client.query(
-    "SELECT (SELECT COUNT(*) FROM users)::int AS users, (SELECT COUNT(*) FROM reprocess_jobs)::int AS jobs, (SELECT COUNT(*) FROM audit_logs)::int AS audits",
+    "SELECT (SELECT COUNT(*) FROM users)::int AS users, (SELECT COUNT(*) FROM reprocess_jobs)::int AS jobs",
   );
   const totals = existing.rows[0];
   if (
     !process.env.ALLOW_NONEMPTY_IMPORT &&
-    (totals.users || totals.jobs || totals.audits)
+    (totals.users || totals.jobs)
   ) {
     throw new Error(
       "O destino já contém dados. Use o script de mesclagem ou ALLOW_NONEMPTY_IMPORT=1 conscientemente.",
@@ -57,7 +57,7 @@ try {
   }
 
   await client.query("BEGIN");
-  const counts = { users: 0, jobs: 0, audits: 0, settings: 0 };
+  const counts = { users: 0, jobs: 0, settings: 0 };
   const userIds = new Map();
   if (hasTable("users")) {
     const fields = columns("users");
@@ -107,25 +107,6 @@ try {
       counts.jobs++;
     }
   }
-  if (hasTable("audit_logs")) {
-    for (const row of source
-      .prepare("SELECT * FROM audit_logs ORDER BY id")
-      .all()) {
-      await client.query(
-        `INSERT INTO audit_logs (id,user_id,action,entity,details_json,created_at)
-         VALUES ($1,$2,$3,$4,$5::jsonb,$6) ON CONFLICT(id) DO NOTHING`,
-        [
-          row.id,
-          userIds.get(Number(row.user_id)) || null,
-          row.action,
-          row.entity,
-          row.details_json || null,
-          row.created_at,
-        ],
-      );
-      counts.audits++;
-    }
-  }
   if (hasTable("app_settings")) {
     for (const row of source.prepare("SELECT * FROM app_settings").all()) {
       await client.query(
@@ -136,14 +117,14 @@ try {
       counts.settings++;
     }
   }
-  for (const table of ["users", "reprocess_jobs", "audit_logs"]) {
+  for (const table of ["users", "reprocess_jobs"]) {
     await client.query(
       `SELECT setval(pg_get_serial_sequence('${table}','id'), GREATEST(COALESCE((SELECT MAX(id) FROM ${table}),1),1), true)`,
     );
   }
   await client.query("COMMIT");
   console.log(
-    `Importação conferida: ${counts.users} usuário(s), ${counts.jobs} processamento(s), ${counts.audits} evento(s), ${counts.settings} configuração(ões).`,
+    `Importação conferida: ${counts.users} usuário(s), ${counts.jobs} processamento(s), ${counts.settings} configuração(ões).`,
   );
 } catch (error) {
   await client.query("ROLLBACK").catch(() => {});

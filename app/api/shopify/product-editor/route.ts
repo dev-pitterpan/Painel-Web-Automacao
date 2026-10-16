@@ -7,7 +7,6 @@ import {
   enqueueProductImages,
   getShopifyCatalogProductDetails,
   getCurrentUser,
-  recordAudit,
   upsertProductOverride,
   upsertShopifyCatalogProducts,
 } from "@/lib/auth";
@@ -224,53 +223,16 @@ export async function POST(req: NextRequest) {
     if (images.length || deleteImagePositions.length || imageReorder.length) {
       try {
         if (deleteImagePositions.length)
-          await enqueueProductImageDeletions(
-            user,
-            requestId,
-            sku,
-            deleteImagePositions,
-          );
+          await enqueueProductImageDeletions(requestId, sku, deleteImagePositions);
         if (imageReorder.length)
-          await enqueueProductImageReorder(user, requestId, sku, imageReorder);
+          await enqueueProductImageReorder(requestId, sku, imageReorder);
         if (images.length)
-          await enqueueProductImages(user, requestId, sku, images);
+          await enqueueProductImages(requestId, sku, images);
         imageSync = "queued";
-      } catch (syncError) {
+      } catch {
         imageSync = "failed";
-        await recordAudit({
-          userId: user.id,
-          action: "image_sync_queue_failed",
-          entity: "product",
-          details: {
-            requestId,
-            sku,
-            error:
-              syncError instanceof Error
-                ? syncError.message
-                : "Falha desconhecida",
-          },
-        });
       }
     }
-    await recordAudit({
-      userId: user.id,
-      action: "product_updated",
-      entity: "product",
-      details: {
-        requestId,
-        sku,
-        fields: [
-          "title",
-          "description",
-          "tags",
-          "collections",
-          "weight",
-          ...(images.length ? ["images"] : []),
-          ...(deleteMediaIds.length ? ["deleted_images"] : []),
-          ...(publicationChanges.length ? ["sales_channels"] : []),
-        ],
-      },
-    });
     return NextResponse.json({
       ok: true,
       requestId,
@@ -294,16 +256,6 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    await recordAudit({
-      userId: user.id,
-      action: "product_update_failed",
-      entity: "product",
-      details: {
-        requestId,
-        sku,
-        error: error instanceof Error ? error.message : "Falha desconhecida",
-      },
-    });
     return NextResponse.json(
       {
         error: `Não foi possível atualizar a Shopify: ${error instanceof Error ? error.message : "falha desconhecida"}`,

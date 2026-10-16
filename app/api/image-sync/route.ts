@@ -3,7 +3,6 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import {
   claimImageSyncJobs,
   completeImageSyncJob,
-  recordAudit,
 } from "@/lib/auth";
 
 function authorized(request: NextRequest) {
@@ -60,13 +59,5 @@ export async function POST(request: NextRequest) {
       String(result?.error || ""),
     );
   }
-  await recordAudit({
-    action: "image_sync_agent_acknowledged",
-    entity: "image_sync",
-    details: {
-      total: results.length,
-      successes: results.filter((item: any) => item?.success === true).length,
-    },
-  });
   return NextResponse.json({ ok: true });
 }

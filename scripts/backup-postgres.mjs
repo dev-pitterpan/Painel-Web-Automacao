@@ -17,7 +17,6 @@ const tables = [
   "sessions",
   "login_attempts",
   "reprocess_jobs",
-  "audit_logs",
   "app_settings",
   "product_overrides",
   "product_overrides_v2",

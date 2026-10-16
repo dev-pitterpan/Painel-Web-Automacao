@@ -3,7 +3,6 @@ import { timingSafeEqual } from "node:crypto";
 import {
   completeReprocess,
   isCompleteReprocessResult,
-  recordAudit,
 } from "@/lib/auth";
 
 function hasValidToken(request: NextRequest) {
@@ -49,10 +48,5 @@ export async function POST(request: NextRequest) {
       { error: "Reprocessamento pendente não encontrado." },
       { status: 404 },
     );
-  await recordAudit({
-    action: "reprocess_completed",
-    entity: "product",
-    details: { requestId },
-  });
   return NextResponse.json({ ok: true, completed: true, requestId });
 }

@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   deleteShopifyCatalogProducts,
   getCurrentUser,
-  recordAudit,
   upsertShopifyCatalogProducts,
 } from "@/lib/auth";
 import {
@@ -157,18 +156,6 @@ export async function POST(req: NextRequest) {
     if (action === "delete" && completedIds.length)
       await deleteShopifyCatalogProducts(completedIds);
 
-    await recordAudit({
-      userId: user.id,
-      action: `products_${action}`,
-      entity: "product",
-      details: {
-        requestId,
-        count: completedIds.length,
-        requestedCount: products.length,
-        productIds: completedIds,
-        failures,
-      },
-    });
 
     if (failures.length)
       throw new Error(
@@ -204,16 +191,6 @@ export async function POST(req: NextRequest) {
       message: actionMessage,
     });
   } catch (error) {
-    await recordAudit({
-      userId: user.id,
-      action: `products_${action}_failed`,
-      entity: "product",
-      details: {
-        requestId,
-        count: products.length,
-        error: error instanceof Error ? error.message : "Falha desconhecida",
-      },
-    });
     return NextResponse.json(
       {
         error: `Não foi possível concluir a ação na Shopify: ${error instanceof Error ? error.message : "falha desconhecida"}`,

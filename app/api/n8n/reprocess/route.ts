@@ -4,7 +4,6 @@ import {
   getCurrentUser,
   isCompleteReprocessResult,
   isSuccessfulReprocessResult,
-  recordAudit,
   recordPendingReprocess,
   recordReprocess,
 } from "@/lib/auth";
@@ -111,17 +110,6 @@ export async function POST(req: NextRequest) {
       const detail =
         parsed?.message || parsed?.error || raw || `HTTP ${response.status}`;
 
-      await recordAudit({
-        userId: user.id,
-        action: "reprocess_failed",
-        entity: "integration",
-        details: {
-          requestId,
-          sku,
-          status: response.status,
-          error: String(detail).slice(0, 500),
-        },
-      });
       return NextResponse.json(
         {
           ok: false,
@@ -153,12 +141,6 @@ export async function POST(req: NextRequest) {
         userId: user.id,
       });
     }
-    await recordAudit({
-      userId: user.id,
-      action: "reprocess_requested",
-      entity: "product",
-      details: { requestId, sku, completed },
-    });
 
     return NextResponse.json({
       ok: true,
@@ -171,16 +153,6 @@ export async function POST(req: NextRequest) {
       n8n: parsed || (raw ? { response: raw.slice(0, 1200) } : null),
     });
   } catch (error) {
-    await recordAudit({
-      userId: user.id,
-      action: "reprocess_failed",
-      entity: "integration",
-      details: {
-        requestId,
-        sku,
-        error: error instanceof Error ? error.message : "Falha desconhecida",
-      },
-    });
     if (error instanceof Error && error.name === "AbortError") {
       return NextResponse.json(
         {

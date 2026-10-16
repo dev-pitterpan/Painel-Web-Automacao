@@ -559,14 +559,6 @@ export function ReportsClient() {
     const next = [item, ...exports].slice(0, 12);
     setExports(next);
     localStorage.setItem("pitter-report-exports", JSON.stringify(next));
-    fetch("/api/audit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "report_exported",
-        details: { report, rows, period: item.period, format },
-      }),
-    }).catch(() => undefined);
   }
 
   async function exportXlsx(kind?: ReportKind) {

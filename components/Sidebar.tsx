@@ -15,7 +15,6 @@ import {
   LogOut,
   Package,
   RotateCcw,
-  ScrollText,
   Settings,
   UserCog,
   UserRound,
@@ -50,11 +49,6 @@ export function Sidebar({ user }: { user: AuthUser }) {
           ["Integrações", "/saude", Activity] as [string, string, LucideIcon],
           ["n8n", "/n8n", Workflow] as [string, string, LucideIcon],
           ["Usuários", "/usuarios", UserCog] as [string, string, LucideIcon],
-          ["Auditoria", "/auditoria", ScrollText] as [
-            string,
-            string,
-            LucideIcon,
-          ],
           ["Meu perfil", "/perfil", UserRound] as [string, string, LucideIcon],
           ["Configurações", "/configuracoes", Settings] as [
             string,

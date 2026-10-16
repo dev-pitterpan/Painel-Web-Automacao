@@ -4,7 +4,6 @@ import {
   deleteManagedUser,
   getCurrentUser,
   listUsers,
-  recordAudit,
   updateManagedUser,
 } from "@/lib/auth";
 
@@ -36,18 +35,6 @@ export async function POST(request: NextRequest) {
       String(body?.password || ""),
       "user",
     );
-    await recordAudit({
-      userId: actor.id,
-      action: "user_created",
-      entity: "user",
-      details: {
-        targetUserId: id,
-        email: String(body?.email || "")
-          .trim()
-          .toLowerCase(),
-        role: "user",
-      },
-    });
     return NextResponse.json({ ok: true, id }, { status: 201 });
   } catch (error) {
     const message =

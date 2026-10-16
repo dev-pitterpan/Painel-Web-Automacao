@@ -34,15 +34,6 @@ CREATE TABLE IF NOT EXISTS reprocess_jobs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS audit_logs (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
-  action TEXT NOT NULL,
-  entity TEXT NOT NULL,
-  details_json JSONB,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
@@ -169,7 +160,6 @@ CREATE TABLE IF NOT EXISTS image_sync_jobs (
   UNIQUE(batch_id, image_position)
 );
 
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_image_sync_jobs_pending ON image_sync_jobs(status, lease_until, id);
 CREATE INDEX IF NOT EXISTS idx_shopify_catalog_title ON shopify_catalog_products(title);
 CREATE INDEX IF NOT EXISTS idx_shopify_catalog_sku ON shopify_catalog_products(primary_sku);

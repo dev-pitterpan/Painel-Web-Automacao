@@ -120,32 +120,6 @@ try {
     summary.reprocess_jobs = rows.length;
   }
 
-  if (await exists(source, "audit_logs")) {
-    const rows = (await source.query("SELECT * FROM audit_logs ORDER BY id"))
-      .rows;
-    await insertMany(
-      target,
-      "audit_logs",
-      ["user_id", "action", "entity", "details_json", "created_at"],
-      rows.map((row) => [
-        row.user_id ? userMap.get(String(row.user_id)) || null : null,
-        row.action,
-        row.entity,
-        asJson(row.details_json),
-        row.created_at,
-      ]),
-    );
-    await target.query(
-      `DELETE FROM audit_logs newer USING audit_logs older
-       WHERE newer.id > older.id
-         AND newer.user_id IS NOT DISTINCT FROM older.user_id
-         AND newer.action=older.action AND newer.entity=older.entity
-         AND newer.created_at=older.created_at
-         AND newer.details_json IS NOT DISTINCT FROM older.details_json`,
-    );
-    summary.audit_logs = rows.length;
-  }
-
   if (await exists(source, "product_overrides")) {
     const rows = (await source.query("SELECT * FROM product_overrides")).rows;
     await insertMany(

@@ -4,7 +4,6 @@ import {
   clearLoginFailures,
   createSession,
   isLoginRateLimited,
-  recordAudit,
   recordLoginFailure,
 } from "@/lib/auth";
 
@@ -27,11 +26,6 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     await recordLoginFailure(identifier);
-    await recordAudit({
-      action: "login_failed",
-      entity: "auth",
-      details: { email: email.trim().toLowerCase(), address },
-    });
     return NextResponse.json(
       { error: "E-mail ou senha inválidos." },
       { status: 401 },
@@ -39,12 +33,6 @@ export async function POST(request: NextRequest) {
   }
 
   await clearLoginFailures(identifier);
-  await recordAudit({
-    userId: user.id,
-    action: "login_success",
-    entity: "auth",
-    details: { address },
-  });
   const session = await createSession(user.id);
   const response = NextResponse.json({ user });
   response.cookies.set("pitter_session", session.token, {

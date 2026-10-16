@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import {
   getCurrentUser,
-  recordAudit,
   recordPendingReprocess,
 } from "@/lib/auth";
 
@@ -105,12 +104,6 @@ export async function POST(req: NextRequest) {
       source: "products",
     });
 
-    await recordAudit({
-      userId: user.id,
-      action: "product_automation_requested",
-      entity: "product",
-      details: { requestId, sku, shopifyProductId },
-    });
 
     return NextResponse.json({
       ok: true,
@@ -119,17 +112,6 @@ export async function POST(req: NextRequest) {
       message: "Produto adicionado à fila da automação.",
     });
   } catch (error) {
-    await recordAudit({
-      userId: user.id,
-      action: "product_automation_failed",
-      entity: "integration",
-      details: {
-        requestId,
-        sku,
-        shopifyProductId,
-        error: error instanceof Error ? error.message : "Falha desconhecida",
-      },
-    });
 
     return NextResponse.json(
       {

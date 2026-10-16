@@ -38,15 +38,6 @@ export type AppSettings = {
   qualityTarget: number;
   staleSyncMinutes: number;
 };
-export type AuditRecord = {
-  id: number;
-  action: string;
-  entity: string;
-  details: Record<string, unknown> | null;
-  createdAt: string;
-  userName: string | null;
-  userEmail: string | null;
-};
 export type ProductOverride = {
   sku: string;
   sourceTitle: string;
@@ -272,12 +263,6 @@ export async function updateAppSettings(
       ),
     ),
   );
-  await recordAudit({
-    userId: actor.id,
-    action: "settings_updated",
-    entity: "settings",
-    details: next,
-  });
   return next;
 }
 
@@ -384,21 +369,6 @@ export async function updateManagedUser(
       "UPDATE users SET name = $1, email = $2, role = $3 WHERE id = $4",
       [name, email, role, userId],
     );
-  await recordAudit({
-    userId: actor.id,
-    action: "user_updated",
-    entity: "user",
-    details: {
-      targetUserId: userId,
-      previousName: target.name,
-      name,
-      previousEmail: target.email,
-      email,
-      previousRole: target.role,
-      role,
-      passwordChanged: Boolean(password),
-    },
-  });
 }
 
 export async function updateOwnProfile(
@@ -461,20 +431,6 @@ export async function updateOwnProfile(
       [name, email, avatarUrl || null, actor.id],
     );
   }
-
-  await recordAudit({
-    userId: actor.id,
-    action: "profile_updated",
-    entity: "user",
-    details: {
-      previousName: target.name,
-      name,
-      previousEmail: target.email,
-      email,
-      passwordChanged: Boolean(newPassword),
-    },
-  });
-
   return {
     id: actor.id,
     name,
@@ -504,35 +460,6 @@ export async function deleteManagedUser(actor: AuthUser, userId: number) {
       throw new Error("O sistema precisa manter pelo menos um administrador.");
   }
   await query("DELETE FROM users WHERE id = $1", [userId]);
-  await recordAudit({
-    userId: actor.id,
-    action: "user_deleted",
-    entity: "user",
-    details: {
-      targetUserId: userId,
-      name: target.name,
-      email: target.email,
-      role: target.role,
-    },
-  });
-}
-
-export async function recordAudit(entry: {
-  userId?: number | null;
-  action: string;
-  entity: string;
-  details?: Record<string, unknown> | null;
-}) {
-  await ensureDatabase();
-  await query(
-    "INSERT INTO audit_logs (user_id, action, entity, details_json) VALUES ($1, $2, $3, $4::jsonb)",
-    [
-      entry.userId ?? null,
-      entry.action.slice(0, 80),
-      entry.entity.slice(0, 80),
-      entry.details ? JSON.stringify(entry.details) : null,
-    ],
-  );
 }
 
 export async function upsertProductOverride(
@@ -1333,7 +1260,6 @@ export type ImageSyncInput = {
 };
 
 export async function enqueueProductImages(
-  actor: AuthUser,
   batchId: string,
   sku: string,
   images: ImageSyncInput[],
@@ -1366,16 +1292,9 @@ export async function enqueueProductImages(
     );
   }
 
-  await recordAudit({
-    userId: actor.id,
-    action: "image_sync_queued",
-    entity: "product",
-    details: { batchId, sku: sku.trim(), images: images.length },
-  });
 }
 
 export async function enqueueProductImageDeletions(
-  actor: AuthUser,
   batchId: string,
   sku: string,
   positions: number[],
@@ -1403,17 +1322,9 @@ export async function enqueueProductImageDeletions(
       [`${batchId}:delete`, sku.trim(), position, fileName],
     );
   }
-
-  await recordAudit({
-    userId: actor.id,
-    action: "image_sync_deletions_queued",
-    entity: "product",
-    details: { batchId, sku: sku.trim(), positions },
-  });
 }
 
 export async function enqueueProductImageReorder(
-  actor: AuthUser,
   batchId: string,
   sku: string,
   moves: Array<{ from: number; to: number }>,
@@ -1438,12 +1349,6 @@ export async function enqueueProductImageReorder(
        lease_until = NULL, last_error = NULL, completed_at = NULL`,
     [`${batchId}:reorder`, sku.trim(), `${safeSku}.jpg`, JSON.stringify(files)],
   );
-  await recordAudit({
-    userId: actor.id,
-    action: "image_sync_reorder_queued",
-    entity: "product",
-    details: { batchId, sku: sku.trim(), moves },
-  });
 }
 
 export async function claimImageSyncJobs(limit = 5) {
@@ -1516,36 +1421,6 @@ export async function completeImageSyncJob(
   );
 }
 
-export async function listAuditLogs(limit = 500): Promise<AuditRecord[]> {
-  await ensureDatabase();
-  const rows = await query<{
-    id: number;
-    action: string;
-    entity: string;
-    details_json: unknown;
-    created_at: unknown;
-    user_name: string | null;
-    user_email: string | null;
-  }>(
-    `
-    SELECT audit_logs.id, audit_logs.action, audit_logs.entity, audit_logs.details_json,
-      audit_logs.created_at, users.name AS user_name, users.email AS user_email
-    FROM audit_logs LEFT JOIN users ON users.id = audit_logs.user_id
-    ORDER BY audit_logs.id DESC LIMIT $1
-  `,
-    [Math.min(Math.max(limit, 1), 1000)],
-  );
-  return rows.map((row) => ({
-    id: Number(row.id),
-    action: row.action,
-    entity: row.entity,
-    details: jsonObject(row.details_json),
-    createdAt: iso(row.created_at),
-    userName: row.user_name,
-    userEmail: row.user_email,
-  }));
-}
-
 export async function getN8nHealthSummary() {
   await ensureDatabase();
   const [jobs] = await query<{
@@ -1553,27 +1428,29 @@ export async function getN8nHealthSummary() {
     pending: string;
     expired: string;
     last_response: unknown;
+    last_failure: unknown;
   }>(`
     SELECT COUNT(*)::text AS total,
       COUNT(*) FILTER (WHERE status = 'processando' AND created_at >= NOW() - INTERVAL '30 minutes')::text AS pending,
       COUNT(*) FILTER (WHERE status = 'processando' AND created_at < NOW() - INTERVAL '30 minutes')::text AS expired,
-      MAX(created_at) FILTER (WHERE status = 'enviado' AND result_json IS NOT NULL) AS last_response
+      MAX(created_at) FILTER (WHERE status = 'enviado' AND result_json IS NOT NULL) AS last_response,
+      MAX(created_at) FILTER (
+        WHERE status = 'enviado' AND result_json IS NOT NULL
+          AND LOWER(COALESCE(result_json->>'processado', result_json->0->>'processado', '')) <> 'true'
+          AND (
+            LOWER(COALESCE(result_json->>'status', result_json->0->>'status', '')) ~ '^(erro|falha|error)'
+            OR LOWER(COALESCE(result_json->>'sucesso', result_json->0->>'sucesso', '')) = 'false'
+          )
+      ) AS last_failure
     FROM reprocess_jobs
     WHERE source = 'reprocess'
   `);
-  const [lastFailure] = await query<{
-    created_at: unknown;
-    details_json: unknown;
-  }>(
-    "SELECT created_at, details_json FROM audit_logs WHERE action = 'reprocess_failed' ORDER BY id DESC LIMIT 1",
-  );
   return {
     total: Number(jobs.total),
     pending: Number(jobs.pending),
     expired: Number(jobs.expired),
     lastResponse: jobs.last_response ? iso(jobs.last_response) : null,
-    lastFailureAt: lastFailure ? iso(lastFailure.created_at) : null,
-    lastFailure: lastFailure ? jsonObject(lastFailure.details_json) : null,
+    lastFailureAt: jobs.last_failure ? iso(jobs.last_failure) : null,
   };
 }
 
