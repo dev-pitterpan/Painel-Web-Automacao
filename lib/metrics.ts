@@ -66,6 +66,50 @@ function hasCatalogValue(value: unknown) {
   );
 }
 
+export function calculateCatalogQuality(rows: HistoryRow[]) {
+  const products = latestHistoryRowsByProduct(rows);
+  const counts = {
+    missingTitle: 0,
+    missingBrand: 0,
+    missingTags: 0,
+    missingCollection: 0,
+    missingSku: 0,
+    errors: 0,
+  };
+  let affectedProducts = 0;
+
+  products.forEach((row) => {
+    const issues = {
+      missingTitle: !hasCatalogValue(row.tituloDepois || row.tituloAntes),
+      missingBrand: !isValidBrand(row.marca),
+      missingTags: !hasCatalogValue(row.tagsDepois || row.tagsAntes),
+      missingCollection: !hasCatalogValue(
+        row.colecoesDepois || row.colecoesAntes,
+      ),
+      missingSku: !hasCatalogValue(row.sku),
+      errors: row.status.toLowerCase().startsWith("erro"),
+    };
+    let affected = false;
+    (Object.keys(issues) as Array<keyof typeof issues>).forEach((key) => {
+      if (!issues[key]) return;
+      counts[key] += 1;
+      affected = true;
+    });
+    if (affected) affectedProducts += 1;
+  });
+
+  return {
+    total: products.length,
+    score: products.length
+      ? Math.max(
+          0,
+          ((products.length - affectedProducts) / products.length) * 100,
+        )
+      : 100,
+    ...counts,
+  };
+}
+
 function percentageChange(current: number, previous: number) {
   if (previous === 0) return null;
   return ((current - previous) / previous) * 100;

@@ -3,13 +3,17 @@ import {
   getAppSettings,
   getCurrentUser,
   isSuccessfulReprocessResult,
-  listLatestReprocessResults,
+  listLatestProcessingResults,
   getProductOverrides,
   getShopifyCatalogProductsBySkus,
   productIdentityKey,
 } from "@/lib/auth";
 import { getHistoryRowsWithStatus } from "@/lib/googleSheets";
-import { buildDashboard } from "@/lib/metrics";
+import {
+  buildDashboard,
+  calculateCatalogQuality,
+  latestHistoryRowsByProduct,
+} from "@/lib/metrics";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -56,17 +60,15 @@ export async function GET(req: NextRequest) {
         };
       });
     const includeReprocess = params.get("includeReprocess") === "1";
-    const calculateCurrentErrors = params.get("currentErrors") === "1";
     const dashboardRows = [...rows];
-    if (includeReprocess || calculateCurrentErrors) {
-      const latestReprocesses = await listLatestReprocessResults();
+    {
+      const latestReprocesses = await listLatestProcessingResults();
       const latestSheetRowBySku = new Map<string, (typeof rows)[number]>();
-      rows.forEach((row) => {
+      latestHistoryRowsByProduct(rows).forEach((row) => {
         const sku = String(row.sku || "")
           .trim()
           .toLocaleLowerCase("pt-BR");
-        if (sku && !latestSheetRowBySku.has(sku))
-          latestSheetRowBySku.set(sku, row);
+        if (sku) latestSheetRowBySku.set(sku, row);
       });
 
       latestReprocesses.forEach((record) => {
@@ -120,19 +122,52 @@ export async function GET(req: NextRequest) {
       latestPerProduct: params.get("latest") === "1",
       timeSettings: settings,
     };
+    const currentCatalogRows = latestHistoryRowsByProduct(
+      dashboardRows,
+    ).flatMap((row) => {
+      const catalogProduct = catalogBySku.get(String(row.sku || "").trim());
+      if (!catalogProduct) return [];
+      return [
+        {
+          ...row,
+          shopifyId: catalogProduct.shopifyId,
+          tituloDepois: catalogProduct.title || row.tituloDepois,
+          tagsDepois: catalogProduct.tags.join(", "),
+          colecoesDepois: catalogProduct.collections.join(", "),
+          marca: catalogProduct.vendor || row.marca,
+          tipoProduto: catalogProduct.productType,
+        },
+      ];
+    });
     const dashboard = buildDashboard(
-      includeReprocess ? dashboardRows : rows,
-      dashboardOptions,
+      dashboardOptions.quality
+        ? currentCatalogRows
+        : includeReprocess
+          ? dashboardRows
+          : rows,
+      dashboardOptions.quality
+        ? { ...dashboardOptions, latestPerProduct: true }
+        : dashboardOptions,
     );
-    const currentErrors = calculateCurrentErrors
-      ? buildDashboard(dashboardRows, {
-          ...dashboardOptions,
-          status: "erro",
-          latestPerProduct: true,
-        }).metrics.erros
-      : undefined;
+    const currentErrors = buildDashboard(dashboardRows, {
+      ...dashboardOptions,
+      quality: "",
+      status: "erro",
+      latestPerProduct: true,
+    }).metrics.erros;
+    const qualityRows = buildDashboard(currentCatalogRows, {
+      ...dashboardOptions,
+      catalog: true,
+      month: "all",
+      compareMonth: "",
+      quality: "",
+      status: "",
+      latestPerProduct: true,
+    }).rows;
+    const catalogQuality = calculateCatalogQuality(qualityRows);
     return NextResponse.json({
       ...dashboard,
+      catalogQuality,
       permissions: {
         canReprocess: user.role === "admin",
         canEditProducts: user.role === "admin",
@@ -147,9 +182,7 @@ export async function GET(req: NextRequest) {
         lastSyncedAt: sheet.lastSyncedAt,
         sheetName: sheet.sheetName,
         totalRows: rows.length,
-        totalErrors: rows.filter((row) =>
-          row.status.toLowerCase().includes("erro"),
-        ).length,
+        totalErrors: currentErrors,
         currentErrors,
         qualityTarget: settings.qualityTarget,
       },

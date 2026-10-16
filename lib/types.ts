@@ -62,6 +62,16 @@ export type DashboardData = {
     available: boolean;
     label: string;
   };
+  catalogQuality?: {
+    total: number;
+    score: number;
+    missingTitle: number;
+    missingBrand: number;
+    missingTags: number;
+    missingCollection: number;
+    missingSku: number;
+    errors: number;
+  };
   permissions?: {
     canReprocess: boolean;
     canEditProducts: boolean;

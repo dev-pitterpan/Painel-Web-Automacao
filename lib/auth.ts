@@ -1807,6 +1807,32 @@ export async function listLatestReprocessResults(): Promise<
   }));
 }
 
+export async function listLatestProcessingResults(): Promise<
+  LatestReprocessResult[]
+> {
+  await ensureDatabase();
+  const rows = await query<{
+    sku: string;
+    title: string;
+    created_at: unknown;
+    result_json: unknown;
+  }>(`
+    SELECT DISTINCT ON (LOWER(TRIM(sku))) sku, title, created_at, result_json
+    FROM reprocess_jobs
+    WHERE status = 'enviado'
+      AND result_json IS NOT NULL
+      AND source IN ('reprocess', 'products')
+      AND TRIM(sku) <> ''
+    ORDER BY LOWER(TRIM(sku)), created_at DESC, id DESC
+  `);
+  return rows.map((row) => ({
+    sku: row.sku,
+    title: row.title,
+    createdAt: iso(row.created_at),
+    result: jsonObject(row.result_json),
+  }));
+}
+
 export async function listLatestProductAutomationResults(): Promise<
   LatestReprocessResult[]
 > {

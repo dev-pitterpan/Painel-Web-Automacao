@@ -536,65 +536,76 @@ export function DashboardClient({
       if (key && !products.has(key)) products.set(key, row);
     });
     const rows = [...products.values()];
+    const serverQuality = data?.catalogQuality;
+    const localCounts = {
+      missingTitle: rows.filter(
+        (row) => !hasCatalogValue(row.tituloDepois || row.tituloAntes),
+      ).length,
+      missingBrand: rows.filter((row) => !hasValidBrand(row.marca)).length,
+      missingTags: rows.filter(
+        (row) => !hasCatalogValue(row.tagsDepois || row.tagsAntes),
+      ).length,
+      missingCollection: rows.filter(
+        (row) => !hasCatalogValue(row.colecoesDepois || row.colecoesAntes),
+      ).length,
+      missingSku: rows.filter((row) => !hasCatalogValue(row.sku)).length,
+      errors: rows.filter((row) =>
+        String(row.status).toLowerCase().startsWith("erro"),
+      ).length,
+    };
     const issues = [
       {
         key: "missingTitle",
         label: "Sem título",
-        count: rows.filter(
-          (row) => !hasCatalogValue(row.tituloDepois || row.tituloAntes),
-        ).length,
+        count: serverQuality?.missingTitle ?? localCounts.missingTitle,
         icon: FileText,
         tone: "blue",
       },
       {
         key: "missingBrand",
         label: "Sem marca",
-        count: rows.filter((row) => !hasValidBrand(row.marca)).length,
+        count: serverQuality?.missingBrand ?? localCounts.missingBrand,
         icon: Box,
         tone: "red",
       },
       {
         key: "missingTags",
         label: "Sem tags",
-        count: rows.filter(
-          (row) => !hasCatalogValue(row.tagsDepois || row.tagsAntes),
-        ).length,
+        count: serverQuality?.missingTags ?? localCounts.missingTags,
         icon: Tags,
         tone: "gold",
       },
       {
         key: "missingCollection",
         label: "Sem coleção",
-        count: rows.filter(
-          (row) => !hasCatalogValue(row.colecoesDepois || row.colecoesAntes),
-        ).length,
+        count:
+          serverQuality?.missingCollection ?? localCounts.missingCollection,
         icon: FolderOpen,
         tone: "violet",
       },
       {
         key: "missingSku",
         label: "Sem SKU",
-        count: rows.filter((row) => !hasCatalogValue(row.sku)).length,
+        count: serverQuality?.missingSku ?? localCounts.missingSku,
         icon: Box,
         tone: "red",
       },
       {
         key: "errors",
         label: "Com erro",
-        count: rows.filter((row) =>
-          String(row.status).toLowerCase().startsWith("erro"),
-        ).length,
+        count: serverQuality?.errors ?? localCounts.errors,
         icon: AlertCircle,
         tone: "red",
       },
     ];
     const issueCount = issues.reduce((sum, item) => sum + item.count, 0);
+    const total = serverQuality?.total ?? rows.length;
     return {
-      total: rows.length,
+      total,
       issues,
-      score: rows.length
-        ? Math.max(0, 100 - (issueCount / rows.length) * 100)
-        : 100,
+      score:
+        serverQuality?.score ??
+        (total ? Math.max(0, 100 - (issueCount / total) * 100) : 100),
     };
   }, [data]);
   const errorAnalytics = useMemo(() => {
@@ -2200,7 +2211,9 @@ export function DashboardClient({
                       className={`quality-item tone-${item.tone}`}
                       key={item.label}
                       onClick={() =>
-                        window.location.assign(`/produtos?quality=${item.key}`)
+                        window.location.assign(
+                          `/produtos/processados?quality=${item.key}`,
+                        )
                       }
                       title={`Ver produtos: ${item.label.toLowerCase()}`}
                     >
