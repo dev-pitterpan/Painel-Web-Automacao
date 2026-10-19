@@ -1628,6 +1628,36 @@ export async function getReprocessStatus(user: AuthUser, requestId: string) {
   };
 }
 
+export async function getProductAutomationStatuses(
+  user: AuthUser,
+  requestIds: string[],
+) {
+  const ids = [...new Set(requestIds.map(String).map((id) => id.trim()))]
+    .filter(Boolean)
+    .slice(0, 1000);
+  if (!ids.length) return [];
+  await ensureDatabase();
+  const rows = await query<{
+    request_id: string;
+    status: string;
+    result_json: unknown;
+  }>(
+    `SELECT request_id, status, result_json FROM reprocess_jobs
+     WHERE request_id IN (SELECT jsonb_array_elements_text($1::jsonb))
+       AND source = 'products'
+       AND (user_id = $2 OR $3 = 'admin')`,
+    [JSON.stringify(ids), user.id, user.role],
+  );
+  return rows.map((row) => ({
+    requestId: row.request_id,
+    completed: row.status === "enviado" && Boolean(row.result_json),
+    succeeded:
+      row.status === "enviado" &&
+      Boolean(row.result_json) &&
+      isSuccessfulReprocessResult(row.result_json),
+  }));
+}
+
 export function isCompleteReprocessResult(payload: unknown) {
   const result = Array.isArray(payload)
     ? (payload[0] as Record<string, unknown> | undefined)

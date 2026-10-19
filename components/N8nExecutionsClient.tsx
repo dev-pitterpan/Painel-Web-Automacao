@@ -90,8 +90,10 @@ export function N8nExecutionsClient() {
         throw new Error(payload?.error || "Não foi possível consultar o n8n.");
       setData(payload);
       setNow(Date.now());
+      return Number(payload?.summary?.running || 0) > 0;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Falha inesperada.");
+      return false;
     } finally {
       if (!silent) setLoading(false);
     }
@@ -100,11 +102,16 @@ export function N8nExecutionsClient() {
   useEffect(() => {
     let active = true;
     let refresh: number | undefined;
+    let checking = false;
 
     const schedule = async (immediate = false) => {
-      if (!active) return;
-      if (document.visibilityState === "visible") await load(!immediate);
-      if (active) refresh = window.setTimeout(() => schedule(), 2_000);
+      if (!active || checking) return;
+      checking = true;
+      const running =
+        document.visibilityState === "visible" ? await load(!immediate) : false;
+      checking = false;
+      if (active)
+        refresh = window.setTimeout(() => schedule(), running ? 5_000 : 30_000);
     };
     const handleVisibility = () => {
       if (document.visibilityState !== "visible") return;

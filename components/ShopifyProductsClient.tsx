@@ -607,47 +607,70 @@ export function ShopifyProductsClient({
       }
     };
 
-    const waitForProduct = async (requestId: string, title: string) => {
+    const waitForProducts = async (
+      products: Array<{ requestId: string; title: string }>,
+    ) => {
+      const pending = new Map(
+        products.map(({ requestId, title }) => [requestId, title]),
+      );
+      const results = new Map<
+        string,
+        { ok: true } | { ok: false; error: string }
+      >();
       try {
-        const maxAttempts = 320;
-        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        for (let attempt = 0; attempt < 320 && pending.size; attempt += 1) {
           await new Promise((resolve) => window.setTimeout(resolve, 3000));
-          const statusResponse = await fetch(
-            `/api/n8n/product-automation/status?request_id=${encodeURIComponent(requestId)}`,
-            { cache: "no-store" },
-          );
-          const statusJson = await statusResponse.json().catch(() => null);
-          if (!statusResponse.ok)
-            throw new Error(
-              statusJson?.error ||
-                "Não foi possível consultar o status da automação.",
-            );
-          if (statusJson?.completed) {
-            const succeeded = statusJson?.succeeded !== false;
-            automationProgress.productFinished(succeeded);
-            return succeeded
-              ? { ok: true as const }
-              : {
-                  ok: false as const,
-                  error: `${title}: o processamento terminou com erro.`,
-                };
+          const pendingIds = [...pending.keys()];
+          for (let offset = 0; offset < pendingIds.length; offset += 1000) {
+            const response = await fetch("/api/n8n/product-automation/status", {
+              method: "POST",
+              cache: "no-store",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ requestIds: pendingIds.slice(offset, offset + 1000) }),
+            });
+            const body = await response.json().catch(() => null);
+            if (!response.ok || !body?.ok)
+              throw new Error(
+                body?.error || "Não foi possível consultar o status da automação.",
+              );
+            for (const status of Array.isArray(body.statuses) ? body.statuses : []) {
+              const requestId = String(status?.requestId || "");
+              if (!pending.has(requestId) || !status?.completed) continue;
+              const title = pending.get(requestId) || "Produto";
+              const succeeded = status.succeeded !== false;
+              pending.delete(requestId);
+              automationProgress.productFinished(succeeded);
+              results.set(
+                requestId,
+                succeeded
+                  ? { ok: true }
+                  : {
+                      ok: false,
+                      error: `${title}: o processamento terminou com erro.`,
+                    },
+              );
+            }
           }
         }
-
-        throw new Error(
-          "A automação ainda não concluiu o produto dentro do tempo esperado.",
-        );
       } catch (cause) {
-        automationProgress.productFinished(false);
-        return {
-          ok: false as const,
-          error: `${title}: ${
-            cause instanceof Error
-              ? cause.message
-              : "Falha ao acompanhar a automação."
-          }`,
-        };
+        const message =
+          cause instanceof Error
+            ? cause.message
+            : "Falha ao acompanhar a automação.";
+        for (const [requestId, title] of pending) {
+          automationProgress.productFinished(false);
+          results.set(requestId, { ok: false, error: `${title}: ${message}` });
+        }
+        pending.clear();
       }
+      for (const [requestId, title] of pending) {
+        automationProgress.productFinished(false);
+        results.set(requestId, {
+          ok: false,
+          error: `${title}: a automação ainda não concluiu o produto dentro do tempo esperado.`,
+        });
+      }
+      return products.map(({ requestId }) => results.get(requestId)!);
     };
 
     const queued: Array<{ requestId: string; title: string }> = [];
@@ -669,9 +692,7 @@ export function ShopifyProductsClient({
 
     automationProgress.queueReady(queued.length, failures);
 
-    const completionResults = await Promise.all(
-      queued.map(({ requestId, title }) => waitForProduct(requestId, title)),
-    );
+    const completionResults = await waitForProducts(queued);
     for (const result of completionResults) {
       if (result.ok) successes += 1;
       else {
