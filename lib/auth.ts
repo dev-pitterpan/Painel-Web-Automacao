@@ -666,8 +666,18 @@ export async function listShopifyCatalogProducts(input: {
         ? "p.title DESC, p.shopify_id ASC"
         : input.sort === "inventory"
           ? "p.total_inventory DESC, p.title ASC, p.shopify_id ASC"
-          : "p.shopify_updated_at DESC NULLS LAST, LENGTH(p.shopify_id) DESC, p.shopify_id DESC";
+          : "LENGTH(p.shopify_id) DESC, p.shopify_id DESC";
   const listParams = [...params, perPage, (page - 1) * perPage];
+  // Preserve each page's membership when a product is edited. Within that
+  // stable page, show the most recently changed product first.
+  const pageOrder =
+    input.sort === "title"
+      ? "ORDER BY page.title ASC, page.shopify_id ASC"
+      : input.sort === "title_desc"
+        ? "ORDER BY page.title DESC, page.shopify_id ASC"
+        : input.sort === "inventory"
+          ? "ORDER BY page.total_inventory DESC, page.title ASC, page.shopify_id ASC"
+          : "ORDER BY page.shopify_updated_at DESC NULLS LAST, LENGTH(page.shopify_id) DESC, page.shopify_id DESC";
   const [countRows, rows] = await Promise.all([
     query<{ total: number }>(
       `SELECT COUNT(*)::int AS total
@@ -681,7 +691,7 @@ export async function listShopifyCatalogProducts(input: {
       params,
     ),
     query<any>(
-      `SELECT p.shopify_id, p.title, p.handle, p.status, p.vendor,
+      `SELECT page.* FROM (SELECT p.shopify_id, p.title, p.handle, p.status, p.vendor,
        p.product_type, p.tags_json, p.collections_json, p.image_url,
        p.image_alt, p.weight, p.weight_unit, p.primary_sku,
        p.variants_json, p.total_inventory, p.price_min, p.price_max,
@@ -700,7 +710,8 @@ export async function listShopifyCatalogProducts(input: {
         SELECT batch_id FROM winthor_sync_runs ORDER BY created_at DESC LIMIT 1
       )
      ${clause}
-     ORDER BY ${order} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+     ORDER BY ${order} LIMIT $${params.length + 1} OFFSET $${params.length + 2}) page
+     ${pageOrder}`,
       listParams,
     ),
   ]);

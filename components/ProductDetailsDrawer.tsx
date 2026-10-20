@@ -92,6 +92,7 @@ type EditForm = {
 export type UpdatedProduct = {
   status: ShopifyProductStatus;
   title: string;
+  shopifyUpdatedAt: string;
   description?: string;
   tags: string[];
   collections: string[];
