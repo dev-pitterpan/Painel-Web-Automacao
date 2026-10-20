@@ -251,7 +251,6 @@ export async function POST(req: NextRequest) {
         id: synchronizedProduct.shopifyId,
         status: synchronizedProduct.status,
         title: synchronizedProduct.title,
-        shopifyUpdatedAt: synchronizedProduct.shopifyUpdatedAt,
         description: synchronizedProduct.descriptionHtml,
         tags: synchronizedProduct.tags,
         collections: synchronizedProduct.collections,
