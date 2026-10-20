@@ -571,9 +571,14 @@ export function ShopifyProductsClient({
         string,
         { ok: true } | { ok: false; error: string }
       >();
-      try {
-        for (let attempt = 0; attempt < 320 && pending.size; attempt += 1) {
-          await new Promise((resolve) => window.setTimeout(resolve, 3000));
+      let trackingError = "";
+      let consecutiveErrors = 0;
+      // A fila do n8n pode durar mais de 16 minutos. Só uma resposta concluída
+      // pode ser contabilizada como sucesso ou falha.
+      const trackingDeadline = Date.now() + 2 * 60 * 60 * 1000;
+      while (pending.size && Date.now() < trackingDeadline) {
+        await new Promise((resolve) => window.setTimeout(resolve, 10000));
+        try {
           const pendingIds = [...pending.keys()];
           for (let offset = 0; offset < pendingIds.length; offset += 1000) {
             const response = await fetch("/api/n8n/product-automation/status", {
@@ -605,26 +610,25 @@ export function ShopifyProductsClient({
               );
             }
           }
+          consecutiveErrors = 0;
+          trackingError = "";
+        } catch (cause) {
+          trackingError =
+            cause instanceof Error
+              ? cause.message
+              : "Falha ao acompanhar a automação.";
+          consecutiveErrors += 1;
+          if (consecutiveErrors >= 3) break;
         }
-      } catch (cause) {
-        const message =
-          cause instanceof Error
-            ? cause.message
-            : "Falha ao acompanhar a automação.";
-        for (const [requestId, title] of pending) {
-          automationProgress.productFinished(false);
-          results.set(requestId, { ok: false, error: `${title}: ${message}` });
-        }
-        pending.clear();
       }
-      for (const [requestId, title] of pending) {
-        automationProgress.productFinished(false);
-        results.set(requestId, {
-          ok: false,
-          error: `${title}: a automação ainda não concluiu o produto dentro do tempo esperado.`,
-        });
-      }
-      return products.map(({ requestId }) => results.get(requestId)!);
+      return {
+        results: products.flatMap(({ requestId }) => {
+          const result = results.get(requestId);
+          return result ? [result] : [];
+        }),
+        pendingCount: pending.size,
+        trackingError,
+      };
     };
 
     const queued: Array<{ requestId: string; title: string }> = [];
@@ -646,8 +650,8 @@ export function ShopifyProductsClient({
 
     automationProgress.queueReady(queued.length, failures);
 
-    const completionResults = await waitForProducts(queued);
-    for (const result of completionResults) {
+    const completion = await waitForProducts(queued);
+    for (const result of completion.results) {
       if (result.ok) successes += 1;
       else {
         failures += 1;
@@ -662,7 +666,18 @@ export function ShopifyProductsClient({
 
     setAutomationRunning(false);
 
-    if (!failures) {
+    if (completion.pendingCount) {
+      automationProgress.trackingPaused();
+      const message = `${successes} concluídos, ${completion.pendingCount} ainda sem resultado confirmado no n8n${
+        failures ? ` e ${failures} com falha confirmada` : ""
+      }. ${
+        completion.trackingError
+          ? `Não foi possível continuar acompanhando: ${completion.trackingError}`
+          : "O acompanhamento atingiu o limite de tempo; o processamento pode continuar no n8n."
+      }`;
+      setAutomationMessage({ tone: "error", text: message });
+      addNotification("error", message);
+    } else if (!failures) {
       setSelectedProducts({});
       const message = `${successes} ${
         successes === 1 ? "produto processado" : "produtos processados"

@@ -22,6 +22,7 @@ type AutomationProgressContextValue = {
   start: (total: number) => void;
   queueReady: (accepted: number, failed: number) => void;
   productFinished: (success: boolean) => void;
+  trackingPaused: () => void;
   isUpdateBlocked: boolean;
   isAutomationActive: boolean;
 };
@@ -35,6 +36,7 @@ type AutomationProgressState = {
   reading: boolean;
   open: boolean;
   minimized: boolean;
+  trackingPaused: boolean;
 };
 
 const AutomationProgressContext =
@@ -49,6 +51,7 @@ const INITIAL_STATE: AutomationProgressState = {
   reading: false,
   open: false,
   minimized: false,
+  trackingPaused: false,
 };
 
 export function AutomationProgressProvider({
@@ -69,6 +72,7 @@ export function AutomationProgressProvider({
       reading: true,
       open: true,
       minimized: false,
+      trackingPaused: false,
     });
 
   const queueReady = (_accepted: number, failed: number) =>
@@ -96,6 +100,9 @@ export function AutomationProgressProvider({
       };
     });
 
+  const trackingPaused = () =>
+    setState((current) => ({ ...current, trackingPaused: true }));
+
   const completed = state.successes + state.errors;
   const pending = Math.max(0, state.total - state.successes - state.errors);
   const processing = state.reading ? 0 : Math.min(5, pending);
@@ -116,10 +123,11 @@ export function AutomationProgressProvider({
       start,
       queueReady,
       productFinished,
+      trackingPaused,
       isUpdateBlocked: state.open && !state.minimized,
-      isAutomationActive: state.open && !done,
+      isAutomationActive: state.open && !done && !state.trackingPaused,
     }),
-    [done, state.open, state.minimized],
+    [done, state.open, state.minimized, state.trackingPaused],
   );
 
   return (
@@ -157,11 +165,20 @@ export function AutomationProgressProvider({
             <div className="automation-progress-content">
               <div className="automation-progress-eyebrow">Automação n8n</div>
               <h2 id="automation-progress-title">
-                {done ? "Processamento concluído" : "Processando produtos"}
+                {done
+                  ? "Processamento concluído"
+                  : state.trackingPaused
+                    ? "Acompanhamento interrompido"
+                    : "Processando produtos"}
               </h2>
               <p className="automation-progress-subtitle">
                 {completed} de {state.total} concluídos
               </p>
+              {state.trackingPaused && (
+                <p className="automation-progress-subtitle">
+                  {pending} ainda sem resultado confirmado. O processamento pode continuar no n8n.
+                </p>
+              )}
               {done && totalDuration && (
                 <div className="automation-progress-duration">
                   <Clock3 />
@@ -240,12 +257,12 @@ export function AutomationProgressProvider({
                   type="button"
                   className="automation-progress-secondary"
                   onClick={() =>
-                    done
+                    done || state.trackingPaused
                       ? setState(INITIAL_STATE)
                       : setState((current) => ({ ...current, minimized: true }))
                   }
                 >
-                  {done ? "Fechar" : "Minimizar"}
+                  {done || state.trackingPaused ? "Fechar" : "Minimizar"}
                 </button>
                 <button
                   type="button"
@@ -276,7 +293,11 @@ export function AutomationProgressProvider({
           <span>{done ? <Check /> : <RefreshCw />}</span>
           <span>
             <strong>
-              {done ? "Processamento concluído" : "Processando produtos"}
+              {done
+                ? "Processamento concluído"
+                : state.trackingPaused
+                  ? "Acompanhamento interrompido"
+                  : "Processando produtos"}
             </strong>
             <small>
               {completed} de {state.total} concluídos
