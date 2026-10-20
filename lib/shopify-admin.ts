@@ -45,6 +45,7 @@ export type ShopifyProductImageInput = {
 
 export type ShopifyProductUpdateInput = {
   productId: string;
+  status?: "ACTIVE" | "DRAFT" | "UNLISTED";
   title: string;
   descriptionHtml: string;
   tags: string[];
@@ -219,6 +220,19 @@ export async function fetchShopifyProduct(productId: string) {
     { id: productId },
   );
   return data.product;
+}
+
+export async function getShopifyProductStatus(productId: string) {
+  const data = await shopifyGraphql<{
+    product: { status: string } | null;
+  }>(
+    `query DashboardProductStatus($id: ID!) {
+      product(id: $id) { status }
+    }`,
+    { id: productId },
+  );
+  if (!data.product) throw new Error("Produto não encontrado na Shopify.");
+  return data.product.status;
 }
 
 export async function findMissingShopifyProductIds(productIds: string[]) {
@@ -670,6 +684,8 @@ async function updateWeight(
 export async function updateShopifyProduct(input: ShopifyProductUpdateInput) {
   const current = await fetchShopifyProduct(input.productId);
   if (!current) throw new Error("Produto não encontrado na Shopify.");
+  if (current.status === "ARCHIVED" && input.status && input.status !== "DRAFT")
+    throw new Error("Desarquive o produto como rascunho antes de alterar seu status.");
   const collections = await resolveCollections(
     input.collections,
     current.collections.nodes,
@@ -693,6 +709,7 @@ export async function updateShopifyProduct(input: ShopifyProductUpdateInput) {
     {
       product: {
         id: input.productId,
+        ...(input.status ? { status: input.status } : {}),
         title: input.title,
         descriptionHtml: input.descriptionHtml,
         tags: input.tags,

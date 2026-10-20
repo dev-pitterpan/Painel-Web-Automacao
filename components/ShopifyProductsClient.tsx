@@ -77,6 +77,7 @@ const statusLabel: Record<string, string> = {
   ACTIVE: "Ativo",
   DRAFT: "Rascunho",
   ARCHIVED: "Arquivado",
+  UNLISTED: "Não listado",
 };
 const winthorStatusLabel: Record<string, string> = {
   ATIVO: "Ativo",
@@ -503,7 +504,7 @@ export function ShopifyProductsClient({
     });
     setPage(1);
   };
-  const updateProduct = (productId: string, updated: UpdatedProduct) =>
+  const updateProduct = (productId: string, updated: UpdatedProduct) => {
     setData((current) =>
       current
         ? {
@@ -513,6 +514,7 @@ export function ShopifyProductsClient({
                 ? {
                     ...product,
                     title: updated.title,
+                      status: updated.status,
                     tags: updated.tags,
                     collections: updated.collections,
                   }
@@ -521,6 +523,8 @@ export function ShopifyProductsClient({
           }
         : current,
     );
+    void load(true);
+  };
   const historyForProduct = (product: ShopifyCatalogProduct) =>
     data?.processingHistoryBySku?.[
       product.sku.trim().toLocaleLowerCase("pt-BR")
@@ -914,7 +918,7 @@ export function ShopifyProductsClient({
               <ChevronDown size={14} />
             </button>
             <div className="catalog-status-menu">
-              {["", "ACTIVE", "DRAFT", "ARCHIVED"].map((value) => (
+              {["", "ACTIVE", "DRAFT", "UNLISTED", "ARCHIVED"].map((value) => (
                 <button
                   type="button"
                   key={value || "all"}
