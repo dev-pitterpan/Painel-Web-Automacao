@@ -45,7 +45,6 @@ export type ShopifyProductImageInput = {
 
 export type ShopifyProductUpdateInput = {
   productId: string;
-  status?: "ACTIVE" | "DRAFT" | "UNLISTED";
   title: string;
   descriptionHtml: string;
   tags: string[];
@@ -684,8 +683,6 @@ async function updateWeight(
 export async function updateShopifyProduct(input: ShopifyProductUpdateInput) {
   const current = await fetchShopifyProduct(input.productId);
   if (!current) throw new Error("Produto não encontrado na Shopify.");
-  if (current.status === "ARCHIVED" && input.status && input.status !== "DRAFT")
-    throw new Error("Desarquive o produto como rascunho antes de alterar seu status.");
   const collections = await resolveCollections(
     input.collections,
     current.collections.nodes,
@@ -709,7 +706,6 @@ export async function updateShopifyProduct(input: ShopifyProductUpdateInput) {
     {
       product: {
         id: input.productId,
-        ...(input.status ? { status: input.status } : {}),
         title: input.title,
         descriptionHtml: input.descriptionHtml,
         tags: input.tags,
@@ -814,6 +810,32 @@ export async function updateShopifyProduct(input: ShopifyProductUpdateInput) {
     }
   }
   return product;
+}
+
+export async function setShopifyProductStatus(
+  productId: string,
+  status: "ACTIVE" | "DRAFT" | "UNLISTED",
+) {
+  const current = await fetchShopifyProduct(productId);
+  if (!current) throw new Error("Produto não encontrado na Shopify.");
+  if (current.status === "ARCHIVED" && status !== "DRAFT")
+    throw new Error("Desarquive o produto como rascunho antes de alterar seu status.");
+  const result = await shopifyGraphql<{
+    productUpdate: { product: { id: string } | null; userErrors: GraphqlError[] };
+  }>(
+    `mutation DashboardSetProductStatus($product: ProductUpdateInput!) {
+      productUpdate(product: $product) {
+        product { id }
+        userErrors { field message }
+      }
+    }`,
+    { product: { id: productId, status } },
+  );
+  if (result.productUpdate.userErrors?.length || !result.productUpdate.product)
+    throw new Error(errorMessage(result.productUpdate.userErrors, "A Shopify recusou a alteração de status."));
+  const updated = await fetchShopifyProduct(productId);
+  if (!updated) throw new Error("Status atualizado, mas o produto não pôde ser relido.");
+  return updated;
 }
 
 export async function archiveShopifyProduct(productId: string) {
