@@ -82,7 +82,6 @@ type WinthorProductStatus = {
 };
 type EditForm = {
   shopifyId: string;
-  status: ShopifyProductStatus | "";
   title: string;
   description: string;
   tags: string;
@@ -291,7 +290,6 @@ const currentCollections = (row: HistoryRow) =>
   row.colecoesDepois || row.colecoesAntes || "";
 const fallbackForm = (row: HistoryRow): EditForm => ({
   shopifyId: row.shopifyId || "",
-  status: "",
   title: currentTitle(row),
   description: "",
   tags: currentTags(row),
@@ -574,6 +572,8 @@ export function ProductDetailsDrawer({
   const [original, setOriginal] = useState<EditForm | null>(null);
   const [loadingProduct, setLoadingProduct] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [shopifyStatus, setShopifyStatus] = useState<ShopifyProductStatus | "">("");
+  const [statusSaving, setStatusSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [media, setMedia] = useState<ProductMedia[]>([]);
@@ -667,6 +667,7 @@ export function ProductDetailsDrawer({
     setStep("details");
     setForm(initial);
     setOriginal(initial);
+    setShopifyStatus("");
     setMedia(cachedMedia);
     setOriginalMedia(cachedMedia);
     setImagePreviewIndex(null);
@@ -772,7 +773,6 @@ export function ProductDetailsDrawer({
     return (
       [
         "title",
-        "status",
         "description",
         "tags",
         "collections",
@@ -1043,11 +1043,6 @@ export function ProductDetailsDrawer({
           : [];
       const next: EditForm = {
         shopifyId: String(product.id || activeRow!.shopifyId || ""),
-        status: Object.keys(shopifyStatusLabel).includes(
-          String(product.status || "").toUpperCase(),
-        )
-          ? (String(product.status).toUpperCase() as ShopifyProductStatus)
-          : "",
         title: String(product.title ?? currentTitle(activeRow!)),
         description: String(
           product.description ?? product.descriptionHtml ?? "",
@@ -1061,6 +1056,12 @@ export function ProductDetailsDrawer({
       };
       setForm(next);
       setOriginal(next);
+      const loadedStatus = String(product.status || "").toUpperCase();
+      setShopifyStatus(
+        loadedStatus in shopifyStatusLabel
+          ? (loadedStatus as ShopifyProductStatus)
+          : "",
+      );
       setAvailableTags(
         Array.isArray(product.availableTags)
           ? product.availableTags.map(String)
@@ -1194,6 +1195,34 @@ export function ProductDetailsDrawer({
     await processMediaFiles(files);
   }
 
+  async function changeShopifyStatus(nextStatus: "ACTIVE" | "DRAFT" | "UNLISTED") {
+    if (!canEdit || statusSaving || !form?.shopifyId || nextStatus === shopifyStatus) return;
+    if (shopifyStatus === "ARCHIVED" && nextStatus !== "DRAFT") return;
+    const previousStatus = shopifyStatus;
+    setShopifyStatus(nextStatus);
+    setStatusSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/shopify/product-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopifyId: form.shopifyId, status: nextStatus }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Não foi possível alterar o status.");
+      setShopifyStatus(body.product.status);
+      invalidateProductDetails(activeRow!.sku, currentTitle(activeRow!));
+      onProductUpdated?.(activeRow!, body.product);
+      setMessage("Status atualizado no Shopify.");
+    } catch (cause) {
+      setShopifyStatus(previousStatus);
+      setError(cause instanceof Error ? cause.message : "Falha ao atualizar o Shopify.");
+    } finally {
+      setStatusSaving(false);
+    }
+  }
+
   async function saveProduct() {
     setSaving(true);
     setError("");
@@ -1231,9 +1260,6 @@ export function ProductDetailsDrawer({
         body: JSON.stringify({
           sku: activeRow!.sku,
           shopifyId: form!.shopifyId,
-          ...(form!.status !== original!.status
-            ? { status: form!.status }
-            : {}),
           titleHint: currentTitle(activeRow!),
           title: form!.title,
           description: form!.description,
@@ -1282,10 +1308,7 @@ export function ProductDetailsDrawer({
         throw new Error(body.error || "Não foi possível atualizar o produto.");
       invalidateProductDetails(activeRow!.sku, currentTitle(activeRow!));
       onProductUpdated?.(activeRow!, body.product);
-      const savedForm = {
-        ...form!,
-        status: (body.product?.status || form!.status) as EditForm["status"],
-      };
+      const savedForm = { ...form! };
       setForm(savedForm);
       setOriginal(savedForm);
       const returnedSalesChannels = Array.isArray(body.product?.salesChannels)
@@ -1547,19 +1570,28 @@ export function ProductDetailsDrawer({
               <div className="product-drawer-body">
                 <section className="product-shopify-status-summary">
                   <div>
-                    <strong>Status no Shopify</strong>
-                    <span>
-                      {form.status
-                        ? shopifyStatusLabel[form.status]
-                        : loadingProduct
-                          ? "Carregando..."
-                          : "Indisponível"}
-                    </span>
+                    <label htmlFor="product-shopify-status-select">Status no Shopify</label>
+                    <select
+                      id="product-shopify-status-select"
+                      value={shopifyStatus}
+                      disabled={!canEdit || loadingProduct || statusSaving || !form.shopifyId || !shopifyStatus}
+                      onChange={(event) => void changeShopifyStatus(event.target.value as "ACTIVE" | "DRAFT" | "UNLISTED")}
+                    >
+                      {!shopifyStatus && <option value="">{loadingProduct ? "Carregando..." : "Indisponível"}</option>}
+                      {shopifyStatus === "ARCHIVED" && <option value="ARCHIVED">Arquivado</option>}
+                      {shopifyStatusOptions.map((option) => (
+                        <option key={option.value} value={option.value} disabled={shopifyStatus === "ARCHIVED" && option.value !== "DRAFT"}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <small>
-                    {form.status === "ARCHIVED"
+                    {statusSaving
+                      ? "Salvando no Shopify..."
+                      : shopifyStatus === "ARCHIVED"
                       ? "Desarquive como rascunho antes de escolher outro status."
-                      : "Altere o status em Editar informações do produto."}
+                      : "A alteração é salva diretamente no Shopify."}
                   </small>
                 </section>
                 <section className="product-current-overview">
@@ -1725,61 +1757,6 @@ export function ProductDetailsDrawer({
                   só acontece depois da confirmação.
                 </span>
               </div>
-              <section className="product-edit-card product-status-card">
-                <span className="product-edit-card-icon">
-                  <ShoppingBag size={18} />
-                </span>
-                <div className="product-status-content">
-                  <strong id="product-status-label">Status no Shopify</strong>
-                  {original.status === "ARCHIVED" && (
-                    <small>
-                      Produto arquivado. Salve como Rascunho para desarquivar;
-                      depois você poderá escolher Ativo ou Não listado.
-                    </small>
-                  )}
-                  {!original.status ? (
-                    <small>Não foi possível carregar o status do produto.</small>
-                  ) : (
-                    <div className="product-status-options" role="radiogroup" aria-labelledby="product-status-label">
-                      {shopifyStatusOptions.map((option) => {
-                        const disabled =
-                          original.status === "ARCHIVED" &&
-                          option.value !== "DRAFT";
-                        return (
-                          <label
-                            key={option.value}
-                            className={[
-                              "product-status-option",
-                              form.status === option.value ? "is-selected" : "",
-                              disabled ? "is-disabled" : "",
-                            ].filter(Boolean).join(" ")}
-                          >
-                            <input
-                              type="radio"
-                              name="shopify-product-status"
-                              value={option.value}
-                              checked={form.status === option.value}
-                              disabled={disabled || saving}
-                              onChange={() => update("status", option.value)}
-                            />
-                            <span className="product-status-option-check">
-                              {form.status === option.value && <Check size={15} />}
-                            </span>
-                            <span>
-                              <strong>{option.label}</strong>
-                              <small>{option.description}</small>
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                  <small>
-                    A disponibilidade em cada canal de venda é configurada na
-                    seção Canais de venda abaixo.
-                  </small>
-                </div>
-              </section>
               <section className="product-edit-card product-title-card">
                 <span className="product-edit-card-icon">
                   <FileText size={18} />

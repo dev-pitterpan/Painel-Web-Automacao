@@ -150,7 +150,6 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const sku = cleanText(body?.sku, 120);
   const shopifyId = cleanText(body?.shopifyId, 180);
-  const status = cleanText(body?.status, 20).toUpperCase();
   const titleHint = cleanText(body?.titleHint, 255);
   const title = cleanText(body?.title, 255);
   const description = cleanText(body?.description, 100000);
@@ -179,13 +178,6 @@ export async function POST(req: NextRequest) {
     );
   if (shopifyId && !/^gid:\/\/shopify\/Product\/\d+$/.test(shopifyId))
     return NextResponse.json({ error: "Produto inválido." }, { status: 400 });
-  if (status && !["ACTIVE", "DRAFT", "UNLISTED"].includes(status))
-    return NextResponse.json({ error: "Status inválido." }, { status: 400 });
-  if (status && !shopifyId)
-    return NextResponse.json(
-      { error: "Não foi possível identificar o produto para alterar seu status." },
-      { status: 400 },
-    );
   if (!Number.isFinite(weight) || weight < 0 || weight > 1000000)
     return NextResponse.json({ error: "Peso inválido." }, { status: 400 });
   const requestId = randomUUID();
@@ -203,9 +195,6 @@ export async function POST(req: NextRequest) {
       );
     const updatedProduct = await updateShopifyProduct({
       productId: catalogProduct.id,
-      ...(status
-        ? { status: status as "ACTIVE" | "DRAFT" | "UNLISTED" }
-        : {}),
       title,
       descriptionHtml: description,
       tags,
