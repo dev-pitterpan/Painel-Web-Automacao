@@ -279,7 +279,6 @@ export function ShopifyProductsClient({
   const [channelsError, setChannelsError] = useState("");
   const refreshInProgress = useRef(false);
   const loadRequestId = useRef(0);
-  const catalogVersion = useRef("");
   const facetsLoaded = useRef(false);
 
   const addNotification = useCallback(
@@ -424,47 +423,7 @@ export function ShopifyProductsClient({
     },
     [addNotification, filters, page, query, sort, winthorOnly],
   );
-  const loadRef = useRef(load);
-  useEffect(() => {
-    loadRef.current = load;
-  }, [load]);
   useEffect(() => void load(), [load]);
-  useEffect(() => {
-    let cancelled = false;
-    const checkCatalogVersion = async () => {
-      if (document.visibilityState !== "visible" || refreshInProgress.current)
-        return;
-      try {
-        const response = await fetch("/api/shopify-products?version=1", {
-          cache: "no-store",
-        });
-        if (!response.ok) return;
-        const result = (await response.json()) as {
-          productCount?: number;
-          lastReceivedAt?: string | null;
-        };
-        const nextVersion = `${result.productCount || 0}:${result.lastReceivedAt || ""}`;
-        if (cancelled) return;
-        if (!catalogVersion.current) {
-          catalogVersion.current = nextVersion;
-          return;
-        }
-        if (catalogVersion.current === nextVersion) return;
-        catalogVersion.current = nextVersion;
-        await loadRef.current(true);
-      } catch {
-        // Mantém a lista atual se a verificação em segundo plano falhar.
-      }
-    };
-    void checkCatalogVersion();
-    const timer = window.setInterval(() => {
-      void checkCatalogVersion();
-    }, 5 * 60_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
   useEffect(() => setSelectedProducts({}), [filters, query, sort]);
   const visibleMissingSkus = useMemo(() => {
     const found = new Set(
@@ -514,7 +473,7 @@ export function ShopifyProductsClient({
                 ? {
                     ...product,
                     title: updated.title,
-                      status: updated.status,
+                    status: updated.status,
                     tags: updated.tags,
                     collections: updated.collections,
                   }
@@ -523,7 +482,6 @@ export function ShopifyProductsClient({
           }
         : current,
     );
-    void load(true);
   };
   const historyForProduct = (product: ShopifyCatalogProduct) =>
     data?.processingHistoryBySku?.[
