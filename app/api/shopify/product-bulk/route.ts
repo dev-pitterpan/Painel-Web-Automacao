@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth";
 import {
   archiveShopifyProduct,
+  unarchiveShopifyProduct,
   deleteShopifyProduct,
   getShopifySalesChannels,
   shopifyProductToCatalog,
@@ -16,6 +17,7 @@ import {
 
 const actions = [
   "archive",
+  "unarchive",
   "unpublish",
   "delete",
   "publish_channels",
@@ -120,6 +122,11 @@ export async function POST(req: NextRequest) {
             await upsertShopifyCatalogProducts([
               shopifyProductToCatalog(archived),
             ]);
+          } else if (action === "unarchive") {
+            const unarchived = await unarchiveShopifyProduct(product.shopify_id);
+            await upsertShopifyCatalogProducts([
+              shopifyProductToCatalog(unarchived),
+            ]);
           } else if (action === "unpublish") {
             await unpublishShopifyProduct(product.shopify_id);
           } else if (
@@ -167,6 +174,10 @@ export async function POST(req: NextRequest) {
         products.length === 1
           ? "1 produto arquivado com sucesso."
           : `${products.length} produtos arquivados com sucesso.`,
+      unarchive:
+        products.length === 1
+          ? "1 produto desarquivado como rascunho."
+          : `${products.length} produtos desarquivados como rascunho.`,
       unpublish:
         products.length === 1
           ? "1 produto removido dos canais de venda."

@@ -824,6 +824,45 @@ export async function archiveShopifyProduct(productId: string) {
   return result.productUpdate.product;
 }
 
+export async function unarchiveShopifyProduct(productId: string) {
+  const current = await shopifyGraphql<{
+    product: { status: string } | null;
+  }>(
+    `query DashboardArchivedProductStatus($id: ID!) {
+      product(id: $id) { status }
+    }`,
+    { id: productId },
+  );
+  if (!current.product) throw new Error("Produto não encontrado na Shopify.");
+  if (current.product.status !== "ARCHIVED")
+    throw new Error("O produto não está arquivado na Shopify.");
+
+  const result = await shopifyGraphql<{
+    productUpdate: {
+      product: ShopifyProductNode | null;
+      userErrors: GraphqlError[];
+    };
+  }>(
+    `mutation DashboardUnarchiveProduct($product: ProductUpdateInput!) {
+      productUpdate(product: $product) {
+        product { ${PRODUCT_FIELDS} }
+        userErrors { field message }
+      }
+    }`,
+    { product: { id: productId, status: "DRAFT" } },
+  );
+  if (result.productUpdate.userErrors?.length || !result.productUpdate.product)
+    throw new Error(
+      errorMessage(
+        result.productUpdate.userErrors,
+        "Não foi possível desarquivar o produto.",
+      ),
+    );
+  if (result.productUpdate.product.status !== "DRAFT")
+    throw new Error("A Shopify não confirmou o produto como rascunho.");
+  return result.productUpdate.product;
+}
+
 export async function deleteShopifyProduct(productId: string) {
   const result = await shopifyGraphql<{
     productDelete: {
