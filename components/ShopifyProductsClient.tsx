@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
+  ArchiveRestore,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -62,7 +63,7 @@ type CatalogEnrichmentResponse = {
   processingHistoryBySku?: Record<string, HistoryRow>;
 };
 type FilterKey = "vendor" | "tag" | "status" | "productType" | "collection";
-type BulkAction = "archive" | "unpublish" | "delete";
+type BulkAction = "archive" | "unarchive" | "unpublish" | "delete";
 type ChannelBulkAction = "publish" | "unpublish";
 type SalesChannel = { id: string; name: string };
 const filterLabels: Record<FilterKey, string> = {
@@ -743,7 +744,9 @@ export function ShopifyProductsClient({
       const message =
         action === "archive"
           ? `Arquivar ${count} ${plural} no Shopify?`
-          : `Remover ${count} ${plural} de todos os canais de venda?`;
+          : action === "unarchive"
+            ? `Desarquivar ${count} ${plural} no Shopify? Os produtos ficarão como rascunho.`
+            : `Remover ${count} ${plural} de todos os canais de venda?`;
       if (!window.confirm(message)) return;
     }
 
@@ -786,6 +789,7 @@ export function ShopifyProductsClient({
         text: message,
       });
       addNotification("error", message);
+      if (action === "unarchive") await load();
     } finally {
       setBulkActionRunning(null);
     }
@@ -1060,6 +1064,30 @@ export function ShopifyProductsClient({
                   {bulkActionRunning === "archive"
                     ? "Arquivando produtos..."
                     : "Arquivar produtos"}
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    !selectedIds.length ||
+                    Boolean(bulkActionRunning) ||
+                    !selectedProductsList.every(
+                      (product) => product.status === "ARCHIVED",
+                    )
+                  }
+                  title={
+                    selectedIds.length &&
+                    !selectedProductsList.every(
+                      (product) => product.status === "ARCHIVED",
+                    )
+                      ? "Selecione apenas produtos arquivados."
+                      : undefined
+                  }
+                  onClick={() => runBulkAction("unarchive")}
+                >
+                  <ArchiveRestore size={15} />
+                  {bulkActionRunning === "unarchive"
+                    ? "Desarquivando produtos..."
+                    : "Desarquivar produtos"}
                 </button>
                 <button
                   type="button"
