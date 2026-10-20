@@ -15,6 +15,7 @@ import {
 } from "@/lib/auth";
 import {
   fetchShopifyProduct,
+  getShopifyProductStatus,
   getShopifyProductSalesChannels,
   shopifyProductToCatalog,
 } from "@/lib/shopify-admin";
@@ -104,6 +105,7 @@ export async function GET(req: NextRequest) {
         params.get("sku") || "",
         params.get("title") || "",
         params.get("compact") !== "1",
+        params.get("id") || "",
       );
       if (product && !product.barcodeSynced) {
         try {
@@ -123,6 +125,16 @@ export async function GET(req: NextRequest) {
           }
         } catch {
           // Mantém os detalhes locais disponíveis se a consulta pontual falhar.
+        }
+      }
+      if (product) {
+        try {
+          product = {
+            ...product,
+            status: await getShopifyProductStatus(product.id),
+          };
+        } catch {
+          // O status sincronizado permanece disponível se a Shopify falhar.
         }
       }
       if (product) {

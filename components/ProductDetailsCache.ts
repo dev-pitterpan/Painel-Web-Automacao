@@ -9,16 +9,17 @@ const detailsCache = new Map<string, CachedDetails>();
 const pendingDetails = new Map<string, Promise<Record<string, unknown>>>();
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
-function detailsKey(sku: string, title: string) {
-  return `${sku.trim()}::${title.trim().toLocaleLowerCase("pt-BR")}`;
+function detailsKey(sku: string, title: string, productId = "") {
+  return `${sku.trim()}::${title.trim().toLocaleLowerCase("pt-BR")}::${productId.trim()}`;
 }
 
 export async function loadProductDetails(
   sku: string,
   title: string,
+  productId = "",
   force = false,
 ) {
-  const key = detailsKey(sku, title);
+  const key = detailsKey(sku, title, productId);
   const cached = detailsCache.get(key);
   if (!force && cached && Date.now() - cached.cachedAt < CACHE_TTL_MS)
     return cached.product;
@@ -26,7 +27,7 @@ export async function loadProductDetails(
   if (!force && pending) return pending;
 
   const request = fetch(
-    `/api/shopify-products?details=1&sku=${encodeURIComponent(sku)}&title=${encodeURIComponent(title)}`,
+    `/api/shopify-products?details=1&sku=${encodeURIComponent(sku)}&title=${encodeURIComponent(title)}&id=${encodeURIComponent(productId)}`,
     { cache: "no-store" },
   )
     .then(async (response) => {
@@ -44,5 +45,8 @@ export async function loadProductDetails(
 }
 
 export function invalidateProductDetails(sku: string, title: string) {
-  detailsCache.delete(detailsKey(sku, title));
+  const prefix = detailsKey(sku, title);
+  for (const key of detailsCache.keys()) {
+    if (key.startsWith(prefix)) detailsCache.delete(key);
+  }
 }

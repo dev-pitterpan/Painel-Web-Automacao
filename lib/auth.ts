@@ -767,21 +767,29 @@ export async function getShopifyCatalogProductDetails(
   sku: string,
   titleHint = "",
   includeOptions = true,
+  shopifyId = "",
 ) {
   await ensureDatabase();
   const normalizedSku = String(sku || "").trim();
-  if (!normalizedSku) return null;
-  const rows = await query<any>(
-    `SELECT p.* FROM shopify_catalog_products p
-     WHERE p.primary_sku = $1 OR EXISTS (
-       SELECT 1 FROM jsonb_array_elements(p.variants_json) variant
-       WHERE variant->>'sku' = $1
-     )
-     ORDER BY CASE WHEN LOWER(p.title) = LOWER($2) THEN 0 ELSE 1 END,
-       p.shopify_updated_at DESC NULLS LAST
-     LIMIT 1`,
-    [normalizedSku, String(titleHint || "").trim()],
-  );
+  const normalizedShopifyId = String(shopifyId || "").trim();
+  if (!normalizedSku && !normalizedShopifyId) return null;
+  const rows = normalizedShopifyId
+    ? await query<any>(
+        `SELECT p.* FROM shopify_catalog_products p
+         WHERE p.shopify_id = $1 LIMIT 1`,
+        [normalizedShopifyId],
+      )
+    : await query<any>(
+        `SELECT p.* FROM shopify_catalog_products p
+         WHERE p.primary_sku = $1 OR EXISTS (
+           SELECT 1 FROM jsonb_array_elements(p.variants_json) variant
+           WHERE variant->>'sku' = $1
+         )
+         ORDER BY CASE WHEN LOWER(p.title) = LOWER($2) THEN 0 ELSE 1 END,
+           p.shopify_updated_at DESC NULLS LAST
+         LIMIT 1`,
+        [normalizedSku, String(titleHint || "").trim()],
+      );
   if (!rows[0]) return null;
   const product = catalogProductFromRow(rows[0]);
   const matchedVariant = product.variants.find(
@@ -795,6 +803,7 @@ export async function getShopifyCatalogProductDetails(
     : { tags: [], collections: [] };
   return {
     id: product.shopifyId,
+    status: product.status,
     title: product.title,
     description: product.descriptionHtml,
     descriptionHtml: product.descriptionHtml,
