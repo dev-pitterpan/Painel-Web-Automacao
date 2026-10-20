@@ -442,15 +442,6 @@ export function ShopifyProductsClient({
       (sku) => !found.has(sku.trim().toLocaleLowerCase("pt-BR")),
     );
   }, [data, missingSkus]);
-  const pageProducts = useMemo(() => {
-    const products = data?.products || [];
-    if (sort !== "updated") return products;
-    return [...products].sort((a, b) => {
-      const recentDate = Date.parse(b.shopifyUpdatedAt) || 0;
-      const olderDate = Date.parse(a.shopifyUpdatedAt) || 0;
-      return recentDate - olderDate;
-    });
-  }, [data?.products, sort]);
   const setFilter = (key: FilterKey, value: string) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
@@ -464,24 +455,29 @@ export function ShopifyProductsClient({
     setPage(1);
   };
   const updateProduct = (productId: string, updated: UpdatedProduct) => {
-    setData((current) =>
-      current
-        ? {
-            ...current,
-            products: current.products.map((product) =>
-              product.shopifyId === productId
-                ? {
-                    ...product,
-                    title: updated.title,
-                    status: updated.status,
-                    tags: updated.tags,
-                    collections: updated.collections,
-                  }
-                : product,
-            ),
-          }
-        : current,
-    );
+    setData((current) => {
+      if (!current) return current;
+      const products = current.products.map((product) =>
+        product.shopifyId === productId
+          ? {
+              ...product,
+              title: updated.title,
+              status: updated.status,
+              tags: updated.tags,
+              collections: updated.collections,
+              shopifyUpdatedAt: updated.shopifyUpdatedAt,
+            }
+          : product,
+      );
+      if (sort === "updated") {
+        products.sort(
+          (a, b) =>
+            (Date.parse(b.shopifyUpdatedAt) || 0) -
+            (Date.parse(a.shopifyUpdatedAt) || 0),
+        );
+      }
+      return { ...current, products };
+    });
   };
   const historyForProduct = (product: ShopifyCatalogProduct) =>
     data?.processingHistoryBySku?.[
@@ -1156,7 +1152,7 @@ export function ShopifyProductsClient({
                 </tr>
               </thead>
               <tbody>
-                {pageProducts.map((product, index) => (
+                {data.products.map((product, index) => (
                   <tr
                     className={[
                       selectedIds.includes(product.shopifyId)

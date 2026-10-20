@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       product: {
         status: product.status,
         title: product.title,
+        shopifyUpdatedAt: product.shopifyUpdatedAt,
         description: product.descriptionHtml,
         tags: product.tags,
         collections: product.collections,
