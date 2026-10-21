@@ -259,6 +259,13 @@ export function ShopifyProductsClient({
     Record<string, ShopifyCatalogProduct>
   >({});
   const [automationRunning, setAutomationRunning] = useState(false);
+  const [automationPickerOpen, setAutomationPickerOpen] = useState(false);
+  const [weightModalOpen, setWeightModalOpen] = useState(false);
+  const [weightInput, setWeightInput] = useState("");
+  const [weightUnit, setWeightUnit] = useState<"g" | "kg">("g");
+  const [weightRunning, setWeightRunning] = useState(false);
+  const [weightProgress, setWeightProgress] = useState(0);
+  const [weightError, setWeightError] = useState("");
   const [bulkActionRunning, setBulkActionRunning] = useState<BulkAction | null>(
     null,
   );
@@ -512,7 +519,9 @@ export function ShopifyProductsClient({
       return next;
     });
   const runSelectedAutomation = async () => {
-    if (automationRunning || bulkActionRunning || !selectedIds.length) return;
+    if (automationRunning || weightRunning || bulkActionRunning || !selectedIds.length) return;
+
+    setAutomationPickerOpen(false);
 
     setAutomationRunning(true);
     setAutomationMessage(null);
@@ -696,6 +705,113 @@ export function ShopifyProductsClient({
         text: message,
       });
       addNotification("error", message);
+    }
+  };
+
+  const openWeightAutomation = () => {
+    if (!selectedIds.length || automationRunning || weightRunning || bulkActionRunning)
+      return;
+    setAutomationPickerOpen(false);
+    setWeightInput("");
+    setWeightUnit("g");
+    setWeightProgress(0);
+    setWeightError("");
+    setWeightModalOpen(true);
+  };
+
+  const runWeightAutomation = async () => {
+    if (weightRunning || automationRunning || bulkActionRunning || !selectedProductsList.length)
+      return;
+    const input = weightInput.trim().replace(",", ".");
+    const weight = Number(input);
+    if (!input || !Number.isFinite(weight) || weight < 0 || weight > 1_000_000) {
+      setWeightError("Informe um peso válido entre 0 e 1.000.000.");
+      return;
+    }
+
+    const products = [...selectedProductsList];
+    const successfulIds = new Set<string>();
+    const failures: string[] = [];
+    setWeightRunning(true);
+    setWeightProgress(0);
+    setWeightError("");
+    setAutomationMessage(null);
+
+    try {
+      for (let index = 0; index < products.length; index += 5) {
+        const batch = products.slice(index, index + 5);
+        try {
+          const response = await fetch("/api/shopify/product-weight-bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              weight,
+              weightUnit,
+              products: batch.map(({ shopifyId, title }) => ({ shopifyId, title })),
+            }),
+          });
+          const result = await response.json().catch(() => null);
+          if (!response.ok || !result?.ok || !Array.isArray(result.results))
+            throw new Error(result?.error || "Não foi possível confirmar este lote.");
+          const returnedIds = new Set<string>();
+          for (const item of result.results) {
+            const shopifyId = String(item?.shopifyId || "");
+            if (!batch.some((product) => product.shopifyId === shopifyId)) continue;
+            returnedIds.add(shopifyId);
+            if (item?.ok) successfulIds.add(shopifyId);
+            else failures.push(String(item?.error || `${shopifyId}: falha ao atualizar o peso.`));
+          }
+          for (const product of batch)
+            if (!returnedIds.has(product.shopifyId))
+              failures.push(`${product.title}: resultado não confirmado; confira o peso na Shopify antes de repetir.`);
+        } catch (cause) {
+          const reason = cause instanceof Error ? cause.message : "Falha na comunicação.";
+          for (const product of batch)
+            failures.push(`${product.title}: ${reason} Confira o peso na Shopify antes de repetir.`);
+        }
+        setWeightProgress(Math.min(index + batch.length, products.length));
+      }
+
+      if (successfulIds.size) {
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                products: current.products.map((product) =>
+                  successfulIds.has(product.shopifyId)
+                    ? { ...product, weight, weightUnit }
+                    : product,
+                ),
+              }
+            : current,
+        );
+        setSelectedProducts((current) => {
+          const next = { ...current };
+          for (const id of successfulIds) delete next[id];
+          return next;
+        });
+        for (const product of products)
+          if (successfulIds.has(product.shopifyId))
+            invalidateProductDetails(product.sku, product.title);
+      }
+
+      const summary = `${successfulIds.size} de ${products.length} ${
+        products.length === 1 ? "produto atualizado" : "produtos atualizados"
+      } com o peso de ${weight.toLocaleString("pt-BR")} ${weightUnit} na Shopify.`;
+      if (failures.length) {
+        const message = `${summary} ${failures.length} ${
+          failures.length === 1 ? "produto não foi concluído ou confirmado" : "produtos não foram concluídos ou confirmados"
+        }: ${failures.slice(0, 5).join(" ")}`;
+        setWeightError(message);
+        setAutomationMessage({ tone: "error", text: message });
+        addNotification("error", message);
+      } else {
+        setWeightModalOpen(false);
+        setAutomationMessage({ tone: "success", text: summary });
+        addNotification("success", summary);
+      }
+    } finally {
+      setWeightRunning(false);
     }
   };
 
@@ -959,17 +1075,17 @@ export function ShopifyProductsClient({
               <button
                 className="run-flow-automation"
                 type="button"
-                onClick={runSelectedAutomation}
-                disabled={automationRunning || Boolean(bulkActionRunning)}
+                onClick={() => setAutomationPickerOpen(true)}
+                disabled={automationRunning || weightRunning || Boolean(bulkActionRunning)}
               >
-                {automationRunning ? (
+                {automationRunning || weightRunning ? (
                   <LoaderCircle className="spin" size={17} />
                 ) : (
-                  <img src="/icons/n8n.png" alt="" />
+                  <Layers3 size={17} />
                 )}
-                {automationRunning
-                  ? "Rodando Automação..."
-                  : "Run Flow automation"}
+                {automationRunning || weightRunning
+                  ? "Rodando automação..."
+                  : "Rodar automação"}
               </button>
             </div>
           ) : (
@@ -1301,6 +1417,163 @@ export function ShopifyProductsClient({
         skus={visibleMissingSkus}
         onClose={() => setMissingSkus([])}
       />
+      {automationPickerOpen && (
+        <div
+          className="sales-channel-bulk-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="automation-picker-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget)
+              setAutomationPickerOpen(false);
+          }}
+        >
+          <section className="sales-channel-bulk-modal automation-choice-modal">
+            <header>
+              <h2 id="automation-picker-title">Rodar automação</h2>
+              <button
+                type="button"
+                onClick={() => setAutomationPickerOpen(false)}
+                aria-label="Fechar"
+              >
+                <X size={19} />
+              </button>
+            </header>
+            <p className="automation-choice-intro">
+              Escolha uma automação para {selectedIds.length}{" "}
+              {selectedIds.length === 1 ? "produto selecionado" : "produtos selecionados"}.
+              Cada automação é executada separadamente.
+            </p>
+            <div className="automation-choice-list">
+              <button
+                type="button"
+                onClick={() => void runSelectedAutomation()}
+              >
+                <img src="/icons/n8n.png" alt="" />
+                <span>
+                  <strong>Automação de produtos</strong>
+                  <small>Executar o fluxo atual no n8n.</small>
+                </span>
+                <ChevronRight size={18} />
+              </button>
+              <button
+                type="button"
+                disabled={!data?.permissions?.canEditProducts}
+                onClick={openWeightAutomation}
+              >
+                <Layers3 size={22} />
+                <span>
+                  <strong>Atualizar peso</strong>
+                  <small>Definir o mesmo peso na Shopify para os produtos selecionados.</small>
+                </span>
+                <ChevronRight size={18} />
+              </button>
+            </div>
+            <footer>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => setAutomationPickerOpen(false)}
+              >
+                Cancelar
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+      {weightModalOpen && (
+        <div
+          className="sales-channel-bulk-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="weight-bulk-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !weightRunning)
+              setWeightModalOpen(false);
+          }}
+        >
+          <form
+            className="sales-channel-bulk-modal automation-weight-modal"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void runWeightAutomation();
+            }}
+          >
+            <header>
+              <h2 id="weight-bulk-title">Atualizar peso</h2>
+              <button
+                type="button"
+                disabled={weightRunning}
+                onClick={() => setWeightModalOpen(false)}
+                aria-label="Fechar"
+              >
+                <X size={19} />
+              </button>
+            </header>
+            <div className="automation-weight-body">
+              <p>
+                O peso informado será aplicado a todas as variantes dos{" "}
+                {selectedIds.length} {selectedIds.length === 1 ? "produto selecionado" : "produtos selecionados"}.
+              </p>
+              <div className="automation-weight-fields">
+                <label>
+                  <span>Peso</span>
+                  <input
+                    autoFocus
+                    type="text"
+                    inputMode="decimal"
+                    value={weightInput}
+                    onChange={(event) => setWeightInput(event.target.value)}
+                    placeholder="Ex.: 150"
+                    disabled={weightRunning}
+                    aria-required="true"
+                  />
+                </label>
+                <label>
+                  <span>Unidade</span>
+                  <select
+                    value={weightUnit}
+                    onChange={(event) => setWeightUnit(event.target.value === "kg" ? "kg" : "g")}
+                    disabled={weightRunning}
+                  >
+                    <option value="g">Gramas (g)</option>
+                    <option value="kg">Quilogramas (kg)</option>
+                  </select>
+                </label>
+              </div>
+              {weightRunning && (
+                <p className="automation-weight-progress" role="status">
+                  <LoaderCircle className="spin" size={16} />
+                  Verificados {weightProgress} de {selectedIds.length} produtos...
+                </p>
+              )}
+              {weightError && (
+                <p className="sales-channel-bulk-error" role="alert">
+                  {weightError}
+                </p>
+              )}
+            </div>
+            <footer>
+              <button
+                className="btn"
+                type="button"
+                disabled={weightRunning}
+                onClick={() => setWeightModalOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={weightRunning || !weightInput.trim() || !selectedIds.length}
+              >
+                {weightRunning && <LoaderCircle className="spin" size={15} />}
+                {weightRunning ? "Atualizando..." : "Atualizar peso"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
       {channelBulkAction && (
         <div
           className="sales-channel-bulk-backdrop"
