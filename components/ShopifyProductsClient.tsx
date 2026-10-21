@@ -14,7 +14,6 @@ import {
   Layers3,
   LoaderCircle,
   MoreHorizontal,
-  MessageSquareText,
   PackageSearch,
   Plus,
   RefreshCcw,
@@ -501,7 +500,7 @@ export function ShopifyProductsClient({
   const selectedIds = Object.keys(selectedProducts);
   const selectedProductsList = Object.values(selectedProducts);
   const chatgptAutomationText = [
-    "Quero preparar os produtos abaixo no catálogo. Confira título, descrição, tags e coleções conforme as regras combinadas e me mostre uma prévia antes de aplicar:",
+    "Edite diretamente no sistema os produtos abaixo. Ajuste título, descrição, tags e coleções conforme as regras combinadas e confirme o resultado depois de aplicar:",
     "",
     ...selectedProductsList.map((product, index) =>
       `${index + 1}. SKU: ${product.sku?.trim() || "não informado"} | Produto: ${product.title?.trim() || "sem nome"}`,
@@ -1485,7 +1484,7 @@ export function ShopifyProductsClient({
                 <ChevronRight size={18} />
               </button>
               <button type="button" onClick={openChatgptAutomation}>
-                <MessageSquareText size={22} />
+                <img src="/icons/chatgpt.png" alt="" />
                 <span>
                   <strong>Automação com ChatGPT</strong>
                   <small>Copiar os produtos selecionados para enviar nesta conversa.</small>
