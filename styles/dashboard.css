@@ -797,6 +797,112 @@
   gap: 8px;
   color: #667085;
 }
+.automation-choice-modal,
+.automation-weight-modal {
+  width: min(520px, calc(100vw - 24px));
+}
+.automation-choice-intro,
+.automation-weight-body > p:first-child {
+  margin: 0;
+  padding: 16px 18px 8px;
+  color: #52627d;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.automation-choice-list {
+  display: grid;
+  gap: 9px;
+  padding: 10px 16px 20px;
+}
+.automation-choice-list > button {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid #dce4f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #1766d5;
+  text-align: left;
+  cursor: pointer;
+}
+.automation-choice-list > button:hover:not(:disabled) {
+  border-color: #8bb7fa;
+  background: #f4f8ff;
+}
+.automation-choice-list > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.automation-choice-list > button img {
+  width: 23px;
+  height: 23px;
+  object-fit: contain;
+}
+.automation-choice-list > button span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.automation-choice-list > button strong {
+  color: #172033;
+  font-size: 14px;
+}
+.automation-choice-list > button small {
+  color: #66758e;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.automation-weight-body {
+  overflow: auto;
+}
+.automation-weight-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 165px;
+  gap: 12px;
+  padding: 14px 18px 20px;
+}
+.automation-weight-fields label {
+  display: grid;
+  gap: 7px;
+  color: #25344e;
+  font-size: 12px;
+  font-weight: 700;
+}
+.automation-weight-fields input,
+.automation-weight-fields select {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  font-size: 14px;
+}
+.automation-weight-fields input:focus,
+.automation-weight-fields select:focus {
+  outline: 2px solid #bed7ff;
+  border-color: #1672ed;
+}
+.automation-weight-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 18px 15px;
+  color: #1766d5;
+  font-size: 12px;
+}
+.automation-weight-body .sales-channel-bulk-error {
+  max-height: 125px;
+  overflow: auto;
+  margin: 0 18px 16px;
+  font-size: 12px;
+  line-height: 1.45;
+}
 @media (max-width: 560px) {
   .sales-channel-bulk-backdrop {
     align-items: end;
@@ -809,6 +915,9 @@
   }
   .sales-channel-bulk-modal > footer .btn {
     flex: 1;
+  }
+  .automation-weight-fields {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .selected-products-menu > summary {

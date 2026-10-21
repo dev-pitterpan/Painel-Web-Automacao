@@ -643,7 +643,7 @@ async function stageImages(images: ShopifyProductImageInput[]) {
 }
 
 async function updateWeight(
-  variants: ShopifyVariantNode[],
+  variants: Array<Pick<ShopifyVariantNode, "inventoryItem">>,
   value: number,
   unit: "g" | "kg",
 ) {
@@ -678,6 +678,49 @@ async function updateWeight(
         ),
       );
   }
+}
+
+export async function updateShopifyProductWeight(
+  productId: string,
+  value: number,
+  unit: "g" | "kg",
+) {
+  const variants: Array<Pick<ShopifyVariantNode, "inventoryItem">> = [];
+  let cursor: string | null = null;
+  do {
+    const data: {
+      product: {
+        variants: {
+          nodes: Array<Pick<ShopifyVariantNode, "inventoryItem">>;
+          pageInfo: { hasNextPage: boolean; endCursor: string | null };
+        };
+      } | null;
+    } = await shopifyGraphql(
+      `query DashboardProductWeightVariants($id: ID!, $after: String) {
+        product(id: $id) {
+          variants(first: 100, after: $after) {
+            nodes { id inventoryItem { id } }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      }`,
+      { id: productId, after: cursor },
+    );
+    if (!data.product) throw new Error("Produto não encontrado na Shopify.");
+    variants.push(...data.product.variants.nodes);
+    const pageInfo = data.product.variants.pageInfo;
+    if (pageInfo.hasNextPage && !pageInfo.endCursor)
+      throw new Error("Não foi possível consultar todas as variantes.");
+    cursor = pageInfo.hasNextPage ? pageInfo.endCursor : null;
+  } while (cursor);
+
+  if (!variants.length || variants.some((variant) => !variant.inventoryItem?.id))
+    throw new Error("Produto sem item de estoque válido para atualizar o peso.");
+
+  await updateWeight(variants, value, unit);
+  const updated = await fetchShopifyProduct(productId);
+  if (!updated) throw new Error("Não foi possível conferir o peso na Shopify.");
+  return updated;
 }
 
 export async function updateShopifyProduct(input: ShopifyProductUpdateInput) {
