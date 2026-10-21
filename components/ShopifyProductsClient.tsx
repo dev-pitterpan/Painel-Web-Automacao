@@ -5,6 +5,7 @@ import {
   Archive,
   ArchiveRestore,
   Check,
+  Copy,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -13,6 +14,7 @@ import {
   Layers3,
   LoaderCircle,
   MoreHorizontal,
+  MessageSquareText,
   PackageSearch,
   Plus,
   RefreshCcw,
@@ -260,6 +262,9 @@ export function ShopifyProductsClient({
   >({});
   const [automationRunning, setAutomationRunning] = useState(false);
   const [automationPickerOpen, setAutomationPickerOpen] = useState(false);
+  const [chatgptModalOpen, setChatgptModalOpen] = useState(false);
+  const [chatgptCopyStatus, setChatgptCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const chatgptTextRef = useRef<HTMLTextAreaElement>(null);
   const [weightModalOpen, setWeightModalOpen] = useState(false);
   const [weightInput, setWeightInput] = useState("");
   const [weightUnit, setWeightUnit] = useState<"g" | "kg">("g");
@@ -495,6 +500,29 @@ export function ShopifyProductsClient({
     );
   const selectedIds = Object.keys(selectedProducts);
   const selectedProductsList = Object.values(selectedProducts);
+  const chatgptAutomationText = [
+    "Quero preparar os produtos abaixo no catálogo. Confira título, descrição, tags e coleções conforme as regras combinadas e me mostre uma prévia antes de aplicar:",
+    "",
+    ...selectedProductsList.map((product, index) =>
+      `${index + 1}. SKU: ${product.sku?.trim() || "não informado"} | Produto: ${product.title?.trim() || "sem nome"}`,
+    ),
+  ].join("\n");
+  const openChatgptAutomation = () => {
+    if (!selectedIds.length) return;
+    setAutomationPickerOpen(false);
+    setChatgptCopyStatus("idle");
+    setChatgptModalOpen(true);
+  };
+  const copyChatgptAutomation = async () => {
+    try {
+      await navigator.clipboard.writeText(chatgptAutomationText);
+      setChatgptCopyStatus("copied");
+    } catch {
+      chatgptTextRef.current?.focus();
+      chatgptTextRef.current?.select();
+      setChatgptCopyStatus("error");
+    }
+  };
   const visibleIds = data?.products.map((product) => product.shopifyId) || [];
   const allVisibleSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
@@ -1456,6 +1484,14 @@ export function ShopifyProductsClient({
                 </span>
                 <ChevronRight size={18} />
               </button>
+              <button type="button" onClick={openChatgptAutomation}>
+                <MessageSquareText size={22} />
+                <span>
+                  <strong>Automação com ChatGPT</strong>
+                  <small>Copiar os produtos selecionados para enviar nesta conversa.</small>
+                </span>
+                <ChevronRight size={18} />
+              </button>
               <button
                 type="button"
                 disabled={!data?.permissions?.canEditProducts}
@@ -1476,6 +1512,55 @@ export function ShopifyProductsClient({
                 onClick={() => setAutomationPickerOpen(false)}
               >
                 Cancelar
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+      {chatgptModalOpen && (
+        <div
+          className="sales-channel-bulk-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="chatgpt-automation-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setChatgptModalOpen(false);
+          }}
+        >
+          <section className="sales-channel-bulk-modal automation-chatgpt-modal">
+            <header>
+              <h2 id="chatgpt-automation-title">Automação com ChatGPT</h2>
+              <button type="button" onClick={() => setChatgptModalOpen(false)} aria-label="Fechar">
+                <X size={19} />
+              </button>
+            </header>
+            <div className="automation-chatgpt-body">
+              <p>
+                Copie a lista e cole nesta conversa. Ela contém o SKU e o nome dos{" "}
+                {selectedIds.length} {selectedIds.length === 1 ? "produto selecionado" : "produtos selecionados"}.
+              </p>
+              <label htmlFor="chatgpt-automation-text">Texto para copiar</label>
+              <textarea
+                id="chatgpt-automation-text"
+                ref={chatgptTextRef}
+                readOnly
+                value={chatgptAutomationText}
+                onClick={(event) => event.currentTarget.select()}
+              />
+              {chatgptCopyStatus === "copied" && (
+                <p className="automation-chatgpt-feedback" role="status">Lista copiada. Cole-a na conversa com o ChatGPT.</p>
+              )}
+              {chatgptCopyStatus === "error" && (
+                <p className="automation-chatgpt-feedback is-error" role="alert">Não foi possível copiar automaticamente. O texto foi selecionado; use Ctrl+C.</p>
+              )}
+            </div>
+            <footer>
+              <button className="btn" type="button" onClick={() => setChatgptModalOpen(false)}>
+                Fechar
+              </button>
+              <button className="btn btn-primary" type="button" onClick={() => void copyChatgptAutomation()}>
+                {chatgptCopyStatus === "copied" ? <Check size={16} /> : <Copy size={16} />}
+                {chatgptCopyStatus === "copied" ? "Copiado" : "Copiar tudo"}
               </button>
             </footer>
           </section>
