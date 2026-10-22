@@ -37,7 +37,10 @@ export async function GET(req: NextRequest) {
     const catalogOnly = params.get("catalog") === "1";
     const rows = sheet.rows
       .filter(
-        (row) => !catalogOnly || catalogBySku.has(String(row.sku || "").trim()),
+        (row) =>
+          !catalogOnly ||
+          row.status === "Sucesso - ChatGPT" ||
+          catalogBySku.has(String(row.sku || "").trim()),
       )
       .map((row) => {
         // Relatórios históricos precisam preservar exatamente o produto
@@ -67,11 +70,17 @@ export async function GET(req: NextRequest) {
         };
       });
     const includeReprocess = params.get("includeReprocess") === "1";
-    const includeCodex = params.get("includeCodex") === "1";
+    const includeCodex = !historicalView && params.get("includeCodex") !== "0";
     const dashboardRows = [...rows];
+    const errorRows = [...rows];
     {
       const latestReprocesses = await listLatestProcessingResults();
       const latestSheetRowBySku = new Map<string, (typeof rows)[number]>();
+      const sheetCodexResults = new Set(
+        rows
+          .filter((row) => row.status === "Sucesso - ChatGPT")
+          .map((row) => [row.sku, row.dataHora, row.tituloDepois].join("|")),
+      );
       latestHistoryRowsByProduct(rows).forEach((row) => {
         const sku = String(row.sku || "")
           .trim()
@@ -87,16 +96,26 @@ export async function GET(req: NextRequest) {
           : record.result;
         const result =
           rawResult && typeof rawResult === "object" ? rawResult : {};
-        if (includeCodex && !includeReprocess && result.origem !== "ChatGPT")
+
+        if (
+          result.origem === "ChatGPT" &&
+          sheetCodexResults.has(
+            [
+              sku,
+              String(result.data_hora || record.createdAt),
+              String(result.titulo_depois || record.title || ""),
+            ].join("|"),
+          )
+        )
           return;
         const isYes = (value: unknown) =>
           ["sim", "true"].includes(String(value || "").toLowerCase());
         const reprocessSucceeded = isSuccessfulReprocessResult(record.result);
-        dashboardRows.push({
+        const historyRow = {
           dataHora: String(result.data_hora || record.createdAt),
           sku,
           shopifyId: String(result.shopify_id || base?.shopifyId || ""),
-          marca: base?.marca || "",
+          marca: String(result.marca || base?.marca || ""),
           tipoProduto: base?.tipoProduto,
           tituloAntes: String(result.titulo_antes || base?.tituloAntes || ""),
           tituloDepois: String(
@@ -119,7 +138,10 @@ export async function GET(req: NextRequest) {
               ? "Sucesso - ChatGPT"
               : "Sucesso - reprocessado"
             : String(result.status || "Erro - reprocessamento não concluído"),
-        });
+        };
+        errorRows.push(historyRow);
+        if (includeReprocess || (includeCodex && result.origem === "ChatGPT"))
+          dashboardRows.push(historyRow);
       });
     }
     const dashboardOptions = {
@@ -161,8 +183,14 @@ export async function GET(req: NextRequest) {
         ? { ...dashboardOptions, latestPerProduct: true }
         : dashboardOptions,
     );
-    const currentErrors = buildDashboard(dashboardRows, {
+    const currentErrors = buildDashboard(errorRows, {
       ...dashboardOptions,
+      q: "",
+      marca: "",
+      days: 30,
+      month: "",
+      compareMonth: "",
+      catalog: false,
       quality: "",
       status: "erro",
       latestPerProduct: true,
