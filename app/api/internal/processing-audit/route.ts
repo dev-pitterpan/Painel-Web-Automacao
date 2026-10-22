@@ -1,16 +1,18 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { listLatestProcessingResults } from "@/lib/auth";
+import { getCurrentUser, listLatestProcessingResults } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const expected = String(process.env.SHOPIFY_CATALOG_SYNC_TOKEN || "").trim();
   const received = String(req.headers.get("x-pitterpan-token") || "").trim();
-  if (!expected || !received || !timingSafeEqual(
+  const tokenValid = Boolean(expected && received) && timingSafeEqual(
     createHash("sha256").update(expected).digest(),
     createHash("sha256").update(received).digest(),
-  )) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  );
+  const currentUser = tokenValid ? null : await getCurrentUser();
+  if (!tokenValid && currentUser?.role !== "admin") return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
   try {
     const records = await listLatestProcessingResults();
@@ -36,3 +38,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Falha na conferência." }, { status: 500 });
   }
 }
+
