@@ -503,6 +503,7 @@ export function DashboardClient({
     "unknown" | "operational" | "warning" | "error"
   >("unknown");
   const loadRequestId = useRef(0);
+  const lastDashboardFocusRefresh = useRef(Date.now());
   const { activeProductKey, openProduct } = useProductPanel();
 
   useEffect(() => {
@@ -962,6 +963,23 @@ export function DashboardClient({
   useEffect(() => {
     if (!filtersReady) return;
     load();
+  }, [appliedFilters, filtersReady, mode]);
+
+  useEffect(() => {
+    if (!filtersReady || mode !== "dashboard") return;
+    const refreshOnReturn = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastDashboardFocusRefresh.current < 30_000) return;
+      lastDashboardFocusRefresh.current = now;
+      void load();
+    };
+    window.addEventListener("focus", refreshOnReturn);
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    return () => {
+      window.removeEventListener("focus", refreshOnReturn);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+    };
   }, [appliedFilters, filtersReady, mode]);
 
   useEffect(() => {
