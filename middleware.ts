@@ -7,7 +7,6 @@ export function middleware(request: NextRequest) {
     pathname === "/login" ||
     pathname.startsWith("/api/auth") ||
     pathname === "/api/image-sync" ||
-    pathname === "/api/internal/processing-audit" ||
     pathname === "/api/shopify-products" ||
     pathname === "/api/shopify/webhooks/products" ||
     pathname === "/api/winthor-products" ||
@@ -50,4 +49,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
-
