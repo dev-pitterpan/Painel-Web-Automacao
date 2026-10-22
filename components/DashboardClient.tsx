@@ -1133,7 +1133,7 @@ export function DashboardClient({
     }
 
     checkAutomationHealth();
-    const interval = window.setInterval(checkAutomationHealth, 5 * 60_000);
+    const interval = window.setInterval(checkAutomationHealth, 15 * 60_000);
     document.addEventListener("visibilitychange", checkAutomationHealth);
     return () => {
       active = false;
