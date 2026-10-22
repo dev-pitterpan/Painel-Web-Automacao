@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
         };
       });
     const includeReprocess = params.get("includeReprocess") === "1";
+    const includeCodex = params.get("includeCodex") === "1";
     const dashboardRows = [...rows];
     {
       const latestReprocesses = await listLatestProcessingResults();
@@ -86,13 +87,15 @@ export async function GET(req: NextRequest) {
           : record.result;
         const result =
           rawResult && typeof rawResult === "object" ? rawResult : {};
+        if (includeCodex && !includeReprocess && result.origem !== "ChatGPT")
+          return;
         const isYes = (value: unknown) =>
           ["sim", "true"].includes(String(value || "").toLowerCase());
         const reprocessSucceeded = isSuccessfulReprocessResult(record.result);
         dashboardRows.push({
           dataHora: String(result.data_hora || record.createdAt),
           sku,
-          shopifyId: base?.shopifyId,
+          shopifyId: String(result.shopify_id || base?.shopifyId || ""),
           marca: base?.marca || "",
           tipoProduto: base?.tipoProduto,
           tituloAntes: String(result.titulo_antes || base?.tituloAntes || ""),
@@ -112,7 +115,9 @@ export async function GET(req: NextRequest) {
           colecoesAlteradas: isYes(result.colecoes_alteradas),
           descricaoGerada: isYes(result.descricao_gerada),
           status: reprocessSucceeded
-            ? "Sucesso - reprocessado"
+            ? result.origem === "ChatGPT"
+              ? "Sucesso - ChatGPT"
+              : "Sucesso - reprocessado"
             : String(result.status || "Erro - reprocessamento não concluído"),
         });
       });
@@ -149,7 +154,7 @@ export async function GET(req: NextRequest) {
     const dashboard = buildDashboard(
       dashboardOptions.quality
         ? currentCatalogRows
-        : includeReprocess
+        : includeReprocess || includeCodex
           ? dashboardRows
           : rows,
       dashboardOptions.quality

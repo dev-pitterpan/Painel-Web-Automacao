@@ -729,14 +729,14 @@ export async function listShopifyCatalogProducts(input: {
 export async function getShopifyCatalogHealthSummary() {
   await ensureDatabase();
   const [catalog] = await query<{
-      total: number;
-      last_received_at: string | null;
-      status: string | null;
-      expected_count: number | null;
-      received_count: number | null;
-      completed_at: string | null;
-      started_at: string | null;
-      error_message: string | null;
+    total: number;
+    last_received_at: string | null;
+    status: string | null;
+    expected_count: number | null;
+    received_count: number | null;
+    completed_at: string | null;
+    started_at: string | null;
+    error_message: string | null;
   }>(
     `SELECT catalog.total, catalog.last_received_at,
        sync.status, sync.expected_count, sync.received_count,
@@ -1316,7 +1316,6 @@ export async function enqueueProductImages(
       [batchId, sku.trim(), position, fileName, match[1], match[2]],
     );
   }
-
 }
 
 export async function enqueueProductImageDeletions(
@@ -1768,13 +1767,13 @@ export async function listLatestProcessingResults(): Promise<
     created_at: unknown;
     result_json: unknown;
   }>(`
-    SELECT DISTINCT ON (LOWER(TRIM(sku))) sku, title, created_at, result_json
+    SELECT DISTINCT ON (COALESCE(NULLIF(result_json->>'shopify_id', ''), LOWER(TRIM(sku)))) sku, title, created_at, result_json
     FROM reprocess_jobs
     WHERE status = 'enviado'
       AND result_json IS NOT NULL
       AND source IN ('reprocess', 'products')
       AND TRIM(sku) <> ''
-    ORDER BY LOWER(TRIM(sku)), created_at DESC, id DESC
+    ORDER BY COALESCE(NULLIF(result_json->>'shopify_id', ''), LOWER(TRIM(sku))), created_at DESC, id DESC
   `);
   return rows.map((row) => ({
     sku: row.sku,

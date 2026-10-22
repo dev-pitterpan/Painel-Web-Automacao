@@ -835,6 +835,7 @@ export function DashboardClient({
       if (mode === "dashboard") p.set("month", appliedFilters.month);
       if (mode === "dashboard") p.set("currentErrors", "1");
       if (mode === "products") p.set("catalog", "1");
+      if (mode === "products") p.set("includeCodex", "1");
       if (mode === "dashboard" && appliedFilters.compareMonth)
         p.set("compareMonth", appliedFilters.compareMonth);
       if (appliedFilters.qualityFilter)
