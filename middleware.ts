@@ -7,6 +7,7 @@ export function middleware(request: NextRequest) {
     pathname === "/login" ||
     pathname.startsWith("/api/auth") ||
     pathname === "/api/image-sync" ||
+    pathname === "/api/internal/chatgpt-processing" ||
     pathname === "/api/shopify-products" ||
     pathname === "/api/shopify/webhooks/products" ||
     pathname === "/api/winthor-products" ||
