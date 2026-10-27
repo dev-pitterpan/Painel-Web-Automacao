@@ -4249,6 +4249,7 @@ button.user-list-avatar:hover {
   position: fixed;
   display: flex;
   flex-direction: column;
+  container: product-panel / inline-size;
   z-index: 100;
   width: min(960px, calc(100vw - 32px));
   min-width: 680px;
@@ -9742,10 +9743,8 @@ button.user-list-avatar:hover {
    Painel de produto redimensionável (somente desktop)
    --------------------------------------------------------------------------
    A aba ancorada pode ir de ~320px até ~760px (ProductDetailsDrawer).
-   Só .product-floating-window.is-docked-left/right declaram o container
-   "product-panel", portanto estas regras respondem à largura QUE O USUÁRIO
-   ESCOLHEU no desktop. Celular e o modo flutuante não possuem esse
-   container, então nada muda neles.
+   O container "product-panel" acompanha a largura real da janela,
+   inclusive quando ela está flutuante ou em uma tela pequena.
    ========================================================================== */
 
 /* Painel largo: aproveita o espaço extra em vez de deixar buraco. */
@@ -9941,5 +9940,105 @@ button.user-list-avatar:hover {
   .chart-panel,
   .brand-panel {
     min-height: 260px;
+  }
+}
+
+/* Identificadores e estados do produto seguem a largura da própria janela. */
+.product-drawer-meta,
+.is-editing-product .product-drawer-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 20px;
+}
+.product-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+.product-meta-item,
+.is-editing-product .product-meta-item {
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+}
+.product-meta-item > span {
+  min-width: 0;
+}
+.product-drawer-meta .product-meta-item small,
+.is-editing-product .product-drawer-meta .product-meta-item small {
+  margin-bottom: 3px;
+  font-size: 9px;
+  line-height: 1.25;
+}
+.product-drawer-meta .product-meta-item strong,
+.is-editing-product .product-drawer-meta .product-meta-item strong {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.product-meta-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.product-meta-actions .drawer-status,
+.is-editing-product .product-meta-actions .drawer-status {
+  align-self: center;
+  min-width: 0;
+  margin: 0;
+  padding: 7px 10px;
+}
+.product-meta-actions .drawer-winthor-status {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 10px;
+}
+.product-meta-actions .drawer-winthor-status small {
+  margin: 0;
+  white-space: nowrap;
+}
+.product-meta-actions .drawer-winthor-status strong {
+  overflow: visible;
+  white-space: normal;
+}
+.product-meta-actions .drawer-edit-button {
+  min-width: 40px;
+  margin-left: auto;
+}
+@container product-panel (max-width: 760px) {
+  .product-meta-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container product-panel (max-width: 470px) {
+  .product-drawer-meta,
+  .is-editing-product .product-drawer-meta {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .product-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+  }
+  .is-editing-product .product-meta-item > i {
+    display: none;
+  }
+}
+@container product-panel (max-width: 330px) {
+  .product-meta-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .product-meta-actions .drawer-winthor-status {
+    flex-wrap: wrap;
   }
 }

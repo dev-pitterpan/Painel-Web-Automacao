@@ -1461,6 +1461,7 @@ export function ProductDetailsDrawer({
           </button>
         </header>
         <div className="product-drawer-meta">
+          <div className="product-meta-grid">
           <span className="product-meta-item">
             {step === "edit" && (
               <i>
@@ -1516,12 +1517,26 @@ export function ProductDetailsDrawer({
               <strong>{activeRow.dataHora || "—"}</strong>
             </span>
           </span>
-          <div className="drawer-status-actions">
+          </div>
+          <div className="product-meta-actions">
             <span
               className={failed ? "drawer-status is-error" : "drawer-status"}
             >
               {failed ? <CircleAlert size={14} /> : <CheckCircle2 size={14} />}
               {failed ? "Erro" : "Sincronizado"}
+            </span>
+            <span
+              className={`drawer-winthor-status is-${(winthorStatus?.status || "PENDENTE").toLowerCase()}`}
+              title={winthorStatus?.description || "Status no WinThor"}
+            >
+              <small>Status WinThor</small>
+              <strong>
+                {winthorStatus?.status === "FORA_DE_LINHA"
+                  ? "Fora de linha"
+                  : winthorStatus?.status === "ATIVO"
+                    ? "Ativo"
+                    : "Aguardando sincronização"}
+              </strong>
             </span>
             {step === "details" && (
               <button
@@ -1544,19 +1559,6 @@ export function ProductDetailsDrawer({
               </button>
             )}
           </div>
-          <span
-            className={`drawer-winthor-status is-${(winthorStatus?.status || "PENDENTE").toLowerCase()}`}
-            title={winthorStatus?.description || "Status no WinThor"}
-          >
-            <small>Status WinThor</small>
-            <strong>
-              {winthorStatus?.status === "FORA_DE_LINHA"
-                ? "Fora de linha"
-                : winthorStatus?.status === "ATIVO"
-                  ? "Ativo"
-                  : "Aguardando sincronização"}
-            </strong>
-          </span>
         </div>
         <div className="product-drawer-scroll">
           {(error || message) && (
