@@ -1523,7 +1523,7 @@ export function ProductDetailsDrawer({
               className={failed ? "drawer-status is-error" : "drawer-status"}
             >
               {failed ? <CircleAlert size={14} /> : <CheckCircle2 size={14} />}
-              {failed ? "Erro" : "Sincronizado"}
+              {failed ? "Processamento: erro" : "Processamento: sincronizado"}
             </span>
             <span
               className={`drawer-winthor-status is-${(winthorStatus?.status || "PENDENTE").toLowerCase()}`}
