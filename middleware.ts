@@ -11,6 +11,7 @@ export function middleware(request: NextRequest) {
     pathname === "/api/shopify-products" ||
     pathname === "/api/shopify/webhooks/products" ||
     pathname === "/api/winthor-products" ||
+    pathname === "/api/winthor-oracle-sync" ||
     pathname === "/api/n8n/reprocess/callback" ||
     pathname === "/api/n8n/product-automation/callback";
   const requestHeaders = new Headers(request.headers);

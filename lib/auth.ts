@@ -958,6 +958,58 @@ export async function syncWinthorProductStatuses(
   return { batchId, synchronized: normalized.length };
 }
 
+export async function syncWinthorManufacturerCodes(
+  products: Array<{ sku: string; manufacturerCode: string }>,
+) {
+  await ensureDatabase();
+  const normalized = [
+    ...new Map(
+      products
+        .map((product) => ({
+          sku: String(product.sku || "").trim(),
+          manufacturerCode: String(product.manufacturerCode || "")
+            .trim()
+            .slice(0, 160),
+        }))
+        .filter((product) => product.sku)
+        .map((product) => [product.sku, product]),
+    ).values(),
+  ];
+  if (!normalized.length)
+    throw new Error("A sincronização não contém códigos WinThor válidos.");
+  const rows = await query<{ updated: number }>(
+    `WITH incoming AS (
+       SELECT sku, manufacturer_code
+       FROM jsonb_to_recordset($1::jsonb)
+         AS data(sku TEXT, manufacturer_code TEXT)
+     ), desired AS (
+       SELECT p.shopify_id, COALESCE(i.manufacturer_code, '') AS manufacturer_code
+       FROM shopify_catalog_products p
+       LEFT JOIN incoming i ON i.sku = p.primary_sku
+     ), changed AS (
+       UPDATE shopify_catalog_products p
+       SET manufacturer_code = desired.manufacturer_code
+       FROM desired
+       WHERE p.shopify_id = desired.shopify_id
+         AND p.manufacturer_code IS DISTINCT FROM desired.manufacturer_code
+       RETURNING p.shopify_id
+     )
+     SELECT COUNT(*)::int AS updated FROM changed`,
+    [
+      JSON.stringify(
+        normalized.map((product) => ({
+          sku: product.sku,
+          manufacturer_code: product.manufacturerCode,
+        })),
+      ),
+    ],
+  );
+  return {
+    received: normalized.length,
+    updated: Number(rows[0]?.updated || 0),
+  };
+}
+
 export async function listShopifyCatalogIdsForWinthorSkus(skus: string[]) {
   await ensureDatabase();
   const normalizedSkus = [
@@ -981,6 +1033,10 @@ export async function getWinthorProductStatus(sku: string) {
   await ensureDatabase();
   const rows = await query<any>(
     `SELECT w.sku, w.description, w.synced_at,
+       (SELECT p.manufacturer_code
+          FROM shopify_catalog_products p
+         WHERE p.primary_sku = $1
+         LIMIT 1) AS manufacturer_code,
        EXISTS (SELECT 1 FROM winthor_sync_runs) AS has_sync
      FROM (SELECT 1) seed
      LEFT JOIN winthor_product_statuses w
@@ -1000,6 +1056,7 @@ export async function getWinthorProductStatus(sku: string) {
         : ("ATIVO" as const),
     description: String(row.description || ""),
     syncedAt: iso(row.synced_at),
+    manufacturerCode: String(row.manufacturer_code || ""),
   };
 }
 

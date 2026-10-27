@@ -79,6 +79,7 @@ type WinthorProductStatus = {
   status: "ATIVO" | "FORA_DE_LINHA" | "PENDENTE";
   description: string;
   syncedAt: string;
+  manufacturerCode: string;
 };
 type EditForm = {
   shopifyId: string;
@@ -649,6 +650,7 @@ export function ProductDetailsDrawer({
             status: "PENDENTE",
             description: "",
             syncedAt: "",
+            manufacturerCode: "",
           });
       });
     return () => controller.abort();
@@ -1479,6 +1481,17 @@ export function ProductDetailsDrawer({
             <span>
               <small>Código de barras</small>
               <strong>{barcode || "—"}</strong>
+            </span>
+          </span>
+          <span className="product-meta-item">
+            {step === "edit" && (
+              <i>
+                <Barcode size={18} />
+              </i>
+            )}
+            <span>
+              <small>Código do fabricante</small>
+              <strong>{winthorStatus?.manufacturerCode || "—"}</strong>
             </span>
           </span>
           <span className="product-meta-item">

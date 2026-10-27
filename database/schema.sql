@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS shopify_catalog_products (
   weight DOUBLE PRECISION NOT NULL DEFAULT 0,
   weight_unit TEXT NOT NULL DEFAULT 'g',
   primary_sku TEXT NOT NULL DEFAULT '',
+  manufacturer_code TEXT NOT NULL DEFAULT '',
   variants_json JSONB NOT NULL DEFAULT '[]'::jsonb,
   total_inventory INTEGER NOT NULL DEFAULT 0,
   price_min DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -89,6 +90,9 @@ CREATE TABLE IF NOT EXISTS shopify_catalog_products (
   shopify_updated_at TIMESTAMPTZ,
   synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE shopify_catalog_products
+  ADD COLUMN IF NOT EXISTS manufacturer_code TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS shopify_catalog_sync_runs (
   batch_id TEXT PRIMARY KEY,
