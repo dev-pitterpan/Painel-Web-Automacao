@@ -153,6 +153,7 @@ export async function shopifyGraphql<T>(
   query: string,
   variables: Record<string, unknown> = {},
   retryAuthentication = true,
+  throttleAttempts = 0,
 ): Promise<T> {
   const token = await accessToken();
   const response = await fetch(
@@ -171,9 +172,42 @@ export async function shopifyGraphql<T>(
   if (response.status === 401 && retryAuthentication) {
     globalShopify.shopifyAdminToken = undefined;
     await accessToken(true);
-    return shopifyGraphql<T>(query, variables, false);
+    return shopifyGraphql<T>(query, variables, false, throttleAttempts);
   }
   const payload = await response.json().catch(() => ({}));
+  const throttled =
+    response.status === 429 ||
+    (Array.isArray(payload?.errors) &&
+      payload.errors.length > 0 &&
+      payload.errors.every(
+        (error: { extensions?: { code?: string } }) =>
+          error?.extensions?.code === "THROTTLED",
+      ) &&
+      !payload?.data);
+  if (throttled && throttleAttempts < 3) {
+    const cost = payload?.extensions?.cost;
+    const restoreRate = Number(cost?.throttleStatus?.restoreRate || 0);
+    const deficit =
+      Number(cost?.requestedQueryCost || 0) -
+      Number(cost?.throttleStatus?.currentlyAvailable || 0);
+    const refillMs =
+      restoreRate > 0 ? Math.ceil((deficit / restoreRate) * 1000) : 0;
+    const delayMs = Math.min(
+      8_000,
+      Math.max(1_000 * 2 ** throttleAttempts, refillMs + 250),
+    );
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    return shopifyGraphql<T>(
+      query,
+      variables,
+      retryAuthentication,
+      throttleAttempts + 1,
+    );
+  }
+  if (throttled)
+    throw new Error(
+      "A Shopify está temporariamente limitando as solicitações. Aguarde alguns segundos e tente novamente.",
+    );
   if (!response.ok)
     throw new Error(
       `A Shopify respondeu com HTTP ${response.status}: ${String(payload?.errors?.[0]?.message || "falha desconhecida")}`,
