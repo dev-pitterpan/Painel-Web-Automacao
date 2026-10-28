@@ -157,7 +157,7 @@ export async function GET(req: NextRequest) {
       timeSettings: settings,
     };
     const currentCatalogRows = latestHistoryRowsByProduct(
-      dashboardRows,
+      errorRows,
     ).flatMap((row) => {
       const catalogProduct = catalogBySku.get(String(row.sku || "").trim());
       if (!catalogProduct) return [];
